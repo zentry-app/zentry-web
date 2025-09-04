@@ -32,6 +32,16 @@ const geist = localFont({
 export const metadata: Metadata = {
   title: "Zentry - Gestión de Residenciales",
   description: "Zentry: Tu plataforma integral para la administración y seguridad de residenciales. Optimiza la gestión, comunicación y control de acceso.",
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: '32x32', type: 'image/x-icon' },
+      { url: '/favicon-192x192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/favicon-512x512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/favicon-192x192.png', sizes: '192x192', type: 'image/png' },
+    ],
+  },
 };
 
 export default function RootLayout({
