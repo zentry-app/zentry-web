@@ -1,0 +1,24 @@
+{
+  "app/dashboard/ingresos/page.tsx -> @/components/dashboard/ingresos/DetallesIngresoDialogContent": {
+    "id": "app/dashboard/ingresos/page.tsx -> @/components/dashboard/ingresos/DetallesIngresoDialogContent",
+    "files": [
+      "static/chunks/_app-pages-browser_src_components_dashboard_ingresos_DetallesIngresoDialogContent_tsx.js"
+    ]
+  },
+  "app/dashboard/ingresos/page.tsx -> @/components/dashboard/ingresos/TablaIngresos": {
+    "id": "app/dashboard/ingresos/page.tsx -> @/components/dashboard/ingresos/TablaIngresos",
+    "files": [
+      "static/chunks/_app-pages-browser_src_components_dashboard_ingresos_TablaIngresos_tsx.js"
+    ]
+  },
+  "app/dashboard/page.tsx -> firebase/firestore": {
+    "id": "app/dashboard/page.tsx -> firebase/firestore",
+    "files": []
+  },
+  "src/lib/firebase/config.ts -> firebase/auth": {
+    "id": "src/lib/firebase/config.ts -> firebase/auth",
+    "files": [
+      "static/chunks/_app-pages-browser_node_modules_firebase_auth_dist_esm_index_esm_js.js"
+    ]
+  }
+}

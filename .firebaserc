@@ -1,0 +1,11 @@
+{
+  "projects": {
+    "default": "zentryapp-949f4"
+  },
+  "targets": {
+    "zentryapp-949f4": {
+      "hosting": {}
+    }
+  },
+  "etags": {}
+}

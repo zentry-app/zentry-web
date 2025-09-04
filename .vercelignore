@@ -1,0 +1,55 @@
+# Archivos de desarrollo
+.env.local
+.env.development
+.env.test
+
+# Archivos de Firebase (ya que usamos Vercel)
+.firebase/
+firebase.json
+.firebaserc
+
+# Archivos de build y caché
+.next/
+out/
+dist/
+build/
+
+# Archivos de desarrollo
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Archivos de testing
+coverage/
+.nyc_output/
+
+# Archivos de documentación
+docs/
+*.md
+!README.md
+
+# Archivos de scripts de desarrollo
+scripts/
+!scripts/deploy-vercel.sh
+
+# Archivos de configuración local
+deploy.config.js
+cleanup_and_deploy.sh
+
+# Archivos de Storybook
+storybook-static/
+
+# Archivos de análisis
+.vercel/
+.vercel-url
