@@ -34,12 +34,12 @@ export const metadata: Metadata = {
   description: "Zentry: Tu plataforma integral para la administración y seguridad de residenciales. Optimiza la gestión, comunicación y control de acceso.",
   icons: {
     icon: [
-      { url: '/favicon.ico', sizes: '32x32', type: 'image/x-icon' },
-      { url: '/favicon-192x192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/favicon-512x512.png', sizes: '512x512', type: 'image/png' },
+      { url: '/favicon.ico?v=2', sizes: '32x32', type: 'image/x-icon' },
+      { url: '/favicon-192x192.png?v=2', sizes: '192x192', type: 'image/png' },
+      { url: '/favicon-512x512.png?v=2', sizes: '512x512', type: 'image/png' },
     ],
     apple: [
-      { url: '/favicon-192x192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/favicon-192x192.png?v=2', sizes: '192x192', type: 'image/png' },
     ],
   },
 };
@@ -53,6 +53,11 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" type="image/x-icon" href="/favicon.ico?v=2" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-192x192.png?v=2" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192x192.png?v=2" />
+        <link rel="icon" type="image/png" sizes="512x512" href="/favicon-512x512.png?v=2" />
+        <link rel="apple-touch-icon" href="/favicon-192x192.png?v=2" />
       </head>
       <body className={`${inter.variable} ${poppins.variable} ${geist.variable} font-sans antialiased`}>
         <ThemeProvider
