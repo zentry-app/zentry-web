@@ -1,4 +1,20 @@
 {
+  "app/dashboard/tags/page.tsx -> @/lib/firebase/config": {
+    "id": "app/dashboard/tags/page.tsx -> @/lib/firebase/config",
+    "files": []
+  },
+  "app/dashboard/tags/page.tsx -> firebase/firestore": {
+    "id": "app/dashboard/tags/page.tsx -> firebase/firestore",
+    "files": []
+  },
+  "src/components/tags/AddTagModal.tsx -> @/lib/firebase/config": {
+    "id": "src/components/tags/AddTagModal.tsx -> @/lib/firebase/config",
+    "files": []
+  },
+  "src/components/tags/AddTagModal.tsx -> firebase/firestore": {
+    "id": "src/components/tags/AddTagModal.tsx -> firebase/firestore",
+    "files": []
+  },
   "src/lib/firebase/config.ts -> firebase/auth": {
     "id": "src/lib/firebase/config.ts -> firebase/auth",
     "files": [

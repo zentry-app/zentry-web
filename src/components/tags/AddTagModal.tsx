@@ -19,6 +19,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -30,9 +43,12 @@ import {
   Car,
   Home,
   Calendar,
-  FileText
+  FileText,
+  Check,
+  ChevronsUpDown
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { getAuthSafe } from "@/lib/firebase/config";
 
 interface Residencial {
   id: string;
@@ -43,6 +59,10 @@ interface Casa {
   id: string;
   nombre: string;
   residencialId: string;
+  calle?: string;
+  houseNumber?: string;
+  houseID?: string;
+  searchText?: string;
 }
 
 interface Panel {
@@ -71,6 +91,8 @@ interface AddTagModalProps {
   casas: Casa[];
   paneles: Panel[];
   currentUserId: string;
+  esAdminDeResidencial?: boolean;
+  residencialIdDelAdmin?: string | null;
 }
 
 export function AddTagModal({
@@ -80,7 +102,9 @@ export function AddTagModal({
   residenciales,
   casas,
   paneles,
-  currentUserId
+  currentUserId,
+  esAdminDeResidencial = false,
+  residencialIdDelAdmin = null
 }: AddTagModalProps) {
   const [formData, setFormData] = useState<TagFormData>({
     cardNumberDec: "",
@@ -97,40 +121,325 @@ export function AddTagModal({
   const [validatingCard, setValidatingCard] = useState(false);
   const [cardExists, setCardExists] = useState(false);
   const [casasFiltradas, setCasasFiltradas] = useState<Casa[]>([]);
+  
+  // Estado para casas cargadas directamente en el modal
+  const [casasModal, setCasasModal] = useState<Casa[]>([]);
   const [panelesFiltrados, setPanelesFiltrados] = useState<Panel[]>([]);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [openCasaSelector, setOpenCasaSelector] = useState(false);
+
+  // Función para obtener el token de autenticación
+  const getAuthToken = async () => {
+    const auth = await getAuthSafe();
+    if (!auth) {
+      throw new Error('Firebase Auth no disponible');
+    }
+    const user = auth.currentUser;
+    if (user) {
+      return await user.getIdToken();
+    }
+    throw new Error('Usuario no autenticado');
+  };
+
+  // Función para obtener casas directamente en el modal
+  const obtenerCasasModal = async (residencialDocId: string): Promise<Casa[]> => {
+    try {
+      const { collection, getDocs, doc, getDoc, query, where } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase/config');
+      
+      console.log(`🏠 [MODAL] Obteniendo casas para residencial: ${residencialDocId}`);
+      
+      // PRIMERO: Verificar que el residencial existe y obtener su residencialID
+      const residencialRef = doc(db, 'residenciales', residencialDocId);
+      const residencialDoc = await getDoc(residencialRef);
+      console.log(`🏠 [MODAL] Residencial existe:`, residencialDoc.exists());
+      
+      let residencialID = null;
+      if (residencialDoc.exists()) {
+        const residencialData = residencialDoc.data();
+        residencialID = residencialData?.residencialID;
+        console.log(`🏠 [MODAL] Datos del residencial:`, residencialData);
+        console.log(`🏠 [MODAL] ResidencialID encontrado:`, residencialID);
+      }
+      
+      // SEGUNDO: Buscar casas en múltiples ubicaciones
+      let casas: Casa[] = [];
+      
+      // 1. Buscar en residenciales/{docId}/casas (estructura esperada)
+      try {
+      const casasRef = collection(db, 'residenciales', residencialDocId, 'casas');
+      console.log(`🏠 [MODAL] Consultando colección: residenciales/${residencialDocId}/casas`);
+      
+      const casasSnapshot = await getDocs(casasRef);
+        console.log(`🏠 [MODAL] Documentos encontrados en subcolección: ${casasSnapshot.docs.length}`);
+        
+        if (casasSnapshot.docs.length > 0) {
+          casas = casasSnapshot.docs.map(doc => {
+            const data = doc.data();
+            console.log(`🏠 [MODAL] Procesando casa ${doc.id}:`, data);
+            return {
+              id: doc.id,
+              nombre: data.nombre || data.houseID || data.direccion || `Casa ${doc.id}`,
+              residencialId: residencialDocId,
+              ...data
+            };
+          });
+        }
+      } catch (error) {
+        console.log(`🏠 [MODAL] Error en subcolección casas:`, error);
+      }
+      
+      // 2. Si no hay casas y tenemos residencialID, buscar en colección principal de casas
+      if (casas.length === 0 && residencialID) {
+        try {
+          console.log(`🏠 [MODAL] Buscando en colección principal 'casas' con residencialID: ${residencialID}`);
+        const casasMainRef = collection(db, 'casas');
+          const q = query(casasMainRef, where('residencialID', '==', residencialID));
+          const casasMainSnapshot = await getDocs(q);
+          console.log(`🏠 [MODAL] Documentos en colección 'casas' con residencialID ${residencialID}: ${casasMainSnapshot.docs.length}`);
+        
+        if (casasMainSnapshot.docs.length > 0) {
+            casas = casasMainSnapshot.docs.map(doc => {
+              const data = doc.data();
+              console.log(`🏠 [MODAL] Procesando casa principal ${doc.id}:`, data);
+              return {
+                id: doc.id,
+                nombre: data.nombre || data.houseID || data.direccion || `Casa ${doc.id}`,
+                residencialId: residencialDocId,
+                ...data
+              };
+            });
+          }
+        } catch (error) {
+          console.log(`🏠 [MODAL] Error en colección principal casas:`, error);
+        }
+      }
+      
+      // 3. Si aún no hay casas, buscar en usuarios que pertenezcan a este residencial
+      if (casas.length === 0 && residencialID) {
+        try {
+          console.log(`🏠 [MODAL] Buscando casas únicas en usuarios con residencialID: ${residencialID}`);
+          const usuariosRef = collection(db, 'usuarios');
+          const q = query(usuariosRef, where('residencialID', '==', residencialID));
+          const usuariosSnapshot = await getDocs(q);
+          console.log(`🏠 [MODAL] Usuarios encontrados: ${usuariosSnapshot.docs.length}`);
+          
+          // Usar la misma lógica que la página de usuarios para obtener TODAS las casas únicas
+          const sanitize = (s?: string) => (s || '')
+            .toString()
+            .replace(/[\u0000-\u001F\u007F-\u009F\u200B\u200C\u200D\uFEFF]/g, '');
+          const normalize = (s?: string) => sanitize(s).trim().toUpperCase().replace(/\s+/g, ' ');
+          const addrKey = (calle?: string, houseNumber?: string) => `ADDR::${normalize(calle)}#${normalize(houseNumber)}`;
+          
+          // Índices para detectar duplicados y unificar casas
+          const hidIndex = new Map<string, string>();
+          const addrIndex = new Map<string, string>();
+          const casasUnicas = new Map<string, Casa>();
+          
+          // Solo residentes con referencia de casa (igual que en usuarios)
+          const soloResidentes = usuariosSnapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter((u: any) => {
+              const tieneCasa = u.houseID || u.houseId || u.houseNumber || u.calle;
+              return u.role === 'resident' && !!tieneCasa;
+            });
+          
+          console.log(`🏠 [MODAL] Residentes con casa encontrados: ${soloResidentes.length}`);
+          
+          for (const usuario of soloResidentes) {
+            const rawHid = ((usuario as any).houseID || (usuario as any).houseId || '').toString();
+            const hidSanitized = sanitize(rawHid);
+            const hidNorm = normalize(hidSanitized);
+            const aKey = addrKey((usuario as any).calle, (usuario as any).houseNumber);
+            
+            // Elegir key preferente (igual que en usuarios)
+            let chosenKey = hidNorm || aKey;
+            
+            // Verificar consistencia con índices existentes
+            if (hidNorm) {
+              const hidExisting = hidIndex.get(hidNorm);
+              if (hidExisting && hidExisting !== chosenKey) {
+                chosenKey = hidExisting;
+              } else if (!hidExisting) {
+                hidIndex.set(hidNorm, chosenKey);
+              }
+            }
+            if (!addrIndex.has(aKey)) addrIndex.set(aKey, chosenKey);
+            
+            // Solo agregar si no existe ya
+            if (!casasUnicas.has(chosenKey)) {
+              const calle = (usuario as any).calle || '';
+              const houseNumber = (usuario as any).houseNumber || '';
+              const houseID = hidSanitized || '';
+              
+              // Crear nombre descriptivo
+              const nombreDescriptivo = calle && houseNumber 
+                ? `${calle} ${houseNumber}` 
+                : houseID || `${calle} ${houseNumber}`.trim();
+              
+              casasUnicas.set(chosenKey, {
+                id: chosenKey,
+                nombre: nombreDescriptivo,
+                residencialId: residencialDocId,
+                calle: calle,
+                houseNumber: houseNumber,
+                houseID: houseID,
+                searchText: `${calle} ${houseNumber} ${houseID}`.toLowerCase().trim()
+              });
+            }
+          }
+          
+          if (casasUnicas.size > 0) {
+            casas = Array.from(casasUnicas.values());
+            console.log(`🏠 [MODAL] Casas únicas extraídas de residentes: ${casas.length}`);
+            console.log(`🏠 [MODAL] Primeras 3 casas:`, casas.slice(0, 3).map(c => ({ 
+              id: c.id, 
+              nombre: c.nombre, 
+              calle: c.calle, 
+              houseNumber: c.houseNumber 
+            })));
+          }
+        } catch (error) {
+          console.log(`🏠 [MODAL] Error extrayendo casas de usuarios:`, error);
+        }
+      }
+      
+      // 4. Último fallback: buscar todas las casas sin filtro
+      if (casas.length === 0) {
+        try {
+          console.log(`🏠 [MODAL] Último fallback: buscando todas las casas`);
+          const casasMainRef = collection(db, 'casas');
+          const casasMainSnapshot = await getDocs(casasMainRef);
+          console.log(`🏠 [MODAL] Total de casas en colección principal: ${casasMainSnapshot.docs.length}`);
+          
+          if (casasMainSnapshot.docs.length > 0) {
+            console.log(`🏠 [MODAL] Primeras 5 casas encontradas:`, 
+              casasMainSnapshot.docs.slice(0, 5).map(doc => ({ 
+                id: doc.id, 
+                data: doc.data(),
+                residencialID: doc.data().residencialID 
+              }))
+            );
+            
+            // Filtrar por residencialID si está disponible
+            casas = casasMainSnapshot.docs
+              .filter(doc => !residencialID || doc.data().residencialID === residencialID)
+              .map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          nombre: data.nombre || data.houseID || data.direccion || `Casa ${doc.id}`,
+          residencialId: residencialDocId,
+          ...data
+        };
+      });
+          }
+        } catch (error) {
+          console.log(`🏠 [MODAL] Error en último fallback:`, error);
+        }
+      }
+      
+      console.log(`🏠 [MODAL] Casas finales encontradas: ${casas.length}`, casas);
+      return casas;
+    } catch (error) {
+      console.error('🏠 [MODAL] Error obteniendo casas:', error);
+      return [];
+    }
+  };
+
+  // Seleccionar automáticamente el residencial del admin
+  useEffect(() => {
+    console.log('🔍 [DEBUG] esAdminDeResidencial:', esAdminDeResidencial);
+    console.log('🔍 [DEBUG] residencialIdDelAdmin:', residencialIdDelAdmin);
+    console.log('🔍 [DEBUG] formData.residencialId:', formData.residencialId);
+    console.log('🔍 [DEBUG] residenciales disponibles:', residenciales.map(r => ({ 
+      id: r.id, 
+      nombre: r.nombre, 
+      residencialID: (r as any).residencialID,
+      allProps: r 
+    })));
+    
+    // Solo auto-seleccionar residencial para admin de residencial, no para admin global
+    if (esAdminDeResidencial && residencialIdDelAdmin && !formData.residencialId && residenciales.length > 0) {
+      // Buscar el residencial que coincida con el residencialIdDelAdmin
+      const residencialEncontrado = residenciales.find(r => (r as any).residencialID === residencialIdDelAdmin);
+      
+      if (residencialEncontrado) {
+        console.log('🔍 [DEBUG] Estableciendo residencialId:', residencialEncontrado.id);
+        setFormData(prev => ({
+          ...prev,
+          residencialId: residencialEncontrado.id
+        }));
+        
+        // Cargar casas directamente en el modal
+        obtenerCasasModal(residencialEncontrado.id).then(casas => {
+          setCasasModal(casas);
+        });
+      } else {
+        console.log('🔍 [DEBUG] No se encontró residencial para:', residencialIdDelAdmin);
+        console.log('🔍 [DEBUG] Usando el primer residencial disponible como fallback');
+        
+        // Fallback: usar el primer residencial disponible
+        const primerResidencial = residenciales[0];
+        if (primerResidencial) {
+          console.log('🔍 [DEBUG] Estableciendo residencialId (fallback):', primerResidencial.id);
+          setFormData(prev => ({
+            ...prev,
+            residencialId: primerResidencial.id
+          }));
+          
+          // Cargar casas directamente en el modal
+          obtenerCasasModal(primerResidencial.id).then(casas => {
+            setCasasModal(casas);
+          });
+        }
+      }
+    } else if (!esAdminDeResidencial && residenciales.length > 0) {
+      // Para admin global, no auto-seleccionar residencial
+      console.log('🔍 [DEBUG] Admin global - no auto-seleccionando residencial');
+    }
+  }, [esAdminDeResidencial, residencialIdDelAdmin, formData.residencialId, residenciales]);
+
+  // Cargar casas cuando admin global selecciona un residencial
+  useEffect(() => {
+    if (!esAdminDeResidencial && formData.residencialId && residenciales.length > 0) {
+      console.log('🔍 [DEBUG] Admin global seleccionó residencial:', formData.residencialId);
+      obtenerCasasModal(formData.residencialId).then(casas => {
+        setCasasModal(casas);
+      });
+    }
+  }, [formData.residencialId, esAdminDeResidencial, residenciales.length]);
 
   // Filtrar casas y paneles cuando cambia el residencial
   useEffect(() => {
-    console.log('🏠 [ADD-TAG] useEffect triggered - residencialId:', formData.residencialId);
-    console.log('🏠 [ADD-TAG] Total casas disponibles:', casas.length);
-    console.log('🏠 [ADD-TAG] Total paneles disponibles:', paneles.length);
-    
     if (formData.residencialId) {
-      const casasDelResidencial = casas.filter(c => c.residencialId === formData.residencialId);
+      // Usar casas del modal si están disponibles, sino usar las props
+      const casasAUsar = casasModal.length > 0 ? casasModal : casas;
+      const casasDelResidencial = casasAUsar.filter(c => c.residencialId === formData.residencialId);
       const panelesDelResidencial = paneles.filter(p => 
         p.residencialId === formData.residencialId && p.tipo === 'vehicular'
       );
       
-      console.log('🏠 [ADD-TAG] Casas filtradas para residencial', formData.residencialId, ':', casasDelResidencial.length);
-      console.log('🏠 [ADD-TAG] Casas filtradas:', casasDelResidencial);
-      console.log('🏠 [ADD-TAG] Paneles filtrados para residencial', formData.residencialId, ':', panelesDelResidencial.length);
-      console.log('🏠 [ADD-TAG] Paneles filtrados:', panelesDelResidencial);
-      
       setCasasFiltradas(casasDelResidencial);
       setPanelesFiltrados(panelesDelResidencial);
+      
+      console.log('🔍 [MODAL] Casas filtradas:', casasDelResidencial);
 
-      // Si hay un grupo por defecto "Todos los accesos vehiculares", preseleccionarlo
-      const grupoPorDefecto = panelesDelResidencial.find(p => 
-        p.nombre.toLowerCase().includes('todos') || 
-        p.nombre.toLowerCase().includes('accesos vehiculares')
+      // Para tags de residentes, asignar automáticamente entrada y salida
+      const plumasResidente = panelesDelResidencial.filter(p => 
+        p.nombre.includes('Residente')
       );
       
-      if (grupoPorDefecto) {
+      console.log('🔍 [MODAL] Plumas de residente encontradas:', plumasResidente);
+      console.log('🔍 [MODAL] IDs de plumas:', plumasResidente.map(p => p.id));
+      
+      if (plumasResidente.length > 0) {
+        // Asignar automáticamente todas las plumas de residente
         setFormData(prev => ({
           ...prev,
-          panels: [grupoPorDefecto.id]
+          panels: plumasResidente.map(p => p.id)
         }));
+        console.log('🔍 [MODAL] Plumas asignadas automáticamente:', plumasResidente.map(p => p.id));
       }
 
       // Resetear casa si no pertenece al residencial
@@ -141,7 +450,7 @@ export function AddTagModal({
       setCasasFiltradas([]);
       setPanelesFiltrados([]);
     }
-  }, [formData.residencialId, casas, paneles]);
+  }, [formData.residencialId, casas, paneles, casasModal]);
 
   // Validar número de tarjeta único
   useEffect(() => {
@@ -149,12 +458,22 @@ export function AddTagModal({
       if (formData.cardNumberDec && formData.residencialId) {
         setValidatingCard(true);
         try {
-          // TODO: Implementar validación real contra Firestore
-          // const exists = await checkCardExists(formData.cardNumberDec, formData.residencialId);
-          // setCardExists(exists);
-          setCardExists(false); // Placeholder
+          const response = await fetch(`/api/tags/validate-card?cardNumberDec=${formData.cardNumberDec}&residencialId=${formData.residencialId}`, {
+            headers: {
+              'Authorization': `Bearer ${await getAuthToken()}`
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            setCardExists(!data.valid);
+          } else {
+            console.error("Error validando tarjeta:", await response.text());
+            setCardExists(false);
+          }
         } catch (error) {
           console.error("Error validando tarjeta:", error);
+          setCardExists(false);
         } finally {
           setValidatingCard(false);
         }
@@ -213,13 +532,16 @@ export function AddTagModal({
       return false;
     }
 
-    if (formData.panels.length === 0) {
-      toast.error("Debe seleccionar al menos un panel");
+    // Validar plumas solo si hay opciones de selección manual
+    const tienePlumasManuales = panelesFiltrados.some(p => !p.nombre.includes('Residente'));
+    
+    if (tienePlumasManuales && formData.panels.length === 0) {
+      toast.error("Debe seleccionar al menos una pluma de acceso");
       return false;
     }
 
-    if (panelesFiltrados.length === 0) {
-      toast.error("No hay paneles vehiculares configurados en este residencial");
+    if (tienePlumasManuales && panelesFiltrados.length === 0) {
+      toast.error("No hay plumas de acceso configuradas en este residencial");
       return false;
     }
 
@@ -242,44 +564,46 @@ export function AddTagModal({
     setLoading(true);
     try {
       const tagData = {
-        type: "vehicular",
-        ownerType: "unit",
-        ownerRef: formData.casaId,
         cardNumberDec: formData.cardNumberDec,
-        format: "W26", // TODO: Obtener del residencial o configuración global
-        facilityCode: null, // TODO: Obtener si se usa
-        residentialId: formData.residencialId,
+        residencialId: formData.residencialId,
+        casaId: formData.casaId,
         panels: formData.panels,
         status: formData.status,
         plate: formData.plate || null,
         notes: formData.notes || null,
-        lastChangedBy: currentUserId,
-        lastChangedAt: new Date().toISOString(),
-        source: "Web"
+        applyImmediately: formData.applyImmediately
       };
 
-      // TODO: Implementar llamada real a la API
-      // const response = await fetch('/api/tags/create', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(tagData)
-      // });
+      const response = await fetch('/api/tags/create', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${await getAuthToken()}`
+        },
+        body: JSON.stringify(tagData)
+      });
 
-      // if (!response.ok) throw new Error('Error al crear tag');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al crear tag');
+      }
 
-      // const newTag = await response.json();
+      const result = await response.json();
       
-      // Placeholder para desarrollo
-      const newTag = { id: Date.now().toString(), ...tagData };
+      onTagCreated(result.tag);
       
-      onTagCreated(newTag);
-      toast.success("Tag guardado. Aplicación en paneles: en proceso.");
+      if (result.panelJobsCreated > 0) {
+        toast.success(`Tag creado correctamente. Se crearon ${result.panelJobsCreated} trabajos para aplicar en plumas de acceso.`);
+      } else {
+        toast.success("Tag creado correctamente. No se aplicará en plumas automáticamente.");
+      }
+      
       onOpenChange(false);
       resetForm();
 
     } catch (error) {
       console.error("Error al crear tag:", error);
-      toast.error("Error al guardar el tag");
+      toast.error(error instanceof Error ? error.message : "Error al guardar el tag");
     } finally {
       setLoading(false);
       setShowConfirmation(false);
@@ -349,83 +673,125 @@ export function AddTagModal({
               )}
             </div>
 
-            {/* Tipo (fijo) */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Tipo</Label>
-              <div className="flex items-center gap-2 p-3 bg-muted rounded-md">
-                <Car className="h-4 w-4 text-blue-500" />
-                <span className="text-sm">Vehicular</span>
-                <Badge variant="secondary" className="ml-auto">Fijo</Badge>
+            {/* Residencial - Solo para admin global */}
+            {!esAdminDeResidencial && residenciales.length > 1 && (
+              <div className="space-y-2">
+                <Label htmlFor="residencialId" className="text-sm font-medium">
+                  Residencial *
+                </Label>
+                <Select
+                  value={formData.residencialId}
+                  onValueChange={(value) => {
+                    handleInputChange('residencialId', value);
+                    // Limpiar casa seleccionada cuando cambia el residencial
+                    setFormData(prev => ({ ...prev, casaId: "" }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar residencial" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {residenciales.map((residencial) => (
+                      <SelectItem key={residencial.id} value={residencial.id}>
+                        {residencial.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </div>
-
-            {/* Residencial */}
-            <div className="space-y-2">
-              <Label htmlFor="residencialId" className="text-sm font-medium">
-                Residencial *
-              </Label>
-              <Select
-                value={formData.residencialId}
-                onValueChange={(value) => handleInputChange('residencialId', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar residencial" />
-                </SelectTrigger>
-                <SelectContent>
-                  {residenciales.map((residencial) => (
-                    <SelectItem key={residencial.id} value={residencial.id}>
-                      {residencial.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            )}
 
             {/* Casa */}
             <div className="space-y-2">
               <Label htmlFor="casaId" className="text-sm font-medium">
                 Casa *
               </Label>
-              <Select
-                value={formData.casaId}
-                onValueChange={(value) => {
-                  console.log('🏠 [ADD-TAG] Casa seleccionada:', value);
-                  handleInputChange('casaId', value);
-                }}
+              <Popover open={openCasaSelector} onOpenChange={setOpenCasaSelector}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openCasaSelector}
+                    className="w-full justify-between"
                 disabled={casasFiltradas.length === 0}
               >
-                <SelectTrigger>
-                  <SelectValue 
-                    placeholder={
-                      casasFiltradas.length === 0 
+                    {formData.casaId ? (
+                      <div className="flex items-center gap-2">
+                        <Home className="h-4 w-4 text-blue-500" />
+                        <span className="truncate">
+                          {casasFiltradas.find((casa) => casa.id === formData.casaId)?.nombre || "Casa seleccionada"}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        {casasFiltradas.length === 0 
                         ? "Seleccione un residencial primero" 
-                        : "Seleccionar casa"
-                    } 
-                  />
-                </SelectTrigger>
-                <SelectContent>
+                          : "Buscar y seleccionar casa..."}
+                      </span>
+                    )}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput 
+                      placeholder="Buscar casa por calle, número o ID..." 
+                      className="h-9"
+                    />
+                    <CommandList>
+                      <CommandEmpty>
+                        {casasFiltradas.length === 0 
+                          ? "No hay casas disponibles. Seleccione un residencial primero."
+                          : "No se encontraron casas con ese criterio."}
+                      </CommandEmpty>
+                      <CommandGroup>
                   {casasFiltradas.map((casa) => (
-                    <SelectItem key={casa.id} value={casa.id}>
-                      {casa.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="text-xs text-muted-foreground">
-                Debug: {casasFiltradas.length} casas disponibles, deshabilitado: {casasFiltradas.length === 0 ? 'Sí' : 'No'}
-              </div>
+                          <CommandItem
+                            key={casa.id}
+                            value={casa.searchText || casa.nombre}
+                            onSelect={() => {
+                              handleInputChange('casaId', casa.id);
+                              setOpenCasaSelector(false);
+                            }}
+                            className="flex items-center gap-2"
+                          >
+                            <Check
+                              className={`h-4 w-4 ${
+                                formData.casaId === casa.id ? "opacity-100" : "opacity-0"
+                              }`}
+                            />
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-2">
+                                <Home className="h-4 w-4 text-blue-500" />
+                                <span className="font-medium">{casa.nombre}</span>
+                              </div>
+                              {(casa as any).calle && (casa as any).houseNumber && (
+                                <div className="text-xs text-muted-foreground ml-6">
+                                  Calle: {(casa as any).calle} • Número: {(casa as any).houseNumber}
+                                  {(casa as any).houseID && ` • ID: ${(casa as any).houseID}`}
+                                </div>
+                              )}
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
-            {/* Paneles */}
+            {/* Plumas de Acceso - Solo mostrar si hay opciones de selección */}
+            {panelesFiltrados.some(p => !p.nombre.includes('Residente')) && (
             <div className="space-y-2">
               <Label className="text-sm font-medium">
-                Paneles *
+                  Plumas de Acceso *
               </Label>
               {panelesFiltrados.length === 0 ? (
                 <Alert className="border-orange-200 bg-orange-50">
                   <AlertCircle className="h-4 w-4 text-orange-600" />
                   <AlertDescription className="text-orange-800">
-                    No hay paneles vehiculares configurados en este residencial.
+                      No hay plumas de acceso configuradas en este residencial.
                   </AlertDescription>
                 </Alert>
               ) : (
@@ -451,10 +817,43 @@ export function AddTagModal({
               )}
               {formData.panels.length > 0 && (
                 <div className="text-xs text-muted-foreground">
-                  Seleccionados: {formData.panels.length} panel(es)
+                    Seleccionadas: {formData.panels.length} pluma(s)
                 </div>
               )}
             </div>
+            )}
+
+            {/* Información automática para plumas de residente */}
+            {panelesFiltrados.some(p => p.nombre.includes('Residente')) && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">
+                  Plumas de Acceso
+                </Label>
+                <Alert className="border-blue-200 bg-blue-50">
+                  <Info className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-blue-800">
+                    <div className="space-y-1">
+                      <div className="font-medium">Plumas asignadas automáticamente:</div>
+                      {panelesFiltrados
+                        .filter(p => p.nombre.includes('Residente'))
+                        .map(panel => {
+                          console.log('🔍 [MODAL] Mostrando pluma en alert:', panel.nombre, panel.id);
+                          return (
+                            <div key={panel.id} className="flex items-center gap-2 text-sm">
+                              <Car className="h-3 w-3 text-blue-600" />
+                              <span>{panel.nombre}</span>
+                            </div>
+                          );
+                        })
+                      }
+                      <div className="text-xs mt-2">
+                        Estas plumas se activan automáticamente cuando se escanea el tag.
+                      </div>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
 
             {/* Estado */}
             <div className="space-y-2">
@@ -480,10 +879,10 @@ export function AddTagModal({
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="text-sm font-medium">
-                    Aplicar de inmediato en paneles
+                    Aplicar de inmediato en plumas de acceso
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Se crearán trabajos para dar de alta en los paneles seleccionados.
+                    Se crearán trabajos para dar de alta en las plumas seleccionadas.
                   </p>
                 </div>
                 <Switch
@@ -548,7 +947,7 @@ export function AddTagModal({
           <DialogHeader>
             <DialogTitle>Confirmar Aplicación</DialogTitle>
             <DialogDescription>
-              Se programará el alta en {formData.panels.length} panel(es):
+              Se programará el alta en {formData.panels.length} pluma(s) de acceso:
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-4">
@@ -556,6 +955,9 @@ export function AddTagModal({
               <div key={panelId} className="flex items-center gap-2 text-sm">
                 <Car className="h-4 w-4 text-blue-500" />
                 <span>{getPanelName(panelId)}</span>
+                {getPanelName(panelId).includes('Residente') && (
+                  <Badge variant="secondary" className="text-xs">Automático</Badge>
+                )}
               </div>
             ))}
           </div>

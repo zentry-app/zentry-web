@@ -1,30 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
-import { getStorage } from 'firebase-admin/storage';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-
-// Inicializar Firebase Admin si no está inicializado
-if (getApps().length === 0) {
-  try {
-    // Verificar que las variables de entorno estén disponibles
-    if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
-      console.warn('FIREBASE_SERVICE_ACCOUNT_KEY no está configurada. El SDK de Firebase Admin no puede inicializarse.');
-      // No inicializar Firebase Admin si faltan las variables
-    } else {
-      initializeApp({
-        credential: cert({
-          projectId: process.env.FIREBASE_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-        }),
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-      });
-    }
-  } catch (error) {
-    console.error('Error inicializando Firebase Admin:', error);
-  }
-}
+import { adminAuth, adminDb, adminStorage } from '@/lib/firebase/admin';
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,7 +17,7 @@ export async function POST(request: NextRequest) {
     console.log(`🔍 [Cleanup User] Procesando email: ${email}, acción: ${action}`);
 
     // Verificar si Firebase Admin está inicializado
-    if (getApps().length === 0) {
+    if (!adminAuth || !adminDb || !adminStorage) {
       return NextResponse.json(
         { 
           error: 'Firebase Admin no está configurado',
@@ -52,9 +27,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const auth = getAuth();
-    const firestore = getFirestore();
-    const storage = getStorage();
+    const auth = adminAuth;
+    const firestore = adminDb;
+    const storage = adminStorage;
     const bucket = storage.bucket();
 
     let authUser = null;

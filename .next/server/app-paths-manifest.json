@@ -1,1 +1,6 @@
-{}
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/tags/create/route": "app/api/tags/create/route.js",
+  "/api/tags/validate-card/route": "app/api/tags/validate-card/route.js",
+  "/dashboard/tags/page": "app/dashboard/tags/page.js"
+}

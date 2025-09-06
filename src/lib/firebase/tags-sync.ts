@@ -102,7 +102,8 @@ export async function updateTagStatusDirect(
   userId: string
 ): Promise<void> {
   try {
-    const tagRef = doc(db, 'tags', tagId);
+    const residencialDocId = 'mCTs294LGLkGvL9TTvaQ'; // Residencial S9G7TL actual
+    const tagRef = doc(db, 'residenciales', residencialDocId, 'tags', tagId);
     
     // Actualizar el tag
     await updateDoc(tagRef, {
@@ -112,7 +113,7 @@ export async function updateTagStatusDirect(
     });
 
     // Registrar en auditLogs
-    await addDoc(collection(db, 'auditLogs'), {
+    await addDoc(collection(db, 'residenciales', residencialDocId, 'auditLogs'), {
       type: 'TAG_STATUS_CHANGE',
       tagId: tagId,
       from: 'unknown', // Se puede obtener del tag actual si es necesario
@@ -136,7 +137,8 @@ export async function getTags(
   status?: string
 ): Promise<Tag[]> {
   try {
-    const tagsRef = collection(db, 'tags');
+    const residencialDocId = 'mCTs294LGLkGvL9TTvaQ'; // Residencial S9G7TL actual
+    const tagsRef = collection(db, 'residenciales', residencialDocId, 'tags');
     let q = query(tagsRef);
 
     if (residencialId) {
@@ -164,7 +166,8 @@ export async function getTags(
  */
 export async function getTagPanelJobs(tagId: string): Promise<PanelJob[]> {
   try {
-    const jobsRef = collection(db, 'panelJobs');
+    const residencialDocId = 'mCTs294LGLkGvL9TTvaQ'; // Residencial S9G7TL actual
+    const jobsRef = collection(db, 'residenciales', residencialDocId, 'panelJobs');
     const q = query(
       jobsRef,
       where('tagId', '==', tagId),
@@ -189,11 +192,12 @@ export async function getTagPanelJobs(tagId: string): Promise<PanelJob[]> {
  */
 export async function getTagAuditHistory(tagId: string): Promise<AuditLog[]> {
   try {
-    const auditRef = collection(db, 'auditLogs');
+    const residencialDocId = 'mCTs294LGLkGvL9TTvaQ'; // Residencial S9G7TL actual
+    const auditRef = collection(db, 'residenciales', residencialDocId, 'auditLogs');
     const q = query(
       auditRef,
       where('tagId', '==', tagId),
-      where('type', '==', 'TAG_STATUS_CHANGE'),
+      where('type', 'in', ['TAG_STATUS_CHANGE', 'TAG_CREATED', 'TAG_REPLACED']),
       orderBy('at', 'desc'),
       limit(20)
     );
@@ -220,7 +224,8 @@ export async function getPanelJobsStats(): Promise<{
   error: number;
 }> {
   try {
-    const jobsRef = collection(db, 'panelJobs');
+    const residencialDocId = 'mCTs294LGLkGvL9TTvaQ'; // Residencial S9G7TL actual
+    const jobsRef = collection(db, 'residenciales', residencialDocId, 'panelJobs');
     const stats = { queued: 0, running: 0, done: 0, error: 0 };
 
     // Obtener jobs de las últimas 24 horas

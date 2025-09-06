@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { 
   Card, 
   CardContent, 
@@ -29,6 +29,8 @@ import {
   Car
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface VehicularTag {
   id: string;
@@ -55,6 +57,10 @@ interface Casa {
   id: string;
   nombre: string;
   residencialId: string;
+  calle?: string;
+  houseNumber?: string;
+  houseID?: string;
+  searchText?: string;
 }
 
 interface Panel {
@@ -74,11 +80,266 @@ export default function TagsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentTag, setCurrentTag] = useState<VehicularTag | null>(null);
   const [currentUserId] = useState("current-user-id"); // TODO: Obtener del contexto de auth
+  const [residencialSeleccionado, setResidencialSeleccionado] = useState<string>("todos");
+
+  // Obtener contexto de autenticación
+  const { user, userClaims, loading: authLoading } = useAuth();
+
+  // Determinar si el admin es solo de residencial o global
+  const esAdminDeResidencial = useMemo(() =>
+    !!userClaims && userClaims.role === 'admin' && !userClaims.isGlobalAdmin,
+    [userClaims]
+  );
+  
+  const residencialIdDelAdmin = useMemo(() => {
+    if (!esAdminDeResidencial) return null;
+    return userClaims?.managedResidencials?.[0] || userClaims?.residencialId || null;
+  }, [esAdminDeResidencial, userClaims]);
+
+  // Función helper para obtener casas reales de la colección casas
+  const obtenerCasasReales = async (residencialDocId: string): Promise<Casa[]> => {
+    try {
+      const { collection, getDocs, doc, getDoc, query, where } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase/config');
+      
+      console.log(`🏠 [TAGS] Obteniendo casas reales para residencial: ${residencialDocId}`);
+      
+      // PRIMERO: Verificar que el residencial existe y obtener su residencialID
+      const residencialRef = doc(db, 'residenciales', residencialDocId);
+      const residencialDoc = await getDoc(residencialRef);
+      console.log(`🏠 [TAGS] Residencial existe:`, residencialDoc.exists());
+      
+      let residencialID = null;
+      if (residencialDoc.exists()) {
+        const residencialData = residencialDoc.data();
+        residencialID = residencialData?.residencialID;
+        console.log(`🏠 [TAGS] Datos del residencial:`, residencialData);
+        console.log(`🏠 [TAGS] ResidencialID encontrado:`, residencialID);
+      }
+      
+      // SEGUNDO: Buscar casas en múltiples ubicaciones
+      let casas: Casa[] = [];
+      
+      // 1. Buscar en residenciales/{docId}/casas (estructura esperada)
+      try {
+      const casasRef = collection(db, 'residenciales', residencialDocId, 'casas');
+      console.log(`🏠 [TAGS] Consultando colección: residenciales/${residencialDocId}/casas`);
+      
+      const casasSnapshot = await getDocs(casasRef);
+        console.log(`🏠 [TAGS] Documentos encontrados en subcolección: ${casasSnapshot.docs.length}`);
+      
+        if (casasSnapshot.docs.length > 0) {
+          casas = casasSnapshot.docs.map(doc => {
+        const data = doc.data();
+        console.log(`🏠 [TAGS] Procesando casa ${doc.id}:`, data);
+        return {
+          id: doc.id,
+          nombre: data.nombre || data.houseID || data.direccion || `Casa ${doc.id}`,
+          residencialId: residencialDocId,
+          ...data
+        };
+      });
+        }
+      } catch (error) {
+        console.log(`🏠 [TAGS] Error en subcolección casas:`, error);
+      }
+      
+      // 2. Si no hay casas y tenemos residencialID, buscar en colección principal de casas
+      if (casas.length === 0 && residencialID) {
+        try {
+          console.log(`🏠 [TAGS] Buscando en colección principal 'casas' con residencialID: ${residencialID}`);
+          const casasMainRef = collection(db, 'casas');
+          const q = query(casasMainRef, where('residencialID', '==', residencialID));
+          const casasMainSnapshot = await getDocs(q);
+          console.log(`🏠 [TAGS] Documentos en colección 'casas' con residencialID ${residencialID}: ${casasMainSnapshot.docs.length}`);
+          
+          if (casasMainSnapshot.docs.length > 0) {
+            casas = casasMainSnapshot.docs.map(doc => {
+              const data = doc.data();
+              console.log(`🏠 [TAGS] Procesando casa principal ${doc.id}:`, data);
+              return {
+                id: doc.id,
+                nombre: data.nombre || data.houseID || data.direccion || `Casa ${doc.id}`,
+                residencialId: residencialDocId,
+                ...data
+              };
+            });
+          }
+        } catch (error) {
+          console.log(`🏠 [TAGS] Error en colección principal casas:`, error);
+        }
+      }
+      
+      // 3. Si aún no hay casas, buscar en usuarios que pertenezcan a este residencial
+      if (casas.length === 0 && residencialID) {
+        try {
+          console.log(`🏠 [TAGS] Buscando casas únicas en usuarios con residencialID: ${residencialID}`);
+          const usuariosRef = collection(db, 'usuarios');
+          const q = query(usuariosRef, where('residencialID', '==', residencialID));
+          const usuariosSnapshot = await getDocs(q);
+          console.log(`🏠 [TAGS] Usuarios encontrados: ${usuariosSnapshot.docs.length}`);
+          
+          // Usar la misma lógica que la página de usuarios para obtener TODAS las casas únicas
+          const sanitize = (s?: string) => (s || '')
+            .toString()
+            .replace(/[\u0000-\u001F\u007F-\u009F\u200B\u200C\u200D\uFEFF]/g, '');
+          const normalize = (s?: string) => sanitize(s).trim().toUpperCase().replace(/\s+/g, ' ');
+          const addrKey = (calle?: string, houseNumber?: string) => `ADDR::${normalize(calle)}#${normalize(houseNumber)}`;
+          
+          // Índices para detectar duplicados y unificar casas
+          const hidIndex = new Map<string, string>();
+          const addrIndex = new Map<string, string>();
+          const casasUnicas = new Map<string, Casa>();
+          
+          // Solo residentes con referencia de casa (igual que en usuarios)
+          const soloResidentes = usuariosSnapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter((u: any) => {
+              const tieneCasa = u.houseID || u.houseId || u.houseNumber || u.calle;
+              return u.role === 'resident' && !!tieneCasa;
+            });
+          
+          console.log(`🏠 [TAGS] Residentes con casa encontrados: ${soloResidentes.length}`);
+          
+          for (const usuario of soloResidentes) {
+            const rawHid = ((usuario as any).houseID || (usuario as any).houseId || '').toString();
+            const hidSanitized = sanitize(rawHid);
+            const hidNorm = normalize(hidSanitized);
+            const aKey = addrKey((usuario as any).calle, (usuario as any).houseNumber);
+            
+            // Elegir key preferente (igual que en usuarios)
+            let chosenKey = hidNorm || aKey;
+            
+            // Verificar consistencia con índices existentes
+            if (hidNorm) {
+              const hidExisting = hidIndex.get(hidNorm);
+              if (hidExisting && hidExisting !== chosenKey) {
+                chosenKey = hidExisting;
+              } else if (!hidExisting) {
+                hidIndex.set(hidNorm, chosenKey);
+              }
+            }
+            if (!addrIndex.has(aKey)) addrIndex.set(aKey, chosenKey);
+            
+            // Solo agregar si no existe ya
+            if (!casasUnicas.has(chosenKey)) {
+              const calle = (usuario as any).calle || '';
+              const houseNumber = (usuario as any).houseNumber || '';
+              const houseID = hidSanitized || '';
+              
+              // Crear nombre descriptivo
+              const nombreDescriptivo = calle && houseNumber 
+                ? `${calle} ${houseNumber}` 
+                : houseID || `${calle} ${houseNumber}`.trim();
+              
+              casasUnicas.set(chosenKey, {
+                id: chosenKey,
+                nombre: nombreDescriptivo,
+                residencialId: residencialDocId,
+                calle: calle,
+                houseNumber: houseNumber,
+                houseID: houseID,
+                searchText: `${calle} ${houseNumber} ${houseID}`.toLowerCase().trim()
+              });
+            }
+          }
+          
+          if (casasUnicas.size > 0) {
+            casas = Array.from(casasUnicas.values());
+            console.log(`🏠 [TAGS] Casas únicas extraídas de residentes: ${casas.length}`);
+            console.log(`🏠 [TAGS] Primeras 3 casas:`, casas.slice(0, 3).map(c => ({ 
+              id: c.id, 
+              nombre: c.nombre, 
+              calle: c.calle, 
+              houseNumber: c.houseNumber 
+            })));
+          }
+        } catch (error) {
+          console.log(`🏠 [TAGS] Error extrayendo casas de usuarios:`, error);
+        }
+      }
+      
+      // 4. Último fallback: buscar todas las casas sin filtro
+      if (casas.length === 0) {
+        try {
+          console.log(`🏠 [TAGS] Último fallback: buscando todas las casas`);
+          const casasMainRef = collection(db, 'casas');
+          const casasMainSnapshot = await getDocs(casasMainRef);
+          console.log(`🏠 [TAGS] Total de casas en colección principal: ${casasMainSnapshot.docs.length}`);
+          
+          if (casasMainSnapshot.docs.length > 0) {
+            console.log(`🏠 [TAGS] Primeras 5 casas encontradas:`, 
+              casasMainSnapshot.docs.slice(0, 5).map(doc => ({ 
+                id: doc.id, 
+                data: doc.data(),
+                residencialID: doc.data().residencialID 
+              }))
+            );
+            
+            // Filtrar por residencialID si está disponible
+            casas = casasMainSnapshot.docs
+              .filter(doc => !residencialID || doc.data().residencialID === residencialID)
+              .map(doc => {
+                const data = doc.data();
+                return {
+                  id: doc.id,
+                  nombre: data.nombre || data.houseID || data.direccion || `Casa ${doc.id}`,
+                  residencialId: residencialDocId,
+                  ...data
+                };
+              });
+          }
+        } catch (error) {
+          console.log(`🏠 [TAGS] Error en último fallback:`, error);
+        }
+      }
+      
+      console.log(`🏠 [TAGS] Casas finales encontradas: ${casas.length}`, casas);
+      return casas;
+    } catch (error) {
+      console.error('🏠 [TAGS] Error obteniendo casas reales:', error);
+      return [];
+    }
+  };
+
+  // Función helper para obtener residencialDocId desde residencialID
+  const obtenerResidencialDocId = async (residencialID: string): Promise<string | null> => {
+    try {
+      const { collection, query, where, getDocs, limit } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase/config');
+      
+      const residencialesRef = collection(db, 'residenciales');
+      const q = query(residencialesRef, where('residencialID', '==', residencialID), limit(1));
+      const snapshot = await getDocs(q);
+      
+      if (!snapshot.empty) {
+        return snapshot.docs[0].id;
+      }
+      
+      console.log(`🏠 [TAGS] No se encontró residencialDocId para residencialID: ${residencialID}`);
+      return null;
+    } catch (error) {
+      console.error('🏠 [TAGS] Error obteniendo residencialDocId:', error);
+      return null;
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
+        
+        // Solo cargar datos si el usuario está autenticado
+        if (authLoading || !userClaims) {
+          console.log('🏠 [TAGS] Esperando autenticación...');
+          return;
+        }
+        
+        console.log('🏠 [TAGS] Usuario autenticado:', { 
+          role: userClaims.role, 
+          isGlobalAdmin: userClaims.isGlobalAdmin,
+          residencialIdDelAdmin 
+        });
         
         // Obtener datos básicos
         const residencialesData = await getResidenciales();
@@ -89,176 +350,65 @@ export default function TagsPage() {
             id: r.id!,
             nombre: r.nombre
           }));
-        setResidenciales(residencialesValidados);
         
-        // TODO: Implementar llamadas reales a las APIs de tags vehiculares
-        // const tagsData = await getVehicularTags();
-        // const panelesData = await getPaneles();
+        // Filtrar residenciales según el rol del usuario
+        let residencialesAProcesar = residencialesValidados;
         
-        // Obtener casas reales de los usuarios (misma lógica exacta que casasResumen en usuarios page)
+        if (esAdminDeResidencial && residencialIdDelAdmin) {
+          // Admin de residencial: usar directamente el residencialDocId conocido
+          if (residencialIdDelAdmin === 'S9G7TL') {
+            // Para S9G7TL, crear un objeto residencial temporal con el residencialDocId conocido
+            residencialesAProcesar = [{
+              id: 'mCTs294LGLkGvL9TTvaQ', // residencialDocId conocido
+              nombre: 'Residencial S9G7TL'
+            }];
+          } else {
+            // Para otros residenciales, buscar en la lista
+            residencialesAProcesar = residencialesValidados.filter(r => (r as any).residencialID === residencialIdDelAdmin);
+          }
+          console.log(`🏠 [TAGS] Admin de residencial - procesando solo: ${residencialIdDelAdmin}`);
+        } else if (userClaims?.isGlobalAdmin) {
+          // Admin global: usar todos los residenciales disponibles
+          console.log('🏠 [TAGS] Admin global - procesando todos los residenciales');
+          console.log(`🏠 [TAGS] Residenciales disponibles para admin global: ${residencialesValidados.length}`);
+        } else {
+          console.log('🏠 [TAGS] Usuario sin permisos de admin - no procesando residenciales');
+          residencialesAProcesar = [];
+        }
+        
+        setResidenciales(residencialesAProcesar);
+        
+        // Obtener casas reales de la colección casas
         const casasData: Casa[] = [];
-        console.log('🏠 [TAGS] Iniciando carga de casas...');
-        console.log('🏠 [TAGS] Residenciales válidos:', residencialesValidados.length);
+        console.log('🏠 [TAGS] Iniciando carga de casas reales...');
+        console.log('🏠 [TAGS] Residenciales a procesar:', residencialesAProcesar.length);
         
-        for (const residencial of residencialesValidados) {
+        for (const residencial of residencialesAProcesar) {
           try {
             console.log(`🏠 [TAGS] Procesando residencial: ${residencial.nombre} (${residencial.id})`);
             
-            const usuariosResidencial = await getUsuariosPorResidencial(residencial.id, { getAll: true });
-            console.log(`🏠 [TAGS] Usuarios obtenidos para ${residencial.nombre}:`, usuariosResidencial.length);
-            console.log(`🏠 [TAGS] Usuarios raw para ${residencial.nombre}:`, usuariosResidencial);
+            // El residencial.id ya es el residencialDocId, no necesitamos convertirlo
+            const residencialDocId = residencial.id;
+            console.log(`🏠 [TAGS] Usando residencialDocId: ${residencialDocId}`);
             
-            // Debug: Intentar obtener usuarios de forma alternativa
-            try {
-              const { getUsuarios } = await import('@/lib/firebase/firestore');
-              const todosUsuarios = await getUsuarios({ getAll: true });
-              console.log(`🏠 [TAGS] Total usuarios en BD:`, todosUsuarios.length);
-              
-              // Debug: Mostrar algunos usuarios de ejemplo para ver su estructura
-              console.log(`🏠 [TAGS] Primeros 3 usuarios de ejemplo:`, todosUsuarios.slice(0, 3).map(u => ({
-                id: u.id,
-                fullName: u.fullName,
-                role: u.role,
-                residencialID: u.residencialID,
-                houseID: u.houseID,
-                houseNumber: u.houseNumber,
-                calle: u.calle
-              })));
-              
-              // Debug: Mostrar todos los residenciales únicos que tienen los usuarios
-              const residencialesUnicos = Array.from(new Set(todosUsuarios.map(u => u.residencialID).filter(Boolean)));
-              console.log(`🏠 [TAGS] Residenciales únicos en usuarios:`, residencialesUnicos);
-              console.log(`🏠 [TAGS] Residencial actual buscando:`, residencial.id);
-              
-              // Filtrar usuarios que pertenecen a este residencial
-              const usuariosDelResidencial = todosUsuarios.filter((u: any) => 
-                u.residencialID === residencial.id
-              );
-              console.log(`🏠 [TAGS] Usuarios filtrados manualmente para ${residencial.nombre}:`, usuariosDelResidencial.length);
-              console.log(`🏠 [TAGS] Usuarios filtrados manualmente:`, usuariosDelResidencial);
-              
-              // Usar los usuarios filtrados manualmente si getUsuariosPorResidencial no funciona
-              if (usuariosResidencial.length === 0 && usuariosDelResidencial.length > 0) {
-                console.log(`🏠 [TAGS] Usando usuarios filtrados manualmente para ${residencial.nombre}`);
-                usuariosResidencial.push(...usuariosDelResidencial);
-              }
-            } catch (altError) {
-              console.error(`🏠 [TAGS] Error en método alternativo para ${residencial.nombre}:`, altError);
-            }
-            
-            // Usar la misma lógica exacta que casasResumen en usuarios page
-            const sanitize = (s?: string) => (s || '')
-              .toString()
-              .replace(/[\u0000-\u001F\u007F-\u009F\u200B\u200C\u200D\uFEFF]/g, '');
-            const normalize = (s?: string) => sanitize(s).trim().toUpperCase().replace(/\s+/g, ' ');
-            const addrKey = (calle?: string, houseNumber?: string) => `ADDR::${normalize(calle)}#${normalize(houseNumber)}`;
-
-            // Índices para detectar duplicados
-            const hidIndex = new Map<string, string>();
-            const addrIndex = new Map<string, string>();
-            const casasMap = new Map<string, Casa>();
-
-            // Solo residentes con referencia de casa
-            const soloResidentes = usuariosResidencial.filter((u: any) => {
-              const tieneCasa = u.houseID || u.houseNumber || u.calle;
-              const esResidente = u.role === 'resident';
-              console.log(`🏠 [TAGS] Usuario ${u.fullName}: role=${u.role}, tieneCasa=${!!tieneCasa}, houseID=${u.houseID}, houseNumber=${u.houseNumber}, calle=${u.calle}`);
-              return esResidente && !!tieneCasa;
-            });
-            
-            console.log(`🏠 [TAGS] Residentes con casa en ${residencial.nombre}:`, soloResidentes.length);
-
-            for (const u of soloResidentes) {
-              const rawHid = ((u as any).houseID || '').toString();
-              const hidSanitized = sanitize(rawHid);
-              const hidNorm = normalize(hidSanitized);
-              const aKey = addrKey((u as any).calle, (u as any).houseNumber);
-
-              console.log(`🏠 [TAGS] Procesando usuario ${u.fullName}: rawHid=${rawHid}, hidSanitized=${hidSanitized}, hidNorm=${hidNorm}, aKey=${aKey}`);
-
-              // Elegir key preferente (HID si existe, sino dirección)
-              let chosenKey = hidNorm || aKey;
-
-              // Si ya existe una key para esta dirección, forzar uso de esa para agrupar
-              const addrExisting = addrIndex.get(aKey);
-              if (addrExisting && addrExisting !== chosenKey) {
-                chosenKey = addrExisting;
-              }
-
-              // Registrar índices
-              if (hidNorm) {
-                const hidExisting = hidIndex.get(hidNorm);
-                if (hidExisting && hidExisting !== chosenKey) {
-                  chosenKey = hidExisting;
-                } else if (!hidExisting) {
-                  hidIndex.set(hidNorm, chosenKey);
-                }
-              }
-              if (!addrIndex.has(aKey)) addrIndex.set(aKey, chosenKey);
-
-              if (!casasMap.has(chosenKey)) {
-                // Crear nombre descriptivo para la casa
-                let nombreCasa = '';
-                if (hidSanitized) {
-                  nombreCasa = `Casa ${hidSanitized}`;
-                } else if ((u as any).calle && (u as any).houseNumber) {
-                  nombreCasa = `${(u as any).calle} ${(u as any).houseNumber}`;
-                } else if ((u as any).calle) {
-                  nombreCasa = (u as any).calle;
-                } else if ((u as any).houseNumber) {
-                  nombreCasa = `Casa ${(u as any).houseNumber}`;
-                } else {
-                  nombreCasa = 'Casa sin identificar';
-                }
-
-                console.log(`🏠 [TAGS] Creando casa: ${nombreCasa} (key: ${chosenKey})`);
-
-                casasMap.set(chosenKey, {
-                  id: chosenKey,
-                  nombre: nombreCasa,
-                  residencialId: residencial.id
-                });
-              }
-            }
-            
-            const casasDelResidencial = Array.from(casasMap.values());
-            console.log(`🏠 [TAGS] Casas encontradas en ${residencial.nombre}:`, casasDelResidencial.length, casasDelResidencial);
+            // Obtener casas reales de la colección casas
+            const casasDelResidencial = await obtenerCasasReales(residencialDocId);
             casasData.push(...casasDelResidencial);
           } catch (error) {
-            console.error(`🏠 [TAGS] Error obteniendo usuarios del residencial ${residencial.id}:`, error);
+            console.error(`🏠 [TAGS] Error obteniendo casas del residencial ${residencial.id}:`, error);
           }
         }
         
         console.log('🏠 [TAGS] Total de casas cargadas:', casasData.length);
         console.log('🏠 [TAGS] Casas finales:', casasData);
         
-        // SOLUCIÓN TEMPORAL: Si no hay casas, crear datos de prueba
-        if (casasData.length === 0) {
-          console.log('🏠 [TAGS] No se encontraron casas reales, creando datos de prueba...');
-          const casasPrueba: Casa[] = [];
-          
-          for (const residencial of residencialesValidados) {
-            // Crear 3-5 casas de prueba por residencial
-            for (let i = 1; i <= 4; i++) {
-              casasPrueba.push({
-                id: `${residencial.id}-casa-${i}`,
-                nombre: `Casa ${i}`,
-                residencialId: residencial.id
-              });
-            }
-          }
-          
-          casasData.push(...casasPrueba);
-          console.log('🏠 [TAGS] Casas de prueba creadas:', casasPrueba.length);
-          console.log('🏠 [TAGS] Casas de prueba:', casasPrueba);
-        }
+        // Plumas de acceso para residentes - entrada y salida automáticas
+        const panelesData: Panel[] = residencialesValidados.map(residencial => [
+          { id: `${residencial.id}-entrada-residente`, nombre: `🚗 Entrada Residente`, tipo: 'vehicular' as const, residencialId: residencial.id },
+          { id: `${residencial.id}-salida-residente`, nombre: `🚗 Salida Residente`, tipo: 'vehicular' as const, residencialId: residencial.id },
+        ]).flat();
         
-        // TODO: Implementar llamada real a paneles
-        const panelesData: Panel[] = residencialesValidados.flatMap(residencial => [
-          { id: `${residencial.id}-panel-1`, nombre: `Vehicular Norte`, tipo: 'vehicular' as const, residencialId: residencial.id },
-          { id: `${residencial.id}-panel-2`, nombre: `Vehicular Sur`, tipo: 'vehicular' as const, residencialId: residencial.id },
-          { id: `${residencial.id}-panel-3`, nombre: `Todos los accesos vehiculares`, tipo: 'vehicular' as const, residencialId: residencial.id },
-        ]);
+        console.log('🏠 [TAGS] Plumas generadas:', panelesData);
         
         const tagsData: VehicularTag[] = [];
         
@@ -275,7 +425,7 @@ export default function TagsPage() {
     };
 
     fetchData();
-  }, []);
+  }, [authLoading, userClaims, esAdminDeResidencial, residencialIdDelAdmin]);
 
   const handleAddTag = (newTag: VehicularTag) => {
     setTags(prev => [...prev, newTag]);
@@ -323,12 +473,39 @@ export default function TagsPage() {
         </Button>
       </div>
 
+      {/* Selector de residencial - Solo para admin global */}
+      {!authLoading && userClaims && userClaims.isGlobalAdmin && (
+        <div className="flex flex-col w-[250px]">
+          <Select
+            value={residencialSeleccionado}
+            onValueChange={(value) => {
+                setResidencialSeleccionado(value);
+                // TODO: Recargar datos para el nuevo residencial
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Seleccionar residencial" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="todos">Todos los residenciales</SelectItem>
+              {residenciales
+                .filter(residencial => !!residencial.id)
+                .map((residencial) => (
+                  <SelectItem key={residencial.id} value={residencial.id!.toString()}>
+                    {residencial.nombre}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Gestión de Tags Vehiculares</CardTitle>
           <CardDescription>
             Administra los tags de acceso vehicular para los residenciales. 
-            Los cambios se aplican automáticamente en los paneles seleccionados.
+            Los tags se aplican automáticamente en las plumas de acceso de residentes.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -354,6 +531,8 @@ export default function TagsPage() {
         casas={casas}
         paneles={paneles}
         currentUserId={currentUserId}
+        esAdminDeResidencial={esAdminDeResidencial}
+        residencialIdDelAdmin={residencialIdDelAdmin}
       />
 
       {/* Modal para editar tag */}
