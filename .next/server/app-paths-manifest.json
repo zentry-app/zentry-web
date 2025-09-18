@@ -1,8 +1,7 @@
 {
-  "/_not-found/page": "app/_not-found/page.js",
-  "/dashboard/pagos/page": "app/dashboard/pagos/page.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/dashboard/usuarios/page": "app/dashboard/usuarios/page.js",
+  "/admin/residenciales/page": "app/admin/residenciales/page.js",
+  "/admin/administradores/page": "app/admin/administradores/page.js",
   "/dashboard/ingresos/page": "app/dashboard/ingresos/page.js",
-  "/dashboard/reservas/page": "app/dashboard/reservas/page.js"
+  "/dashboard/pagos/page": "app/dashboard/pagos/page.js",
+  "/dashboard/mensajes/page": "app/dashboard/mensajes/page.js"
 }

@@ -41,6 +41,12 @@ interface PaymentConfig {
   periodoGracia: number;
   cuotaMensual: number;
   activo: boolean;
+  // 🆕 Configuración de pagos retroactivos
+  permitePagosRetroactivos: boolean;
+  mesesMaximosRetroactivos: number;
+  recargoPorMesVencido: number;
+  fechaInicioSistema: string;
+  mesesExcluidos: string[];
 }
 
 interface BankInfo {
@@ -71,6 +77,12 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
     periodoGracia: 5,
     cuotaMensual: 1150,
     activo: true,
+    // 🆕 Valores por defecto para pagos retroactivos
+    permitePagosRetroactivos: false,
+    mesesMaximosRetroactivos: 6,
+    recargoPorMesVencido: 0.05, // 5%
+    fechaInicioSistema: '2024-01-01',
+    mesesExcluidos: [],
   });
   
   // Estados para información bancaria
@@ -113,6 +125,12 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
             periodoGracia: data.configuracionPagos.periodoGracia || 5,
             cuotaMensual: data.configuracionPagos.cuotaMensual || data.cuotaMantenimiento || 1150,
             activo: data.configuracionPagos.activo !== false,
+            // 🆕 Campos de pagos retroactivos
+            permitePagosRetroactivos: data.configuracionPagos.permitePagosRetroactivos || false,
+            mesesMaximosRetroactivos: data.configuracionPagos.mesesMaximosRetroactivos || 6,
+            recargoPorMesVencido: data.configuracionPagos.recargoPorMesVencido || 0.05,
+            fechaInicioSistema: data.configuracionPagos.fechaInicioSistema || '2024-01-01',
+            mesesExcluidos: data.configuracionPagos.mesesExcluidos || [],
           });
         }
         
@@ -181,6 +199,24 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
     if (paymentConfig.cuotaMensual <= 0) {
       toast.error('La cuota mensual debe ser mayor a 0');
       return false;
+    }
+    
+    // 🆕 Validar configuración de pagos retroactivos
+    if (paymentConfig.permitePagosRetroactivos) {
+      if (paymentConfig.mesesMaximosRetroactivos < 1 || paymentConfig.mesesMaximosRetroactivos > 24) {
+        toast.error('Los meses máximos retroactivos deben estar entre 1 y 24');
+        return false;
+      }
+      
+      if (paymentConfig.recargoPorMesVencido < 0 || paymentConfig.recargoPorMesVencido > 1) {
+        toast.error('El recargo por mes vencido debe estar entre 0% y 100%');
+        return false;
+      }
+      
+      if (!paymentConfig.fechaInicioSistema) {
+        toast.error('La fecha de inicio del sistema es requerida');
+        return false;
+      }
     }
     
     // Validar información bancaria solo si está habilitada
@@ -371,6 +407,94 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
                     </p>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Separator />
+
+            {/* 🆕 Configuración de Pagos Retroactivos */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Pagos Retroactivos
+                </CardTitle>
+                <CardDescription>
+                  Configuración para permitir pagos de meses anteriores
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="permitePagosRetroactivos">Permitir Pagos Retroactivos</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Habilita que los residentes puedan pagar meses anteriores
+                    </p>
+                  </div>
+                  <Switch
+                    id="permitePagosRetroactivos"
+                    checked={paymentConfig.permitePagosRetroactivos}
+                    onCheckedChange={(checked) => handlePaymentConfigChange('permitePagosRetroactivos', checked)}
+                  />
+                </div>
+
+                {paymentConfig.permitePagosRetroactivos && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="mesesMaximosRetroactivos">Meses Máximos Retroactivos</Label>
+                      <Input
+                        id="mesesMaximosRetroactivos"
+                        type="number"
+                        min="1"
+                        max="24"
+                        value={paymentConfig.mesesMaximosRetroactivos}
+                        onChange={(e) => handlePaymentConfigChange('mesesMaximosRetroactivos', parseInt(e.target.value))}
+                        placeholder="6"
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        Máximo número de meses que se pueden pagar retroactivamente (1-24)
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="recargoPorMesVencido">Recargo por Mes Vencido (%)</Label>
+                      <Input
+                        id="recargoPorMesVencido"
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={paymentConfig.recargoPorMesVencido * 100}
+                        onChange={(e) => handlePaymentConfigChange('recargoPorMesVencido', parseFloat(e.target.value) / 100)}
+                        placeholder="5"
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        Porcentaje de recargo por cada mes vencido (0-100%)
+                      </p>
+                    </div>
+
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="fechaInicioSistema">Fecha de Inicio del Sistema</Label>
+                      <Input
+                        id="fechaInicioSistema"
+                        type="date"
+                        value={paymentConfig.fechaInicioSistema}
+                        onChange={(e) => handlePaymentConfigChange('fechaInicioSistema', e.target.value)}
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        Fecha desde la cual se pueden calcular pagos retroactivos
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {!paymentConfig.permitePagosRetroactivos && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-sm text-amber-800">
+                      ⚠️ Los pagos retroactivos están deshabilitados. Los residentes solo podrán pagar el mes actual.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

@@ -17,9 +17,7 @@ import {
   Globe, 
   Database, 
   Save,
-  Server,
-  CreditCard,
-  History
+  Server
 } from 'lucide-react';
 
 export default function ConfiguracionPage() {
@@ -53,15 +51,6 @@ export default function ConfiguracionPage() {
     requireStrongPasswords: true
   });
 
-  // Configuración de Pagos Retroactivos
-  const [paymentConfig, setPaymentConfig] = useState({
-    permitePagosRetroactivos: false,
-    mesesMaximosRetroactivos: '6',
-    recargoPorMesVencido: '0.05', // 5%
-    fechaInicioSistema: '2024-01-01',
-    mesesExcluidos: [] as string[]
-  });
-
   const handleGeneralInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setGeneralConfig({
@@ -92,21 +81,6 @@ export default function ConfiguracionPage() {
     });
   };
 
-  const handlePaymentInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setPaymentConfig({
-      ...paymentConfig,
-      [name]: value
-    });
-  };
-
-  const handlePaymentToggle = (settingName: string) => {
-    setPaymentConfig({
-      ...paymentConfig,
-      [settingName]: !paymentConfig[settingName as keyof typeof paymentConfig]
-    });
-  };
-
   const saveSettings = (section: string) => {
     // Aquí se implementaría la lógica para guardar en la base de datos
     
@@ -132,10 +106,6 @@ export default function ConfiguracionPage() {
           <TabsTrigger value="general">
             <Settings className="h-4 w-4 mr-2" />
             General
-          </TabsTrigger>
-          <TabsTrigger value="payments">
-            <CreditCard className="h-4 w-4 mr-2" />
-            Pagos
           </TabsTrigger>
           <TabsTrigger value="notifications">
             <Bell className="h-4 w-4 mr-2" />
@@ -222,132 +192,6 @@ export default function ConfiguracionPage() {
               <Button onClick={() => saveSettings('general')}>
                 <Save className="mr-2 h-4 w-4" />
                 Guardar Cambios
-              </Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="payments">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center">
-                <CreditCard className="mr-2 h-5 w-5" />
-                <CardTitle>Configuración de Pagos Retroactivos</CardTitle>
-              </div>
-              <CardDescription>
-                Configura los parámetros para el sistema de pagos retroactivos
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="permitePagosRetroactivos">Permitir Pagos Retroactivos</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Habilita la funcionalidad de pagos retroactivos para usuarios nuevos
-                    </p>
-                  </div>
-                  <Switch
-                    id="permitePagosRetroactivos"
-                    checked={paymentConfig.permitePagosRetroactivos}
-                    onCheckedChange={() => handlePaymentToggle('permitePagosRetroactivos')}
-                  />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="mesesMaximosRetroactivos">Meses Máximos Retroactivos</Label>
-                  <Input
-                    id="mesesMaximosRetroactivos"
-                    name="mesesMaximosRetroactivos"
-                    type="number"
-                    min="1"
-                    max="12"
-                    value={paymentConfig.mesesMaximosRetroactivos}
-                    onChange={handlePaymentInputChange}
-                    placeholder="6"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Número máximo de meses que se pueden pagar retroactivamente
-                  </p>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="recargoPorMesVencido">Recargo por Mes Vencido (%)</Label>
-                  <Input
-                    id="recargoPorMesVencido"
-                    name="recargoPorMesVencido"
-                    type="number"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    value={paymentConfig.recargoPorMesVencido}
-                    onChange={handlePaymentInputChange}
-                    placeholder="0.05"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Porcentaje de recargo por cada mes vencido (ej: 0.05 = 5%)
-                  </p>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="fechaInicioSistema">Fecha de Inicio del Sistema</Label>
-                  <Input
-                    id="fechaInicioSistema"
-                    name="fechaInicioSistema"
-                    type="date"
-                    value={paymentConfig.fechaInicioSistema}
-                    onChange={handlePaymentInputChange}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Fecha desde la cual se pueden calcular pagos retroactivos
-                  </p>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Información del Sistema</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Estado actual de la configuración de pagos retroactivos
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="bg-muted p-4 rounded-lg">
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm font-medium">Estado:</span>
-                      <span className={`text-sm px-2 py-1 rounded-full ${
-                        paymentConfig.permitePagosRetroactivos 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {paymentConfig.permitePagosRetroactivos ? 'Habilitado' : 'Deshabilitado'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm font-medium">Meses Máximos:</span>
-                      <span className="text-sm">{paymentConfig.mesesMaximosRetroactivos} meses</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm font-medium">Recargo:</span>
-                      <span className="text-sm">{(parseFloat(paymentConfig.recargoPorMesVencido) * 100).toFixed(1)}% por mes</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm font-medium">Fecha Inicio:</span>
-                      <span className="text-sm">{paymentConfig.fechaInicioSistema}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter className="justify-end">
-              <Button onClick={() => saveSettings('pagos retroactivos')}>
-                <Save className="mr-2 h-4 w-4" />
-                Guardar Configuración
               </Button>
             </CardFooter>
           </Card>
