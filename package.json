@@ -10,7 +10,7 @@
     "export": "next build",
     "clean": "rm -rf .next && rm -rf out",
     "deploy": "firebase deploy --only hosting",
-    "deploy:hosting": "npm run export && firebase deploy --only hosting",
+    "deploy:hosting": "./deploy-firebase.sh",
     "deploy:functions": "firebase deploy --only functions",
     "deploy:all": "npm run export && firebase deploy",
     "deploy:vercel": "./scripts/deploy-vercel.sh",

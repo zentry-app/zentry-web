@@ -7,7 +7,7 @@ const nextConfig = {
   trailingSlash: true,
   images: {
     domains: ['firebasestorage.googleapis.com'],
-    unoptimized: false,
+    unoptimized: true,
   },
   
   // Optimizaciones de rendimiento

@@ -312,6 +312,15 @@ export default function ReservasPage() {
     }
   }, [dayDialogOpen, rejectDialogOpen, deleteDialogOpen]);
 
+  // 🆕 DEBUG: Monitorear estado del diálogo de eliminación
+  useEffect(() => {
+    console.log('🔍 [DEBUG] Estado del diálogo de eliminación actualizado:', {
+      deleteDialogOpen,
+      deleteTargetId,
+      timestamp: new Date().toISOString()
+    });
+  }, [deleteDialogOpen, deleteTargetId]);
+
   const resolveResidencialDocId = async (rawId: string): Promise<string> => {
     if (residencialDocIdCache[rawId]) return residencialDocIdCache[rawId];
     try {
@@ -1323,24 +1332,75 @@ export default function ReservasPage() {
     setSelectedIds(new Set());
   };
 
-  // Eliminar reserva (residencial y usuario)
+  // Eliminar reserva (residencial y usuario) - VERSIÓN MEJORADA CON DEBUGGING
   const deleteReservation = async (reservationId: string) => {
+    console.log('🔍 [DEBUG] Iniciando eliminación de reserva:', reservationId);
+    
     try {
       const reservation = reservations.find(r => r.id === reservationId);
-      if (!reservation) return;
+      if (!reservation) {
+        console.error('❌ [DEBUG] Reserva no encontrada:', reservationId);
+        toast({ title: 'Error', description: 'Reserva no encontrada.', variant: 'destructive' });
+        return;
+      }
+
+      console.log('✅ [DEBUG] Reserva encontrada:', {
+        id: reservation.id,
+        residencialId: reservation.residencialId,
+        userId: reservation.userId
+      });
+
+      // Verificar permisos de usuario
+      if (!user || !userClaims) {
+        console.error('❌ [DEBUG] Usuario no autenticado o sin claims');
+        toast({ title: 'Error', description: 'No tienes permisos para eliminar reservas.', variant: 'destructive' });
+        return;
+      }
+
+      console.log('✅ [DEBUG] Usuario autenticado:', user.email);
 
       const batch = writeBatch(db);
       const residentialRef = doc(db, 'residenciales', reservation.residencialId, 'reservaciones', reservationId);
       const userRef = doc(db, 'usuarios', reservation.userId, 'reservaciones', reservationId);
+      
+      console.log('📝 [DEBUG] Referencias creadas:', {
+        residential: residentialRef.path,
+        user: userRef.path
+      });
+      
       batch.delete(residentialRef);
       batch.delete(userRef);
+      
+      console.log('🔄 [DEBUG] Ejecutando batch de eliminación...');
       await batch.commit();
+      
+      console.log('✅ [DEBUG] Batch ejecutado exitosamente');
 
-      setReservations(prev => prev.filter(r => r.id !== reservationId));
+      setReservations(prev => {
+        const filtered = prev.filter(r => r.id !== reservationId);
+        console.log('📊 [DEBUG] Reservas actualizadas:', filtered.length);
+        return filtered;
+      });
+      
       toast({ title: 'Eliminada', description: 'La reserva fue eliminada correctamente.' });
-    } catch (error) {
-      console.error('❌ Error eliminando reserva:', error);
-      toast({ title: 'Error', description: 'No se pudo eliminar la reserva.', variant: 'destructive' });
+      console.log('🎉 [DEBUG] Eliminación completada exitosamente');
+      
+    } catch (error: any) {
+      console.error('❌ [DEBUG] Error eliminando reserva:', error);
+      
+      // Proporcionar información más detallada del error
+      if (error.code) {
+        console.error('📋 [DEBUG] Código de error:', error.code);
+      }
+      if (error.message) {
+        console.error('📋 [DEBUG] Mensaje de error:', error.message);
+      }
+      
+      toast({ 
+        title: 'Error', 
+        description: `No se pudo eliminar la reserva: ${error.message || 'Error desconocido'}`, 
+        variant: 'destructive' 
+      });
     }
   };
 
@@ -2194,7 +2254,24 @@ export default function ReservasPage() {
                           <Eye className="mr-2 h-3 w-3" />
                           Ver detalles
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600" onClick={() => { setDeleteTargetId(reservation.id); setDeleteDialogOpen(true); }}>
+                        <DropdownMenuItem className="text-red-600" onClick={async () => { 
+                          console.log('🔍 [DEBUG] Clic en eliminar reserva:', reservation.id);
+                          
+                          // SOLUCIÓN TEMPORAL: Usar confirm() nativo mientras se resuelve el problema del diálogo
+                          const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar esta reserva?\n\nID: ${reservation.id}\n\nEsta acción no se puede deshacer.`);
+                          
+                          if (confirmed) {
+                            console.log('✅ [DEBUG] Usuario confirmó eliminación');
+                            await deleteReservation(reservation.id);
+                          } else {
+                            console.log('❌ [DEBUG] Usuario canceló eliminación');
+                          }
+                          
+                          // Código original comentado temporalmente
+                          // setDeleteTargetId(reservation.id); 
+                          // setDeleteDialogOpen(true);
+                          // console.log('🔍 [DEBUG] Estado actualizado:', { deleteTargetId: reservation.id, deleteDialogOpen: true });
+                        }}>
                           <Trash className="mr-2 h-3 w-3" />
                           Eliminar
                         </DropdownMenuItem>
@@ -2633,7 +2710,24 @@ export default function ReservasPage() {
                                                       <Clock className="mr-2 h-3 w-3" /> Volver a pendiente
                                                     </DropdownMenuItem>
                                                   )}
-                                                  <DropdownMenuItem onClick={() => { setDeleteTargetId(ev.id); setDeleteDialogOpen(true); }} className="text-red-600">
+                                                  <DropdownMenuItem onClick={async () => { 
+                                                    console.log('🔍 [DEBUG] Clic en eliminar reserva (calendario):', ev.id);
+                                                    
+                                                    // SOLUCIÓN TEMPORAL: Usar confirm() nativo mientras se resuelve el problema del diálogo
+                                                    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar esta reserva?\n\nID: ${ev.id}\n\nEsta acción no se puede deshacer.`);
+                                                    
+                                                    if (confirmed) {
+                                                      console.log('✅ [DEBUG] Usuario confirmó eliminación');
+                                                      await deleteReservation(ev.id);
+                                                    } else {
+                                                      console.log('❌ [DEBUG] Usuario canceló eliminación');
+                                                    }
+                                                    
+                                                    // Código original comentado temporalmente
+                                                    // setDeleteTargetId(ev.id); 
+                                                    // setDeleteDialogOpen(true);
+                                                    // console.log('🔍 [DEBUG] Estado actualizado:', { deleteTargetId: ev.id, deleteDialogOpen: true });
+                                                  }} className="text-red-600">
                                                     <Trash className="mr-2 h-3 w-3" /> Eliminar reserva
                                                   </DropdownMenuItem>
                                                 </DropdownMenuContent>
@@ -2707,7 +2801,11 @@ export default function ReservasPage() {
 
           {/* Confirmación de eliminación */}
           {deleteDialogOpen && (
-            <Dialog open={deleteDialogOpen} onOpenChange={(o)=>{ setDeleteDialogOpen(o); if (!o) setDeleteTargetId(null); }}>
+            <Dialog open={deleteDialogOpen} onOpenChange={(o)=>{ 
+              console.log('🔍 [DEBUG] Cambio de estado del diálogo:', o);
+              setDeleteDialogOpen(o); 
+              if (!o) setDeleteTargetId(null); 
+            }}>
               <DialogContent aria-describedby="delete-reservation-description" className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>Eliminar reserva</DialogTitle>
@@ -2715,10 +2813,24 @@ export default function ReservasPage() {
                 </DialogHeader>
                 <div className="space-y-3 text-sm">
                   <p>¿Estás seguro de que deseas eliminar esta reserva? Esta acción no se puede deshacer.</p>
+                  {deleteTargetId && (
+                    <p className="text-xs text-muted-foreground">ID de reserva: {deleteTargetId}</p>
+                  )}
                 </div>
                 <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={()=>{ setDeleteDialogOpen(false); setDeleteTargetId(null); }}>Cancelar</Button>
-                  <Button variant="destructive" onClick={async ()=>{ if (deleteTargetId) { await deleteReservation(deleteTargetId); } setDeleteDialogOpen(false); setDeleteTargetId(null); }}>Eliminar</Button>
+                  <Button variant="outline" onClick={()=>{ 
+                    console.log('🔍 [DEBUG] Cancelando eliminación');
+                    setDeleteDialogOpen(false); 
+                    setDeleteTargetId(null); 
+                  }}>Cancelar</Button>
+                  <Button variant="destructive" onClick={async ()=>{ 
+                    console.log('🔍 [DEBUG] Confirmando eliminación de:', deleteTargetId);
+                    if (deleteTargetId) { 
+                      await deleteReservation(deleteTargetId); 
+                    } 
+                    setDeleteDialogOpen(false); 
+                    setDeleteTargetId(null); 
+                  }}>Eliminar</Button>
                 </div>
               </DialogContent>
             </Dialog>

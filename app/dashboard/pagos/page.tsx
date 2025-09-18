@@ -35,7 +35,7 @@ import {
   DialogTitle 
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Search, CreditCard, DollarSign, Clock, CheckCircle, XCircle, Eye, Wifi, Loader2, Calendar } from "lucide-react";
+import { Search, CreditCard, DollarSign, Clock, CheckCircle, XCircle, Eye, Wifi, Loader2, Calendar, Plus } from "lucide-react";
 import { 
   Residencial, 
   getResidenciales, 
@@ -51,7 +51,8 @@ import { Suspense } from 'react';
 import TablaPagos from '@/components/dashboard/pagos/TablaPagos';
 import { Pago, convertFirestoreTimestampToDate } from "@/types/pagos";
 import StripeConnectAlert from '@/components/dashboard/pagos/StripeConnectAlert';
-import RegistrarPagoDialog from "@/components/dashboard/pagos/RegistrarPagoDialog";
+import UnifiedPaymentsDashboard from '@/components/dashboard/pagos/UnifiedPaymentsDashboard';
+import SimplifiedPaymentsDashboard from '@/components/dashboard/pagos/SimplifiedPaymentsDashboardV2';
 import {
   Tooltip,
   TooltipContent,
@@ -78,7 +79,7 @@ export default function PagosPage() {
   const [detailsOpen, setDetailsOpen] = useState<boolean>(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [mapeoResidenciales, setMapeoResidenciales] = useState<{[key: string]: string}>({});
-  const [isCashModalOpen, setIsCashModalOpen] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'unified' | 'all'>('unified');
 
   const esAdminDeResidencial = useMemo(() => userClaims?.isResidencialAdmin && !userClaims?.isGlobalAdmin, [userClaims]);
   const residencialCodigoDelAdmin = useMemo(() => esAdminDeResidencial ? userClaims?.managedResidencialId : null, [esAdminDeResidencial, userClaims]);
@@ -398,40 +399,6 @@ export default function PagosPage() {
     }).format(finalAmount);
   };
 
-  const handlePaymentRegistered = () => {
-    // Forzar la recarga de pagos
-    const fetchPagos = async () => {
-      setLoading(true);
-      let targetResidencialId = residencialFilter;
-      
-      // Si es admin de residencial, siempre usar su ID de documento
-      if (esAdminDeResidencial && residencialIdDocDelAdmin) {
-        targetResidencialId = residencialIdDocDelAdmin;
-      }
-
-      if (targetResidencialId !== 'todos') {
-        try {
-          const pagosData = await getPagos(targetResidencialId);
-          const residencial = residenciales.find(r => r.id === targetResidencialId);
-          const pagosConNombre = pagosData.map(p => ({
-            ...p,
-            _residencialNombre: residencial?.nombre || "Desconocido"
-          }));
-          setPagos(pagosConNombre);
-          addLog(`✅ Pagos recargados para ${residencial?.nombre}`);
-        } catch (error) {
-          toast.error("Error al recargar los pagos.");
-          addLog(`❌ Error recargando pagos: ${error}`);
-        }
-      } else {
-        // Aquí puedes agregar la lógica para recargar todos los pagos si es necesario
-        // Por ahora, solo mostraremos un mensaje.
-        addLog("🔄 Recarga de 'Todos los residenciales' activada.");
-      }
-      setLoading(false);
-    };
-    fetchPagos();
-  };
 
   return (
     <div className="flex flex-col h-full">
@@ -441,40 +408,23 @@ export default function PagosPage() {
             <h1 className="text-2xl font-bold">Gestión de Pagos</h1>
             <p className="text-gray-600">Supervisa y administra los pagos de los residentes.</p>
           </div>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="inline-block">
-                  <Button 
-                    onClick={() => setIsCashModalOpen(true)}
-                    disabled={!puedeRegistrarPagos}
-                    className="w-full"
-                  >
-                    <DollarSign className="mr-2 h-4 w-4" />
-                    Registrar Pago en Efectivo
-                  </Button>
-                </div>
-              </TooltipTrigger>
-              {!puedeRegistrarPagos && (
-                <TooltipContent>
-                  <p>Selecciona un residencial para registrar un pago.</p>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
         </div>
+        
       </header>
 
       {/* Alerta de Stripe Connect */}
-      <StripeConnectAlert residencialId={residencialFilter !== 'todos' ? residencialFilter : null} />
+      {residencialFilter !== 'todos' && residencialFilter && (
+        <StripeConnectAlert />
+      )}
 
       <main className="flex-1 p-4 bg-gray-50 overflow-auto">
-        <Card>
-          <CardHeader>
-            <CardTitle>Filtros</CardTitle>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
               {/* Filtro de Residencial */}
               {userClaims?.isGlobalAdmin && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Filtro de Residencial</CardTitle>
+            </CardHeader>
+            <CardContent>
                 <Select
                   value={residencialFilter}
                   onValueChange={(value) => {
@@ -496,51 +446,35 @@ export default function PagosPage() {
                     ))}
                   </SelectContent>
                 </Select>
-              )}
-              {/* Filtro de Status */}
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filtrar por estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos los Estados</SelectItem>
-                  <SelectItem value="succeeded">Completado</SelectItem>
-                  <SelectItem value="pending">Pendiente</SelectItem>
-                  <SelectItem value="failed">Fallido</SelectItem>
-                </SelectContent>
-              </Select>
-              {/* Barra de Búsqueda */}
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Buscar por nombre, concepto..."
-                  className="pl-8"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Dashboard principal de pagos */}
+        {residencialFilter !== 'todos' && residencialFilter ? (
+          <SimplifiedPaymentsDashboard residencialId={residencialFilter} />
+        ) : (
+          <Card>
+            <CardContent className="text-center py-12">
+              <div className="space-y-4">
+                <div className="mx-auto h-16 w-16 text-gray-400">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-4m-5 0H9m0 0H5m0 0h2M7 7h10M7 11h10M7 15h10" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">
+                    Selecciona un Residencial
+                  </h3>
+                  <p className="text-gray-500">
+                    Para ver y gestionar los pagos, primero selecciona un residencial específico.
+                  </p>
+                </div>
               </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-center p-8">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-500 mx-auto" />
-                <p className="mt-4 text-muted-foreground">Cargando pagos...</p>
-              </div>
-            ) : (
-              <TablaPagos
-                loading={loading}
-                filteredPagos={filteredPagos}
-                formatDate={formatDate}
-                formatAmount={formatAmount}
-                getStatusLabel={getStatusLabel}
-                getStatusColor={getStatusColor}
-                handleOpenDetails={handleOpenDetails}
-              />
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
+
       </main>
       
       {selectedPago && (
@@ -559,30 +493,7 @@ export default function PagosPage() {
         </Dialog>
       )}
 
-      {puedeRegistrarPagos && (
-        <RegistrarPagoDialog
-          open={isCashModalOpen}
-          onOpenChange={setIsCashModalOpen}
-          onPaymentRegistered={handlePaymentRegistered}
-          residencialId={residencialFilter}
-        />
-      )}
 
-      {/* Sección de Logs para depuración */}
-      {process.env.NODE_ENV === 'development' && (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Logs de Carga (Desarrollo)</CardTitle>
-          </CardHeader>
-          <CardContent className="max-h-60 overflow-y-auto bg-muted/30 p-4 rounded-md">
-            {logs.length === 0 ? <p className="text-sm text-muted-foreground">No hay logs.</p> :
-              logs.map((log, index) => (
-                <p key={index} className="text-xs font-mono whitespace-pre-wrap">{log}</p>
-              ))
-            }
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 } 

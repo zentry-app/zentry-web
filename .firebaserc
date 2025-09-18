@@ -4,7 +4,11 @@
   },
   "targets": {
     "zentryapp-949f4": {
-      "hosting": {}
+      "hosting": {
+        "zentryapp-new": [
+          "zentryapp-new"
+        ]
+      }
     }
   },
   "etags": {}

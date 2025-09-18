@@ -5,7 +5,7 @@ import type { NextRequest } from 'next/server';
 const authFlowRoutes = ['/login', '/register', '/'];
 
 // Rutas que no requieren autenticación
-const publicRoutes = ['/login', '/register', '/access-denied'];
+const publicRoutes = ['/login', '/register', '/access-denied', '/eliminar-cuenta', '/delete-account', '/account-deletion', '/privacy', '/terms'];
 
 // Rutas que un usuario NO autenticado NO PUEDE visitar directamente (será redirigido a /login)
 // Esto incluye la raíz si quieres que sea el punto de entrada al login.
@@ -16,8 +16,15 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get('session');
   const { pathname } = request.nextUrl;
 
+  // Normalizar pathname (remover barra final para comparación)
+  const normalizedPath = pathname.endsWith('/') && pathname !== '/' ? pathname.slice(0, -1) : pathname;
+
+  // Debug: Log para verificar qué está pasando
+  console.log('Middleware - pathname:', pathname, 'normalized:', normalizedPath, 'isPublic:', publicRoutes.includes(normalizedPath) || publicRoutes.includes(pathname));
+
   // Permitir acceso a rutas públicas sin autenticación
-  if (publicRoutes.includes(pathname)) {
+  if (publicRoutes.includes(normalizedPath) || publicRoutes.includes(pathname)) {
+    console.log('Allowing access to public route:', pathname);
     return NextResponse.next();
   }
 

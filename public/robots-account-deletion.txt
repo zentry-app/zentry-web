@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+
+# Account deletion pages - Important for Google Play Store compliance
+Allow: /eliminar-cuenta
+Allow: /delete-account
+Allow: /account-deletion
+Allow: /privacy
+Allow: /terms
+
+# Sitemap
+Sitemap: https://zentry.app/sitemap-account-deletion.xml
+
+# Account deletion keywords for bot detection
+# Keywords: account deletion, delete account, remove account, data deletion, privacy rights

@@ -1,1 +1,32 @@
-{} 
+{
+  "framework": "nextjs",
+  "rewrites": [
+    {
+      "source": "/eliminar-cuenta",
+      "destination": "/eliminar-cuenta/"
+    },
+    {
+      "source": "/delete-account",
+      "destination": "/delete-account/"
+    },
+    {
+      "source": "/account-deletion",
+      "destination": "/account-deletion/"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "unsafe-none"
+        },
+        {
+          "key": "Cross-Origin-Embedder-Policy",
+          "value": "unsafe-none"
+        }
+      ]
+    }
+  ]
+}
