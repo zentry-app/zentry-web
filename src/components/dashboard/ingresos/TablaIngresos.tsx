@@ -158,12 +158,31 @@ const renderVisitanteName = (ingreso: Ingreso) => {
   }
 
   const priorityBadge = getPriorityBadge(ingreso);
+  
+  // 🆕 DETECTAR CATEGORÍAS ESPECÍFICAS DE PROVEEDORES
+  const getProviderCategory = (entryMethod: string) => {
+    switch (entryMethod) {
+      case 'provider_paqueteria':
+        return 'Paquetería';
+      case 'provider_delivery':
+        return 'Delivery';
+      case 'provider_municipales':
+        return 'Servicios Municipales';
+      default:
+        return null;
+    }
+  };
+  
+  const providerCategory = getProviderCategory(ingreso.entryMethod);
+  const displayCategory = providerCategory || ingreso.category;
 
   return (
     <div className="space-y-1">
       <p className="font-medium">{capitalizeName(visitData.name)}</p>
       <div className="flex items-center gap-1">
-        <span className="text-xs text-muted-foreground">{ingreso.category}</span>
+        <span className={`text-xs ${providerCategory ? 'text-orange-600 font-semibold' : 'text-muted-foreground'}`}>
+          {displayCategory}
+        </span>
         {priorityBadge}
       </div>
     </div>
