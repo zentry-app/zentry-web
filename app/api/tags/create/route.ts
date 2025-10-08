@@ -96,6 +96,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Generar ID único para ZKTeco (usando timestamp + random)
+    const zktecoUserId = Date.now() + Math.floor(Math.random() * 1000);
+    
     // Crear el tag
     const tagData = {
       type: "vehicular",
@@ -116,12 +119,16 @@ export async function POST(request: NextRequest) {
       // Campos adicionales para compatibilidad
       cardHex: null,
       holder: {
-        name: "Tag Vehicular",
-        externalId: null
+        name: `Tag Vehicular ${cardNumberDec}`,
+        externalId: cardNumberDec
       },
       residentId: casaId,
       validFrom: null,
-      validTo: null
+      validTo: null,
+      // 🆕 Campos críticos de ZKTeco (para consistencia con tags importados)
+      zktecoUserId: zktecoUserId,
+      zktecoBadgeNumber: cardNumberDec,
+      zktecoAccGroup: 0
     };
 
     // Guardar el tag

@@ -20,7 +20,7 @@ import {
   Residencial as FirestoreResidencial,
   Usuario
 } from "@/lib/firebase/firestore";
-import { updateTagStatus, getTags as getTagsSync } from "@/lib/firebase/tags-sync";
+import { updateTagStatus, getTagsSync } from "@/lib/firebase/tags-sync";
 import { AddTagModal } from "@/components/tags/AddTagModal";
 import { EditTagModal } from "@/components/tags/EditTagModal";
 import { TagsTable } from "@/components/tags/TagsTable";
@@ -80,7 +80,6 @@ export default function TagsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentTag, setCurrentTag] = useState<VehicularTag | null>(null);
   const [currentUserId] = useState("current-user-id"); // TODO: Obtener del contexto de auth
-  const [residencialSeleccionado, setResidencialSeleccionado] = useState<string>("todos");
 
   // Obtener contexto de autenticación
   const { user, userClaims, loading: authLoading } = useAuth();
@@ -410,7 +409,59 @@ export default function TagsPage() {
         
         console.log('🏠 [TAGS] Plumas generadas:', panelesData);
         
+        // 🆕 CARGAR TAGS REALES DE FIRESTORE
         const tagsData: VehicularTag[] = [];
+        console.log('🏠 [TAGS] Iniciando carga de tags...');
+        console.log('🏠 [TAGS] Residenciales a procesar:', residencialesAProcesar.map(r => ({ id: r.id, nombre: r.nombre })));
+        
+        for (const residencial of residencialesAProcesar) {
+          try {
+            console.log(`🏠 [TAGS] Cargando tags del residencial: ${residencial.nombre} (${residencial.id})`);
+            
+            // Usar getTagsSync para obtener tags del residencial
+            const tagsDelResidencial = await getTagsSync(residencial.id);
+            console.log(`🏠 [TAGS] Tags encontrados en ${residencial.nombre}:`, tagsDelResidencial.length);
+            console.log(`🏠 [TAGS] Primeros 3 tags:`, tagsDelResidencial.slice(0, 3).map(t => ({ 
+              id: t.id, 
+              cardNumberDec: t.cardNumberDec, 
+              status: t.status,
+              plate: t.plate 
+            })));
+            
+            // Convertir a VehicularTag y agregar
+            const vehicularTags = tagsDelResidencial.map(tag => ({
+              id: tag.id || '',
+              cardNumberDec: tag.cardNumberDec,
+              residencialId: residencial.id,
+              casaId: tag.ownerRef || tag.residentId || '', // Usar ownerRef como casaId
+              panels: tag.panels || [],
+              status: tag.status as 'active' | 'disabled',
+              plate: tag.plate || '',
+              notes: tag.notes || '',
+              validFrom: tag.validFrom || '',
+              validTo: tag.validTo || '',
+              lastChangedBy: tag.lastChangedBy || 'unknown',
+              lastChangedAt: tag.lastChangedAt || tag.createdAt || new Date().toISOString(),
+              source: tag.source || 'firestore'
+            }));
+            
+            tagsData.push(...vehicularTags);
+          } catch (error) {
+            console.error(`🏠 [TAGS] Error cargando tags del residencial ${residencial.id}:`, error);
+          }
+        }
+        
+        console.log('🏠 [TAGS] Total de tags cargados:', tagsData.length);
+        console.log('🏠 [TAGS] Tags finales:', tagsData);
+        
+        // 🆕 Ordenar tags por cardNumberDec en orden ascendente
+        tagsData.sort((a, b) => {
+          const cardA = parseInt(a.cardNumberDec) || 0;
+          const cardB = parseInt(b.cardNumberDec) || 0;
+          return cardA - cardB; // Ascendente (menor número primero)
+        });
+        
+        console.log('🏠 [TAGS] Tags ordenados por cardNumberDec ascendente:', tagsData.slice(0, 5).map(t => t.cardNumberDec));
         
         setTags(tagsData);
         setCasas(casasData);
@@ -427,30 +478,127 @@ export default function TagsPage() {
     fetchData();
   }, [authLoading, userClaims, esAdminDeResidencial, residencialIdDelAdmin]);
 
-  const handleAddTag = (newTag: VehicularTag) => {
-    setTags(prev => [...prev, newTag]);
-    setShowAddModal(false);
+  const handleAddTag = async (newTag: VehicularTag) => {
+    try {
+      // Recargar la lista completa de tags para asegurar que esté actualizada
+      await loadTags();
+      setShowAddModal(false);
+      toast.success('Tag creado exitosamente');
+    } catch (error) {
+      console.error('Error recargando tags después de crear:', error);
+      // Fallback: agregar el tag localmente
+      setTags(prev => [...prev, newTag]);
+      setShowAddModal(false);
+    }
   };
 
-  const handleEditTag = (updatedTag: VehicularTag) => {
-    setTags(prev => prev.map(tag => 
-      tag.id === updatedTag.id ? updatedTag : tag
-    ));
-    setShowEditModal(false);
-    setCurrentTag(null);
+  const handleEditTag = async (updatedTag: VehicularTag) => {
+    try {
+      // Recargar la lista completa de tags para asegurar que esté actualizada
+      await loadTags();
+      setShowEditModal(false);
+      setCurrentTag(null);
+      toast.success('Tag actualizado exitosamente');
+    } catch (error) {
+      console.error('Error recargando tags después de editar:', error);
+      // Fallback: actualizar el tag localmente
+      setTags(prev => prev.map(tag => 
+        tag.id === updatedTag.id ? updatedTag : tag
+      ));
+      setShowEditModal(false);
+      setCurrentTag(null);
+    }
   };
 
   const handleStatusChange = async (tagId: string, newStatus: string) => {
     try {
       await updateTagStatus(tagId, newStatus, currentUserId);
       
-      setTags(prev => prev.map(tag => 
-        tag.id === tagId ? { ...tag, status: newStatus as 'active' | 'disabled' } : tag
-      ));
+      // Recargar la lista de tags para asegurar que esté actualizada
+      await loadTags();
       
     } catch (error) {
       console.error("Error al cambiar estado del tag:", error);
       throw error;
+    }
+  };
+
+  // 🆕 FUNCIÓN PARA CARGAR TAGS
+  const loadTags = async () => {
+    try {
+      console.log('🔄 [TAGS] Recargando tags...');
+      
+      // Solo cargar si el usuario está autenticado
+      if (authLoading || !userClaims) {
+        console.log('🔄 [TAGS] Esperando autenticación...');
+        return;
+      }
+      
+      // Determinar residenciales a procesar
+      let residencialesAProcesar = residenciales;
+      
+      if (esAdminDeResidencial && residencialIdDelAdmin) {
+        if (residencialIdDelAdmin === 'S9G7TL') {
+          residencialesAProcesar = [{
+            id: 'mCTs294LGLkGvL9TTvaQ',
+            nombre: 'Residencial S9G7TL'
+          }];
+        } else {
+          residencialesAProcesar = residenciales.filter(r => (r as any).residencialID === residencialIdDelAdmin);
+        }
+      }
+      
+      // Cargar tags de todos los residenciales
+      const tagsData: VehicularTag[] = [];
+      
+      for (const residencial of residencialesAProcesar) {
+        try {
+          console.log(`🔄 [TAGS] Recargando tags del residencial: ${residencial.nombre}`);
+          
+          const tagsDelResidencial = await getTagsSync(residencial.id);
+          console.log(`🔄 [TAGS] Tags encontrados: ${tagsDelResidencial.length}`);
+          
+          const vehicularTags = tagsDelResidencial.map(tag => ({
+            id: tag.id || '',
+            cardNumberDec: tag.cardNumberDec,
+            residencialId: residencial.id,
+            casaId: tag.ownerRef || tag.residentId || '', // Usar ownerRef como casaId
+            panels: tag.panels || [],
+            status: tag.status as 'active' | 'disabled',
+            plate: tag.plate || '',
+            notes: tag.notes || '',
+            validFrom: tag.validFrom || '',
+            validTo: tag.validTo || '',
+            lastChangedBy: tag.lastChangedBy || 'unknown',
+            lastChangedAt: tag.lastChangedAt || tag.createdAt || new Date().toISOString(),
+            source: tag.source || 'firestore'
+          }));
+          
+          tagsData.push(...vehicularTags);
+        } catch (error) {
+          console.error(`🔄 [TAGS] Error recargando tags del residencial ${residencial.id}:`, error);
+        }
+      }
+      
+      console.log(`🔄 [TAGS] Total de tags recargados: ${tagsData.length}`);
+      setTags(tagsData);
+      
+    } catch (error) {
+      console.error('🔄 [TAGS] Error recargando tags:', error);
+      toast.error('Error recargando la lista de tags');
+    }
+  };
+
+  // 🆕 FUNCIÓN PARA MANEJAR ELIMINACIÓN DE TAGS
+  const handleTagDeleted = async (tagId: string) => {
+    try {
+      console.log(`🔄 [TAGS] Recargando tags después de eliminar: ${tagId}`);
+      // Recargar la lista de tags después de eliminar
+      await loadTags();
+      console.log(`✅ [TAGS] Tags recargados exitosamente después de eliminar`);
+    } catch (error) {
+      console.error('❌ [TAGS] Error recargando tags después de eliminación:', error);
+      toast.error('Error recargando la lista de tags');
     }
   };
 
@@ -473,32 +621,6 @@ export default function TagsPage() {
         </Button>
       </div>
 
-      {/* Selector de residencial - Solo para admin global */}
-      {!authLoading && userClaims && userClaims.isGlobalAdmin && (
-        <div className="flex flex-col w-[250px]">
-          <Select
-            value={residencialSeleccionado}
-            onValueChange={(value) => {
-                setResidencialSeleccionado(value);
-                // TODO: Recargar datos para el nuevo residencial
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccionar residencial" />
-            </SelectTrigger>
-            <SelectContent>
-                <SelectItem value="todos">Todos los residenciales</SelectItem>
-              {residenciales
-                .filter(residencial => !!residencial.id)
-                .map((residencial) => (
-                  <SelectItem key={residencial.id} value={residencial.id!.toString()}>
-                    {residencial.nombre}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
 
       <Card>
         <CardHeader>
@@ -517,6 +639,7 @@ export default function TagsPage() {
             loading={loading}
             onEditTag={handleOpenEditModal}
             onStatusChange={handleStatusChange}
+            onTagDeleted={handleTagDeleted} // 🆕 Nueva prop
             currentUserId={currentUserId}
           />
         </CardContent>

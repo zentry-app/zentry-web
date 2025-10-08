@@ -130,7 +130,9 @@ export default function IngresosPage() {
       method.includes('vehicular') ||
       method === 'qr_with_physical_pass' ||
       method.includes('with_new_vehicle') ||
-      method.includes('with_physical_pass') && !!i.vehicleInfo
+      method.includes('with_physical_pass') && !!i.vehicleInfo ||
+      // 🔧 CORREGIDO: Los proveedores con vehículo son vehiculares
+      method.startsWith('provider_') && !!i.vehicleInfo
     );
   }, []);
 
@@ -138,7 +140,9 @@ export default function IngresosPage() {
     const method = (i.entryMethod || '').toLowerCase();
     return (
       method.startsWith('pedestrian') ||
-      (!i.vehicleInfo && !method.includes('vehicular'))
+      // 🔧 CORREGIDO: Los proveedores sin vehículo son peatonales
+      (method.startsWith('provider_') && !i.vehicleInfo) ||
+      (!i.vehicleInfo && !method.includes('vehicular') && !method.startsWith('provider_'))
     );
   }, []);
 

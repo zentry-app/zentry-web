@@ -9,10 +9,11 @@ import { useToast } from "@/components/ui/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, FileText, Image, MessageSquare, Upload, Download } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Calendar, FileText, Image, MessageSquare, Upload, Download, Trash2 } from "lucide-react";
 import React from "react";
-import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, deleteDoc, doc } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { httpsCallable } from "firebase/functions";
 import { db, storage, functions } from "@/lib/firebase/config";
 
@@ -37,6 +38,9 @@ export default function ComunicadosPage() {
   const [residencialFieldId, setResidencialFieldId] = React.useState<string | null>(null);
   const [comunicados, setComunicados] = React.useState<Comunicado[]>([]);
   const [activeTab, setActiveTab] = React.useState("crear");
+  const [comunicadoAEliminar, setComunicadoAEliminar] = React.useState<Comunicado | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
+  const [eliminando, setEliminando] = React.useState(false);
 
   // Obtener el ID del residencial del usuario
   React.useEffect(() => {
@@ -223,6 +227,54 @@ export default function ComunicadosPage() {
     }
   };
 
+  const handleEliminarComunicado = async (comunicado: Comunicado) => {
+    setComunicadoAEliminar(comunicado);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmarEliminacion = async () => {
+    if (!comunicadoAEliminar || !residencialDocId) return;
+    
+    setEliminando(true);
+    try {
+      // Eliminar archivo de Storage si existe
+      if (comunicadoAEliminar.path) {
+        try {
+          const storageRef = ref(storage, comunicadoAEliminar.path);
+          await deleteObject(storageRef);
+          console.log('Archivo eliminado de Storage:', comunicadoAEliminar.path);
+        } catch (error) {
+          console.warn('No se pudo eliminar el archivo de Storage:', error);
+          // Continuar con la eliminación del documento aunque falle el archivo
+        }
+      }
+
+      // Eliminar documento de Firestore
+      const comunicadoRef = doc(db, 'residenciales', residencialDocId, 'documentos', comunicadoAEliminar.id);
+      await deleteDoc(comunicadoRef);
+
+      // Actualizar la lista de comunicados
+      await loadComunicados(residencialDocId);
+
+      toast({
+        title: "Comunicado eliminado",
+        description: `El comunicado "${comunicadoAEliminar.titulo}" ha sido eliminado correctamente`,
+      });
+
+    } catch (error: any) {
+      console.error('Error al eliminar comunicado:', error);
+      toast({
+        title: "Error al eliminar",
+        description: `No se pudo eliminar el comunicado: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setEliminando(false);
+      setShowDeleteDialog(false);
+      setComunicadoAEliminar(null);
+    }
+  };
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="mb-6">
@@ -328,6 +380,14 @@ export default function ComunicadosPage() {
                               {getTipoIcon(comunicado.tipo)}
                               <h3 className="font-semibold text-lg">{comunicado.titulo}</h3>
                               {getTipoBadge(comunicado.tipo)}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEliminarComunicado(comunicado)}
+                                className="ml-auto text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
                             
                             {comunicado.descripcion && (
@@ -374,6 +434,40 @@ export default function ComunicadosPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Modal de confirmación de eliminación */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar eliminación</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-gray-600">
+              ¿Estás seguro de que quieres eliminar el comunicado{" "}
+              <span className="font-semibold">"{comunicadoAEliminar?.titulo}"</span>?
+            </p>
+            <p className="text-sm text-red-600 mt-2">
+              Esta acción no se puede deshacer. Si el comunicado tiene un archivo adjunto, también será eliminado.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+              disabled={eliminando}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmarEliminacion}
+              disabled={eliminando}
+            >
+              {eliminando ? "Eliminando..." : "Eliminar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

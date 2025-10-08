@@ -164,6 +164,42 @@ export function EditTagModal({
 
     setLoading(true);
     try {
+      // Obtener token de autenticación
+      const { getAuthSafe } = await import('@/lib/firebase/config');
+      const auth = await getAuthSafe();
+      const user = auth?.currentUser;
+      
+      if (!user) {
+        toast.error("Usuario no autenticado");
+        return;
+      }
+
+      const token = await user.getIdToken();
+
+      // Llamada real a la API
+      const response = await fetch('/api/tags/update', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          tagId: tag.id,
+          residencialId: tag.residencialId,
+          casaId: formData.casaId,
+          plate: formData.plate,
+          notes: formData.notes,
+          status: formData.status
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.details || errorData.error || 'Error al actualizar tag');
+      }
+
+      const result = await response.json();
+      
       const updatedTag = {
         ...tag,
         ...formData,
@@ -171,22 +207,13 @@ export function EditTagModal({
         lastChangedAt: new Date().toISOString(),
       };
 
-      // TODO: Implementar llamada real a la API
-      // const response = await fetch(`/api/tags/${tag.id}`, {
-      //   method: 'PUT',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(updatedTag)
-      // });
-
-      // if (!response.ok) throw new Error('Error al actualizar tag');
-
       onTagUpdated(updatedTag);
       toast.success("Tag actualizado correctamente");
       onOpenChange(false);
 
     } catch (error) {
       console.error("Error al actualizar tag:", error);
-      toast.error("Error al actualizar el tag");
+      toast.error(`Error al actualizar el tag: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     } finally {
       setLoading(false);
     }

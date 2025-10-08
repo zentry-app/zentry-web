@@ -15,21 +15,33 @@ import { db } from './config';
 export interface Tag {
   id?: string;
   cardNumberDec: string;
-  cardHex?: string;
-  facilityCode?: number;
-  format: string;
-  holder: {
+  cardHex?: string | null;
+  facilityCode?: number | null;
+  format?: string;
+  holder?: {
     name: string;
-    externalId?: string;
+    externalId?: string | null;
   };
   residentId?: string;
   status: 'active' | 'disabled' | 'lost' | 'stolen';
-  validFrom?: string;
-  validTo?: string;
+  validFrom?: string | null;
+  validTo?: string | null;
   panels: string[];
   lastChangedBy: string;
   lastChangedAt: string;
   source: string;
+  // 🆕 Campos adicionales del documento real
+  createdAt?: string;
+  notes?: string | null;
+  ownerRef?: string;
+  ownerType?: string;
+  plate?: string;
+  residencialId?: string;
+  type?: string;
+  // 🆕 Campos críticos de ZKTeco
+  zktecoUserId?: number;
+  zktecoBadgeNumber?: string;
+  zktecoAccGroup?: number;
 }
 
 export interface PanelJob {
@@ -68,9 +80,21 @@ export async function updateTagStatus(
   userId: string
 ): Promise<void> {
   try {
+    // Obtener token de autenticación
+    const { getAuthSafe } = await import('./config');
+    const auth = await getAuthSafe();
+    const user = auth?.currentUser;
+    
+    if (!user) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    const token = await user.getIdToken();
+
     const response = await fetch('/api/tags/update-status', {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -157,6 +181,69 @@ export async function getTags(
 
   } catch (error) {
     console.error('Error al obtener tags:', error);
+    throw error;
+  }
+}
+
+/**
+ * 🆕 Obtiene los tags de un residencial específico
+ */
+export async function getTagsSync(residencialDocId: string): Promise<Tag[]> {
+  try {
+    console.log(`🏷️ [getTagsSync] Obteniendo tags del residencialDocId: ${residencialDocId}`);
+    
+    const tagsRef = collection(db, 'residenciales', residencialDocId, 'tags');
+    
+    // 🆕 Intentar con orderBy por cardNumberDec, si falla usar consulta simple
+    let snapshot;
+    try {
+      const q = query(tagsRef, orderBy('cardNumberDec', 'asc'));
+      snapshot = await getDocs(q);
+      console.log(`🏷️ [getTagsSync] Consulta con orderBy por cardNumberDec exitosa`);
+    } catch (orderByError) {
+      console.log(`🏷️ [getTagsSync] Error con orderBy, usando consulta simple:`, orderByError);
+      snapshot = await getDocs(tagsRef);
+      console.log(`🏷️ [getTagsSync] Consulta simple exitosa`);
+    }
+    
+    console.log(`🏷️ [getTagsSync] Documentos encontrados: ${snapshot.docs.length}`);
+    
+    const tags = snapshot.docs.map(doc => {
+      const data = doc.data();
+      console.log(`🏷️ [getTagsSync] Tag ${doc.id}:`, {
+        cardNumberDec: data.cardNumberDec,
+        status: data.status,
+        plate: data.plate,
+        ownerRef: data.ownerRef,
+        panels: data.panels,
+        lastChangedAt: data.lastChangedAt,
+        createdAt: data.createdAt,
+        residencialId: data.residencialId,
+        source: data.source
+      });
+      return {
+        id: doc.id,
+        ...data
+      };
+    }) as Tag[];
+    
+    // 🆕 Ordenar manualmente por cardNumberDec (ascendente)
+    tags.sort((a, b) => {
+      const cardA = parseInt(a.cardNumberDec) || 0;
+      const cardB = parseInt(b.cardNumberDec) || 0;
+      return cardA - cardB; // Ascendente (menor número primero)
+    });
+    
+    console.log(`🏷️ [getTagsSync] Tags procesados y ordenados: ${tags.length}`);
+    console.log(`🏷️ [getTagsSync] Primeros 3 tags:`, tags.slice(0, 3).map(t => ({
+      id: t.id,
+      cardNumberDec: t.cardNumberDec,
+      status: t.status,
+      source: t.source
+    })));
+    return tags;
+  } catch (error) {
+    console.error(`🏷️ [getTagsSync] Error obteniendo tags del residencialDocId ${residencialDocId}:`, error);
     throw error;
   }
 }

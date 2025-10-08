@@ -1,15 +1,11 @@
 {
-  "app/dashboard/areas-comunes/page.tsx -> @/components/dashboard/areas-comunes/AreaComunFormDialogContent": {
-    "id": "app/dashboard/areas-comunes/page.tsx -> @/components/dashboard/areas-comunes/AreaComunFormDialogContent",
-    "files": [
-      "static/chunks/_app-pages-browser_src_components_dashboard_areas-comunes_AreaComunFormDialogContent_tsx.js"
-    ]
+  "app/dashboard/encuestas/page.tsx -> @/lib/firebase/config": {
+    "id": "app/dashboard/encuestas/page.tsx -> @/lib/firebase/config",
+    "files": []
   },
-  "app/dashboard/areas-comunes/page.tsx -> @/components/dashboard/areas-comunes/ConfirmarEliminarAreaComunDialogContent": {
-    "id": "app/dashboard/areas-comunes/page.tsx -> @/components/dashboard/areas-comunes/ConfirmarEliminarAreaComunDialogContent",
-    "files": [
-      "static/chunks/_app-pages-browser_src_components_dashboard_areas-comunes_ConfirmarEliminarAreaComunDialogCon-918f88.js"
-    ]
+  "app/dashboard/encuestas/page.tsx -> firebase/firestore": {
+    "id": "app/dashboard/encuestas/page.tsx -> firebase/firestore",
+    "files": []
   },
   "app/dashboard/ingresos/page.tsx -> @/components/dashboard/ingresos/DetallesIngresoDialogContent": {
     "id": "app/dashboard/ingresos/page.tsx -> @/components/dashboard/ingresos/DetallesIngresoDialogContent",
@@ -39,6 +35,14 @@
   },
   "app/dashboard/reservas/page.tsx -> firebase/functions": {
     "id": "app/dashboard/reservas/page.tsx -> firebase/functions",
+    "files": []
+  },
+  "app/dashboard/tags/page.tsx -> @/lib/firebase/config": {
+    "id": "app/dashboard/tags/page.tsx -> @/lib/firebase/config",
+    "files": []
+  },
+  "app/dashboard/tags/page.tsx -> firebase/firestore": {
+    "id": "app/dashboard/tags/page.tsx -> firebase/firestore",
     "files": []
   },
   "app/dashboard/usuarios/page.tsx -> @/components/dashboard/usuarios/ConfirmarEliminarDialogContent": {
@@ -113,11 +117,27 @@
     "id": "app/dashboard/usuarios/page.tsx -> firebase/functions",
     "files": []
   },
+  "src/components/tags/AddTagModal.tsx -> @/lib/firebase/config": {
+    "id": "src/components/tags/AddTagModal.tsx -> @/lib/firebase/config",
+    "files": []
+  },
+  "src/components/tags/AddTagModal.tsx -> firebase/firestore": {
+    "id": "src/components/tags/AddTagModal.tsx -> firebase/firestore",
+    "files": []
+  },
+  "src/components/tags/EditTagModal.tsx -> @/lib/firebase/config": {
+    "id": "src/components/tags/EditTagModal.tsx -> @/lib/firebase/config",
+    "files": []
+  },
   "src/lib/firebase/config.ts -> firebase/auth": {
     "id": "src/lib/firebase/config.ts -> firebase/auth",
     "files": [
       "static/chunks/_app-pages-browser_node_modules_firebase_auth_dist_esm_index_esm_js.js"
     ]
+  },
+  "src/lib/firebase/tags-sync.ts -> ./config": {
+    "id": "src/lib/firebase/tags-sync.ts -> ./config",
+    "files": []
   },
   "src/lib/services/unified-payments-service.ts -> ./all-payments-service": {
     "id": "src/lib/services/unified-payments-service.ts -> ./all-payments-service",

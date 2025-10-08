@@ -81,6 +81,10 @@ interface TagFormData {
   plate?: string;
   notes?: string;
   applyImmediately: boolean;
+  // 🆕 Campos críticos de ZKTeco (opcionales, se generan automáticamente)
+  zktecoUserId?: number;
+  zktecoBadgeNumber?: string;
+  zktecoAccGroup?: number;
 }
 
 interface AddTagModalProps {
@@ -115,6 +119,10 @@ export function AddTagModal({
     plate: "",
     notes: "",
     applyImmediately: true,
+    // 🆕 Campos ZKTeco se generan automáticamente
+    zktecoUserId: undefined,
+    zktecoBadgeNumber: undefined,
+    zktecoAccGroup: 0
   });
 
   const [loading, setLoading] = useState(false);
@@ -425,21 +433,17 @@ export function AddTagModal({
       
       console.log('🔍 [MODAL] Casas filtradas:', casasDelResidencial);
 
-      // Para tags de residentes, asignar automáticamente entrada y salida
-      const plumasResidente = panelesDelResidencial.filter(p => 
-        p.nombre.includes('Residente')
-      );
+      // 🆕 SIMPLIFICACIÓN: Asignar automáticamente TODAS las plumas vehiculares del residencial
+      console.log('🔍 [MODAL] Plumas vehiculares encontradas:', panelesDelResidencial);
+      console.log('🔍 [MODAL] IDs de plumas:', panelesDelResidencial.map(p => p.id));
       
-      console.log('🔍 [MODAL] Plumas de residente encontradas:', plumasResidente);
-      console.log('🔍 [MODAL] IDs de plumas:', plumasResidente.map(p => p.id));
-      
-      if (plumasResidente.length > 0) {
-        // Asignar automáticamente todas las plumas de residente
+      if (panelesDelResidencial.length > 0) {
+        // 🆕 Asignar automáticamente TODAS las plumas vehiculares
         setFormData(prev => ({
           ...prev,
-          panels: plumasResidente.map(p => p.id)
+          panels: panelesDelResidencial.map(p => p.id)
         }));
-        console.log('🔍 [MODAL] Plumas asignadas automáticamente:', plumasResidente.map(p => p.id));
+        console.log('🔍 [MODAL] Todas las plumas asignadas automáticamente:', panelesDelResidencial.map(p => p.id));
       }
 
       // Resetear casa si no pertenece al residencial
@@ -532,15 +536,8 @@ export function AddTagModal({
       return false;
     }
 
-    // Validar plumas solo si hay opciones de selección manual
-    const tienePlumasManuales = panelesFiltrados.some(p => !p.nombre.includes('Residente'));
-    
-    if (tienePlumasManuales && formData.panels.length === 0) {
-      toast.error("Debe seleccionar al menos una pluma de acceso");
-      return false;
-    }
-
-    if (tienePlumasManuales && panelesFiltrados.length === 0) {
+    // 🆕 SIMPLIFICACIÓN: Validar plumas solo si no hay plumas automáticas
+    if (formData.panels.length === 0) {
       toast.error("No hay plumas de acceso configuradas en este residencial");
       return false;
     }
@@ -673,33 +670,6 @@ export function AddTagModal({
               )}
             </div>
 
-            {/* Residencial - Solo para admin global */}
-            {!esAdminDeResidencial && residenciales.length > 1 && (
-              <div className="space-y-2">
-                <Label htmlFor="residencialId" className="text-sm font-medium">
-                  Residencial *
-                </Label>
-                <Select
-                  value={formData.residencialId}
-                  onValueChange={(value) => {
-                    handleInputChange('residencialId', value);
-                    // Limpiar casa seleccionada cuando cambia el residencial
-                    setFormData(prev => ({ ...prev, casaId: "" }));
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar residencial" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {residenciales.map((residencial) => (
-                      <SelectItem key={residencial.id} value={residencial.id}>
-                        {residencial.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
 
             {/* Casa */}
             <div className="space-y-2">
@@ -781,79 +751,6 @@ export function AddTagModal({
               </Popover>
             </div>
 
-            {/* Plumas de Acceso - Solo mostrar si hay opciones de selección */}
-            {panelesFiltrados.some(p => !p.nombre.includes('Residente')) && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">
-                  Plumas de Acceso *
-              </Label>
-              {panelesFiltrados.length === 0 ? (
-                <Alert className="border-orange-200 bg-orange-50">
-                  <AlertCircle className="h-4 w-4 text-orange-600" />
-                  <AlertDescription className="text-orange-800">
-                      No hay plumas de acceso configuradas en este residencial.
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <div className="space-y-2 max-h-32 overflow-y-auto border rounded-md p-3">
-                  {panelesFiltrados.map((panel) => (
-                    <div key={panel.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={panel.id}
-                        checked={formData.panels.includes(panel.id)}
-                        onCheckedChange={(checked) => 
-                          handlePanelToggle(panel.id, checked as boolean)
-                        }
-                      />
-                      <Label 
-                        htmlFor={panel.id} 
-                        className="text-sm font-normal cursor-pointer"
-                      >
-                        {panel.nombre}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {formData.panels.length > 0 && (
-                <div className="text-xs text-muted-foreground">
-                    Seleccionadas: {formData.panels.length} pluma(s)
-                </div>
-              )}
-            </div>
-            )}
-
-            {/* Información automática para plumas de residente */}
-            {panelesFiltrados.some(p => p.nombre.includes('Residente')) && (
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">
-                  Plumas de Acceso
-                </Label>
-                <Alert className="border-blue-200 bg-blue-50">
-                  <Info className="h-4 w-4 text-blue-600" />
-                  <AlertDescription className="text-blue-800">
-                    <div className="space-y-1">
-                      <div className="font-medium">Plumas asignadas automáticamente:</div>
-                      {panelesFiltrados
-                        .filter(p => p.nombre.includes('Residente'))
-                        .map(panel => {
-                          console.log('🔍 [MODAL] Mostrando pluma en alert:', panel.nombre, panel.id);
-                          return (
-                            <div key={panel.id} className="flex items-center gap-2 text-sm">
-                              <Car className="h-3 w-3 text-blue-600" />
-                              <span>{panel.nombre}</span>
-                            </div>
-                          );
-                        })
-                      }
-                      <div className="text-xs mt-2">
-                        Estas plumas se activan automáticamente cuando se escanea el tag.
-                      </div>
-                    </div>
-                  </AlertDescription>
-                </Alert>
-              </div>
-            )}
 
             {/* Estado */}
             <div className="space-y-2">

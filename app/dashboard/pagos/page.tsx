@@ -35,13 +35,14 @@ import {
   DialogTitle 
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Search, CreditCard, DollarSign, Clock, CheckCircle, XCircle, Eye, Wifi, Loader2, Calendar, Plus } from "lucide-react";
+import { Search, CreditCard, DollarSign, Clock, CheckCircle, XCircle, Eye, Wifi, Loader2, Calendar, Plus, FileText, Download } from "lucide-react";
 import { 
   Residencial, 
   getResidenciales, 
   getPagos, 
   suscribirseAPagos
 } from "@/lib/firebase/firestore";
+import { AllPaymentsService, AllPayment } from "@/lib/services/all-payments-service";
 import { formatDistanceToNow, format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useAuth } from "@/contexts/AuthContext";
@@ -50,6 +51,40 @@ import dynamic from 'next/dynamic';
 import { Suspense } from 'react';
 import TablaPagos from '@/components/dashboard/pagos/TablaPagos';
 import { Pago, convertFirestoreTimestampToDate } from "@/types/pagos";
+
+// Tipo para el reporte
+interface ReportePago {
+  usuario: string;
+  email: string;
+  monto: string;
+  metodo: string;
+  estado: string;
+  fecha: string;
+  residencial: string;
+  direccion: string;
+  concepto: string;
+}
+
+// Tipo combinado para pagos que pueden venir de diferentes servicios
+interface PagoCombinado {
+  id: string;
+  userName: string;
+  userEmail: string;
+  amount: number;
+  currency: string;
+  status: string;
+  paymentMethod?: string;
+  paymentType?: string;
+  timestamp?: any;
+  fechaPago?: any;
+  concept?: string;
+  description?: string;
+  userAddress: {
+    calle: string;
+    houseNumber: string;
+  };
+  _residencialNombre?: string;
+}
 import StripeConnectAlert from '@/components/dashboard/pagos/StripeConnectAlert';
 import UnifiedPaymentsDashboard from '@/components/dashboard/pagos/UnifiedPaymentsDashboard';
 import SimplifiedPaymentsDashboard from '@/components/dashboard/pagos/SimplifiedPaymentsDashboardV2';
@@ -80,6 +115,8 @@ export default function PagosPage() {
   const [logs, setLogs] = useState<string[]>([]);
   const [mapeoResidenciales, setMapeoResidenciales] = useState<{[key: string]: string}>({});
   const [activeTab, setActiveTab] = useState<'unified' | 'all'>('unified');
+  const [isGeneratingReport, setIsGeneratingReport] = useState<boolean>(false);
+  const [allAvailablePagos, setAllAvailablePagos] = useState<Pago[]>([]);
 
   const esAdminDeResidencial = useMemo(() => userClaims?.isResidencialAdmin && !userClaims?.isGlobalAdmin, [userClaims]);
   const residencialCodigoDelAdmin = useMemo(() => esAdminDeResidencial ? userClaims?.managedResidencialId : null, [esAdminDeResidencial, userClaims]);
@@ -180,6 +217,7 @@ export default function PagosPage() {
           
           logMessages.push(`📊 Total de pagos encontrados: ${allPagos.length}`);
           setPagos(allPagos);
+          setAllAvailablePagos(allPagos);
           
         } else {
           logMessages.push(`📋 Cargando pagos para residencial específico: ${residencialFilter}`);
@@ -195,9 +233,11 @@ export default function PagosPage() {
               _residencialNombre: residencial?.nombre || "Desconocido"
             }));
             setPagos(pagosConResidencial);
+            setAllAvailablePagos(pagosConResidencial);
           } else {
             console.log(`⚠️ No se encontraron pagos para este residencial`);
             setPagos([]);
+            setAllAvailablePagos([]);
           }
         }
       } catch (error) {
@@ -342,7 +382,7 @@ export default function PagosPage() {
   // Obtener etiqueta para el estado
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'succeeded': return 'Completado';
+      case 'completed': return 'Completado';
       case 'pending': return 'Pendiente';
       case 'failed': return 'Fallido';
       case 'cancelled': return 'Cancelado';
@@ -353,7 +393,7 @@ export default function PagosPage() {
   // Obtener color para el estado
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'succeeded': return 'bg-green-100 text-green-800';
+      case 'completed': return 'bg-green-100 text-green-800';
       case 'pending': return 'bg-yellow-100 text-yellow-800';
       case 'failed': return 'bg-red-100 text-red-800';
       case 'cancelled': return 'bg-gray-100 text-gray-800';
@@ -399,6 +439,379 @@ export default function PagosPage() {
     }).format(finalAmount);
   };
 
+  // Función para generar reporte de pagos
+  const generateReport = async () => {
+    setIsGeneratingReport(true);
+    
+    try {
+      // Si no hay pagos filtrados pero es un admin de residencial, obtener datos directamente
+      let pagosParaReporte: PagoCombinado[] = filteredPagos as PagoCombinado[];
+      
+      if (filteredPagos.length === 0 && esAdminDeResidencial && residencialFilter !== 'todos') {
+        addLog(`🔄 Obteniendo todos los pagos para el reporte desde residencial: ${residencialFilter}`);
+        try {
+          // Usar el servicio correcto que maneja todos los pagos (efectivo y transferencias)
+          // NO pasar parámetros de fecha para obtener TODOS los pagos como hace el dashboard
+          const datosDirectos = await AllPaymentsService.getAllPayments(residencialFilter);
+          
+          const residencial = residenciales.find(r => r.id === residencialFilter);
+          pagosParaReporte = datosDirectos.map(pago => ({
+            ...(pago as PagoCombinado),
+            _residencialNombre: residencial?.nombre || "Desconocido"
+          }));
+          
+          addLog(`✅ Datos obtenidos exitosamente: ${pagosParaReporte.length} pagos`);
+          
+          // Mostrar cada pago en los logs para debugging
+          datosDirectos.forEach((pago, index) => {
+            addLog(`📋 Pago ${index + 1}: ${pago.userName} - $${pago.amount} - ${pago.paymentType}`);
+          });
+          
+        } catch (error) {
+          addLog(`❌ Error obteniendo datos directos: ${error}`);
+          toast.error('Error obteniendo datos para el reporte');
+          return;
+        }
+      }
+
+      const reportData = {
+        title: `Reporte de Pagos`,
+        subtitle: residencialFilter === 'todos' 
+          ? 'Todos los Residenciales' 
+          : residenciales.find(r => r.id === residencialFilter)?.nombre || 'Residencial Seleccionado',
+        fechaGeneracion: format(new Date(), "dd 'de' MMMM 'de' yyyy, HH:mm", { locale: es }),
+        totalPagos: pagosParaReporte.length,
+        pagos: pagosParaReporte.map(pago => ({
+          usuario: pago.userName || 'N/A',
+          email: pago.userEmail || 'N/A',
+          monto: formatAmount(pago.amount, 'MXN', pago.paymentMethod),
+          metodo: pago.paymentType || pago.paymentMethod || 'N/A',
+          estado: pago.status || 'N/A',
+          fecha: pago.fechaPago ? formatDateFull(pago.fechaPago) : 'N/A',
+          residencial: pago._residencialNombre || 'N/A',
+          direccion: `${pago.userAddress?.calle || ''} ${pago.userAddress?.houseNumber || ''}`.trim() || 'N/A',
+          concepto: pago.concept || 'N/A'
+        })),
+        estadisticas: {
+          totalCompletados: pagosParaReporte.filter(p => p.status === 'completed').length,
+          totalPendientes: pagosParaReporte.filter(p => p.status === 'pending').length,
+          totalFallidos: pagosParaReporte.filter(p => p.status === 'failed').length,
+          totalCancelados: pagosParaReporte.filter(p => p.status === 'cancelled').length,
+          sumaTotal: pagosParaReporte
+            .filter(p => p.status === 'completed')
+            .reduce((sum, p) => {
+              const amount = p.paymentMethod === 'card' || p.paymentMethod === 'cash' 
+                ? p.amount / 100 
+                : p.amount;
+              return sum + amount;
+            }, 0)
+        }
+      };
+
+      // Generar PDF usando la ventana de impresión del navegador
+      const htmlReport = generateHTMLReport(reportData);
+      
+      // Crear ventana nueva para imprimir/guardar como PDF
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlReport);
+        printWindow.document.close();
+        
+        // Esperar un poco para que se cargue el contenido antes de imprimir
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 500);
+      } else {
+        // Fallback: mostrar el reporte en página completa para imprimir
+        toast.info('Por favor usa Ctrl+P (Cmd+P en Mac) para imprimir/guardar como PDF');
+      }
+      
+      toast.success('Reporte generado y listo para imprimir/guardar como PDF');
+      addLog(`📄 Reporte generado con ${reportData.totalPagos} pagos`);
+      
+    } catch (error) {
+      console.error('Error generando reporte:', error);
+      toast.error('Error al generar el reporte');
+      addLog(`❌ Error generando reporte: ${error}`);
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
+  // Función para generar HTML formateado del reporte
+  const generateHTMLReport = (data: any) => {
+    return `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${data.title}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+        
+        .header .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 20px;
+        }
+        
+        .header .date {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .summary {
+            background: #f8f9ff;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 40px;
+            border-left: 5px solid #667eea;
+        }
+        
+        .summary h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.8rem;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            text-align: center;
+            border-top: 4px solid #667eea;
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .section h2 {
+            color: #333;
+            margin-bottom: 25px;
+            font-size: 1.5rem;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .payments-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 40px;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        
+        .payments-table th {
+            background: #667eea;
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.85rem;
+        }
+        
+        .payments-table td {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .payments-table tr:hover {
+            background: #f8f9ff;
+        }
+        
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .status-succeeded { background: #d4edda; color: #155724; }
+        .status-pendiente { background: #fff3cd; color: #856404; }
+        .status-fallido { background: #f8d7da; color: #721c24; }
+        .status-cancelado { background: #e2e3e5; color: #383d41; }
+        
+        .footer {
+            background: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            color: #666;
+            border-top: 1px solid #eee;
+        }
+        
+        .footer p {
+            margin-bottom: 10px;
+        }
+        
+        .total-amount {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #28a745;
+            margin-top: 20px;
+        }
+        
+        @media print {
+            body { background: white !important; }
+            .container { box-shadow: none !important; }
+            .header { background: #667eea !important; }
+        }
+        
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .payments-table { font-size: 0.9rem; }
+            .payments-table th, .payments-table td { padding: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>${data.title}</h1>
+            <div class="subtitle">${data.subtitle}</div>
+            <div class="date">Generado el ${data.fechaGeneracion}</div>
+        </div>
+        
+        <div class="content">
+            <div class="summary">
+                <h2>📊 Resumen Ejecutivo</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number">${data.totalPagos}</div>
+                        <div class="stat-label">Total Pagos</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${data.estadisticas.totalCompletados}</div>
+                        <div class="stat-label">Completados</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${data.estadisticas.totalPendientes}</div>
+                        <div class="stat-label">Pendientes</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${data.estadisticas.totalFallidos}</div>
+                        <div class="stat-label">Fallidos</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${data.estadisticas.totalCancelados}</div>
+                        <div class="stat-label">Cancelados</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="status-badge status-succeeded">${new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(data.estadisticas.sumaTotal)}</div>
+                        <div class="stat-label">Total Completados</div>
+                    </div>
+                </div>
+            </div>
+            
+            <section class="section">
+                <h2>📋 Detalle de Pagos</h2>
+                <table class="payments-table">
+                    <thead>
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Email</th>
+                            <th>Monto</th>
+                            <th>Método</th>
+                            <th>Estado</th>
+                            <th>Fecha</th>
+                            <th>Residencial</th>
+                            <th>Dirección</th>
+                            <th>Concepto</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.pagos.map((pago: ReportePago) => `
+                            <tr>
+                                <td><strong>${pago.usuario}</strong></td>
+                                <td>${pago.email}</td>
+                                <td style="font-weight: bold; color: #667eea;">${pago.monto}</td>
+                                <td>${pago.metodo}</td>
+                                <td><span class="status-badge status-${pago.estado.toLowerCase()}">${pago.estado}</span></td>
+                                <td>${pago.fecha}</td>
+                                <td>${pago.residencial}</td>
+                                <td>${pago.direccion}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </section>
+        </div>
+        
+        <div class="footer">
+            <p><strong>Sistema de Gestión Zentry</strong></p>
+            <p>Reporte generado automáticamente el ${data.fechaGeneracion}</p>
+            <p>© ${new Date().getFullYear()} - Todos los derechos reservados</p>
+        </div>
+    </div>
+</body>
+</html>`;
+  };
+
 
   return (
     <div className="flex flex-col h-full">
@@ -407,6 +820,41 @@ export default function PagosPage() {
           <div>
             <h1 className="text-2xl font-bold">Gestión de Pagos</h1>
             <p className="text-gray-600">Supervisa y administra los pagos de los residentes.</p>
+          </div>
+          
+          {/* Botón de Generar Reporte */}
+          <div className="flex gap-3">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={generateReport}
+                    disabled={isGeneratingReport || (!filteredPagos.length && !esAdminDeResidencial)}
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                  >
+                    {isGeneratingReport ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generando...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="mr-2 h-4 w-4" />
+                        Generar Reporte
+                      </>
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {!filteredPagos.length && !esAdminDeResidencial
+                    ? "No hay pagos para generar reporte" 
+                    : esAdminDeResidencial
+                      ? "Generar reporte del residencial asignado"
+                      : "Generar reporte detallado de pagos"
+                  }
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
         

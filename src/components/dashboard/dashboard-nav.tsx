@@ -120,6 +120,12 @@ const baseNavSections: NavSection[] = [
         icon: <FileText className="h-5 w-5" />,
         color: "text-violet-500",
       },
+      {
+        title: "Encuestas",
+        href: "/dashboard/encuestas",
+        icon: <BarChart3 className="h-5 w-5" />,
+        color: "text-cyan-500",
+      },
     ],
   },
   {

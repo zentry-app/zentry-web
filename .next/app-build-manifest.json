@@ -21,55 +21,55 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/dashboard/pagos/page": [
+    "/dashboard/reservas/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/pagos/page.js"
+      "static/chunks/app/dashboard/reservas/page.js"
+    ],
+    "/login/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/login/page.js"
+    ],
+    "/dashboard/comunicados/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/dashboard/comunicados/page.js"
     ],
     "/dashboard/usuarios/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/dashboard/usuarios/page.js"
     ],
-    "/dashboard/areas-comunes/page": [
+    "/dashboard/encuestas/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/areas-comunes/page.js"
-    ],
-    "/dashboard/ingresos/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/ingresos/page.js"
-    ],
-    "/dashboard/reservas/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/reservas/page.js"
+      "static/chunks/app/dashboard/encuestas/page.js"
     ],
     "/dashboard/mensajes/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/dashboard/mensajes/page.js"
     ],
-    "/admin/configuracion/page": [
+    "/dashboard/ingresos/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/admin/configuracion/page.js"
+      "static/chunks/app/dashboard/ingresos/page.js"
     ],
-    "/admin/dashboard/page": [
+    "/dashboard/pagos/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/admin/dashboard/page.js"
+      "static/chunks/app/dashboard/pagos/page.js"
     ],
-    "/admin/residenciales/page": [
+    "/dashboard/tags/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/admin/residenciales/page.js"
+      "static/chunks/app/dashboard/tags/page.js"
     ],
-    "/admin/administradores/page": [
+    "/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/admin/administradores/page.js"
+      "static/chunks/app/page.js"
     ]
   }
 }

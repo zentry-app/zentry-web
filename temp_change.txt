@@ -1,0 +1,27 @@
+      // Generar PDF directamente sin librerías adicionales
+      const htmlReport = generateHTMLReport(reportData);
+      
+      // Crear blob con el contenido HTML optimizado para PDF
+      const blob = new Blob([htmlReport], { 
+        type: 'text/html;charset=utf-8' 
+      });
+      
+      // Crear URL temporal para descarga
+      const url = URL.createObjectURL(blob);
+      
+      // Crear elemento de descarga temporal
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `reporte-pagos-${format(new Date(), 'yyyy-MM-dd-HHmm')}.pdf`;
+      link.style.display = 'none';
+      
+      // Forzar descarga automatizada
+      document.body.appendChild(link);
+      link.click();
+      
+      // Limpiar elementos temporales
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast.success('¡Reporte descargado como PDF automáticamente!');
+      addLog(`📄 Reporte generado con ${reportData.totalPagos} pagos`);

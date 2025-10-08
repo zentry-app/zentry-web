@@ -25,7 +25,7 @@ import {
   Clock,
   Building2
 } from 'lucide-react';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 
 interface PaymentConfigurationDialogProps {
@@ -129,7 +129,11 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
             permitePagosRetroactivos: data.configuracionPagos.permitePagosRetroactivos || false,
             mesesMaximosRetroactivos: data.configuracionPagos.mesesMaximosRetroactivos || 6,
             recargoPorMesVencido: data.configuracionPagos.recargoPorMesVencido || 0.05,
-            fechaInicioSistema: data.configuracionPagos.fechaInicioSistema || '2024-01-01',
+            fechaInicioSistema: data.configuracionPagos.fechaInicioSistema 
+              ? (data.configuracionPagos.fechaInicioSistema.toDate ? 
+                  data.configuracionPagos.fechaInicioSistema.toDate().toISOString().split('T')[0] :
+                  data.configuracionPagos.fechaInicioSistema)
+              : '2024-01-01',
             mesesExcluidos: data.configuracionPagos.mesesExcluidos || [],
           });
         }
@@ -257,6 +261,10 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
       const updateData: any = {
         configuracionPagos: {
           ...paymentConfig,
+          // Convertir fechaInicioSistema de String a Timestamp
+          fechaInicioSistema: paymentConfig.fechaInicioSistema 
+            ? Timestamp.fromDate(new Date(paymentConfig.fechaInicioSistema))
+            : Timestamp.fromDate(new Date('2024-01-01')),
           fechaActualizacion: serverTimestamp(),
         },
         // Mantener compatibilidad con cuotaMantenimiento

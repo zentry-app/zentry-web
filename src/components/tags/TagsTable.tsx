@@ -36,10 +36,12 @@ import {
   CheckCircle,
   Clock,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from "lucide-react";
 import { TagStatusToggle } from "./TagStatusToggle";
 import { TagPanelStatus } from "./TagPanelStatus";
+import { getAuthSafe } from "@/lib/firebase/config";
 
 interface Tag {
   id: string;
@@ -83,6 +85,7 @@ interface TagsTableProps {
   loading: boolean;
   onEditTag: (tag: Tag) => void;
   onStatusChange: (tagId: string, newStatus: string) => void;
+  onTagDeleted?: (tagId: string) => void; // 🆕 Nueva prop para manejar eliminación
   currentUserId: string;
 }
 
@@ -103,14 +106,14 @@ export function TagsTable({
   loading,
   onEditTag,
   onStatusChange,
+  onTagDeleted, // 🆕 Nueva prop
   currentUserId
 }: TagsTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [residencialFilter, setResidencialFilter] = useState<string>("todos");
   const [estadoFilter, setEstadoFilter] = useState<string>("todos");
   const [panelFilter, setPanelFilter] = useState<string>("todos");
-  const [sortBy, setSortBy] = useState<'createdAt' | 'updatedAt'>('updatedAt');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [sortBy, setSortBy] = useState<'createdAt' | 'updatedAt' | 'cardNumber'>('cardNumber');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
   const [panelJobs, setPanelJobs] = useState<PanelJob[]>([]);
@@ -143,7 +146,56 @@ export function TagsTable({
   };
 
   const getCasaNombre = (id: string) => {
-    return casas.find(c => c.id === id)?.nombre || "Desconocido";
+    console.log(`🏠 [getCasaNombre] Buscando casa para ID: ${id}`);
+    console.log(`🏠 [getCasaNombre] Casas disponibles:`, casas.map(c => ({ 
+      id: c.id, 
+      houseID: c.houseID, 
+      calle: c.calle, 
+      houseNumber: c.houseNumber,
+      nombre: c.nombre 
+    })));
+    
+    // 🆕 Buscar por ID directo primero
+    let casa = casas.find(c => c.id === id);
+    console.log(`🏠 [getCasaNombre] Búsqueda por ID directo:`, casa ? 'encontrada' : 'no encontrada');
+    
+    // 🆕 Si no se encuentra, buscar por ownerRef (formato S9G7TL-BATEQUITOS-261)
+    if (!casa && id.includes('-')) {
+      // Extraer el houseID del ownerRef (ej: S9G7TL-BATEQUITOS-261 -> BATEQUITOS-261)
+      const parts = id.split('-');
+      if (parts.length >= 3) {
+        const houseID = parts.slice(1).join('-'); // BATEQUITOS-261
+        console.log(`🏠 [getCasaNombre] Extrayendo houseID del ownerRef: ${houseID}`);
+        casa = casas.find(c => c.houseID === houseID || c.id === houseID);
+        console.log(`🏠 [getCasaNombre] Búsqueda por houseID extraído:`, casa ? 'encontrada' : 'no encontrada');
+      }
+    }
+    
+    // 🆕 Si aún no se encuentra, buscar por houseID
+    if (!casa) {
+      casa = casas.find(c => c.houseID === id);
+      console.log(`🏠 [getCasaNombre] Búsqueda por houseID directo:`, casa ? 'encontrada' : 'no encontrada');
+    }
+    
+    // 🆕 Si se encuentra la casa, mostrar calle + número si están disponibles
+    if (casa) {
+      console.log(`🏠 [getCasaNombre] Casa encontrada:`, casa);
+      if (casa.calle && casa.houseNumber) {
+        const resultado = `${casa.calle} ${casa.houseNumber}`;
+        console.log(`🏠 [getCasaNombre] Retornando calle + número: ${resultado}`);
+        return resultado;
+      } else if (casa.nombre) {
+        console.log(`🏠 [getCasaNombre] Retornando nombre: ${casa.nombre}`);
+        return casa.nombre;
+      } else if (casa.houseID) {
+        console.log(`🏠 [getCasaNombre] Retornando houseID: ${casa.houseID}`);
+        return casa.houseID;
+      }
+    }
+    
+    // 🆕 Fallback: mostrar el ID original si no se encuentra
+    console.log(`🏠 [getCasaNombre] No se encontró casa, retornando ID original: ${id}`);
+    return id || "Desconocido";
   };
 
   const getPanelNombre = (id: string) => {
@@ -220,27 +272,85 @@ export function TagsTable({
     toast.success("Copiado al portapapeles");
   };
 
+  // 🆕 FUNCIÓN PARA ELIMINAR TAG
+  const handleDeleteTag = async (tag: Tag) => {
+    if (!window.confirm(`¿Estás seguro de que quieres eliminar el tag ${tag.cardNumberDec}? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+
+    try {
+      const auth = await getAuthSafe();
+      if (!auth) {
+        toast.error("No hay sesión activa");
+        return;
+      }
+
+      const user = auth.currentUser;
+      if (!user) {
+        toast.error("Usuario no autenticado");
+        return;
+      }
+
+      const token = await user.getIdToken();
+      
+      const response = await fetch(`/api/tags/delete?tagId=${tag.id}&residencialId=${tag.residencialId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error response:', errorData);
+        throw new Error(errorData.details || errorData.error || 'Error eliminando tag');
+      }
+
+      const result = await response.json();
+      
+      toast.success(`Tag ${tag.cardNumberDec} eliminado exitosamente`);
+      
+      // Recargar la lista de tags
+      if (onTagDeleted) {
+        onTagDeleted(tag.id);
+      } else {
+        // Si no hay callback, recargar la página
+        window.location.reload();
+      }
+      
+    } catch (error) {
+      console.error('Error eliminando tag:', error);
+      toast.error(`Error eliminando tag: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    }
+  };
+
   const filteredTags = tags.filter(tag => {
     const matchesSearch = 
       tag.cardNumberDec.toLowerCase().includes(searchTerm.toLowerCase()) ||
       getCasaNombre(tag.casaId).toLowerCase().includes(searchTerm.toLowerCase()) ||
       (tag.plate && tag.plate.toLowerCase().includes(searchTerm.toLowerCase()));
     
-    const matchesResidencial = residencialFilter === "todos" || tag.residencialId === residencialFilter;
     const matchesEstado = estadoFilter === "todos" || tag.status === estadoFilter;
     const matchesPanel = panelFilter === "todos" || tag.panels.includes(panelFilter);
     
-    return matchesSearch && matchesResidencial && matchesEstado && matchesPanel;
+    return matchesSearch && matchesEstado && matchesPanel;
   });
 
   const sortedTags = [...filteredTags].sort((a, b) => {
-    const aValue = sortBy === 'createdAt' ? a.lastChangedAt : a.lastChangedAt;
-    const bValue = sortBy === 'createdAt' ? b.lastChangedAt : b.lastChangedAt;
-    
-    if (sortOrder === 'asc') {
-      return new Date(aValue).getTime() - new Date(bValue).getTime();
+    if (sortBy === 'cardNumber') {
+      const cardA = parseInt(a.cardNumberDec) || 0;
+      const cardB = parseInt(b.cardNumberDec) || 0;
+      return sortOrder === 'asc' ? cardA - cardB : cardB - cardA;
     } else {
-      return new Date(bValue).getTime() - new Date(aValue).getTime();
+      const aValue = sortBy === 'createdAt' ? a.lastChangedAt : a.lastChangedAt;
+      const bValue = sortBy === 'createdAt' ? b.lastChangedAt : b.lastChangedAt;
+      
+      if (sortOrder === 'asc') {
+        return new Date(aValue).getTime() - new Date(bValue).getTime();
+      } else {
+        return new Date(bValue).getTime() - new Date(aValue).getTime();
+      }
     }
   });
 
@@ -248,12 +358,12 @@ export function TagsTable({
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedTags = sortedTags.slice(startIndex, startIndex + itemsPerPage);
 
-  const handleSort = (field: 'createdAt' | 'updatedAt') => {
+  const handleSort = (field: 'createdAt' | 'updatedAt' | 'cardNumber') => {
     if (sortBy === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
       setSortBy(field);
-      setSortOrder('desc');
+      setSortOrder(field === 'cardNumber' ? 'asc' : 'desc');
     }
   };
 
@@ -282,22 +392,6 @@ export function TagsTable({
           />
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          <Select
-            value={residencialFilter}
-            onValueChange={(value) => setResidencialFilter(value)}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Residencial" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos los residenciales</SelectItem>
-              {residenciales.map((residencial) => (
-                <SelectItem key={residencial.id} value={residencial.id}>
-                  {residencial.nombre}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           
           <Select
             value={estadoFilter}
@@ -339,9 +433,10 @@ export function TagsTable({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-16">#</TableHead>
               <TableHead 
                 className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleSort('updatedAt')}
+                onClick={() => handleSort('cardNumber')}
               >
                 <div className="flex items-center gap-1">
                   Número DEC
@@ -358,15 +453,19 @@ export function TagsTable({
           <TableBody>
             {paginatedTags.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
+                <TableCell colSpan={7} className="h-24 text-center">
                   No se encontraron tags
                 </TableCell>
               </TableRow>
             ) : (
-              paginatedTags.map((tag) => {
+              paginatedTags.map((tag, index) => {
                 const overallStatus = getOverallPanelStatus(tag);
+                const numeroTag = (currentPage - 1) * itemsPerPage + index + 1;
                 return (
                   <TableRow key={tag.id}>
+                    <TableCell className="text-center font-medium">
+                      {numeroTag}
+                    </TableCell>
                     <TableCell className="font-mono">
                       <div className="flex items-center gap-2">
                         <span>{tag.cardNumberDec}</span>
@@ -468,6 +567,14 @@ export function TagsTable({
                           onClick={() => onEditTag(tag)}
                         >
                           <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handleDeleteTag(tag)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </TableCell>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase/admin';
+import { adminAuth, adminDb } from '@/lib/firebase/admin';
 import { updateTagStatusDirect } from '@/lib/firebase/tags-sync';
 
 export async function POST(request: NextRequest) {
@@ -27,8 +27,19 @@ export async function POST(request: NextRequest) {
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const { uid } = decodedToken;
 
-    // Verificar que el usuario sea admin
-    if (!decodedToken.admin && !decodedToken.superadmin) {
+    // Verificar permisos del usuario
+    const userDoc = await adminDb!.collection('usuarios').doc(uid).get();
+    if (!userDoc.exists) {
+      return NextResponse.json(
+        { error: 'Usuario no encontrado' },
+        { status: 404 }
+      );
+    }
+
+    const userData = userDoc.data();
+    const isGlobalAdmin = userData?.role === 'admin';
+
+    if (!isGlobalAdmin) {
       return NextResponse.json(
         { error: 'Permisos insuficientes. Se requiere rol de administrador.' },
         { status: 403 }
@@ -54,8 +65,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Actualizar el estado del tag
-    await updateTagStatusDirect(tagId, status, uid);
+    // Buscar el residencial correcto usando el residencialDocId
+    let residencialDocId = 'mCTs294LGLkGvL9TTvaQ'; // Residencial S9G7TL actual
+    
+    // Actualizar el tag directamente usando Admin SDK
+    const tagRef = adminDb!.collection('residenciales').doc(residencialDocId).collection('tags').doc(tagId);
+    
+    // Verificar que el tag existe
+    const tagDoc = await tagRef.get();
+    if (!tagDoc.exists) {
+      return NextResponse.json(
+        { error: 'Tag no encontrado' },
+        { status: 404 }
+      );
+    }
+    
+    // Actualizar el tag
+    await tagRef.update({
+      status: status,
+      lastChangedBy: uid,
+      lastChangedAt: new Date().toISOString()
+    });
+    
+    // Crear log de auditoría
+    const auditLogRef = adminDb!.collection('residenciales').doc(residencialDocId).collection('auditLogs').doc();
+    await auditLogRef.set({
+      action: 'UPDATE_TAG_STATUS',
+      tagId: tagId,
+      cardNumber: tagDoc.data()?.cardNumberDec || null,
+      previousStatus: tagDoc.data()?.status || null,
+      newStatus: status,
+      userId: uid,
+      userEmail: userData?.email || null,
+      timestamp: new Date().toISOString(),
+      residencialId: 'S9G7TL',
+      notes: `Estado del tag actualizado por ${userData?.email || 'usuario desconocido'}`
+    });
 
     return NextResponse.json({ 
       success: true, 
