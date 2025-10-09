@@ -335,6 +335,70 @@ const renderSecurityAlerts = (ingreso: Ingreso) => {
 
 const renderDomicilio = (ingreso: Ingreso, getResidencialNombre: (docId: string | undefined) => string) => {
   const domicilio = ingreso.domicilio;
+  const visitData = ingreso.visitData;
+  
+  // 🐛 DEBUG: Verificar datos recibidos
+  console.log('🔍 renderDomicilio - Ingreso ID:', ingreso.id);
+  console.log('🔍 visitData:', visitData);
+  console.log('🔍 multipleDestinations:', visitData?.multipleDestinations);
+  console.log('🔍 category:', visitData?.category);
+  console.log('🔍 entryMethod:', ingreso.entryMethod);
+  
+  // 🆕 Verificar si tiene múltiples destinos (paquetería)
+  // Verificar tanto por múltiples destinos como por categoría de paquetería
+  const hasMultipleDestinations = visitData && 
+    visitData.multipleDestinations && 
+    Array.isArray(visitData.multipleDestinations) && 
+    visitData.multipleDestinations.length > 0;
+  
+  const isPaqueteria = visitData?.category === 'paquetería' || ingreso.entryMethod === 'provider_paqueteria';
+  
+  if (hasMultipleDestinations || (isPaqueteria && visitData?.destinationCount > 1)) {
+    const destinations = visitData?.multipleDestinations || [];
+    console.log('🔍 Destinations encontrados:', destinations);
+    console.log('🔍 isPaqueteria:', isPaqueteria);
+    console.log('🔍 destinationCount:', visitData?.destinationCount);
+    
+    if (destinations.length === 1) {
+      return (
+        <div className="flex items-center space-x-1">
+          <Home className="h-3 w-3 text-gray-500" />
+          <span className="text-sm">
+            {destinations[0]}
+          </span>
+        </div>
+      );
+    } else if (destinations.length > 1) {
+      return (
+        <div className="flex items-start space-x-1">
+          <Home className="h-3 w-3 text-orange-500 mt-0.5" />
+          <div className="flex flex-col space-y-1">
+            <span className="text-sm text-orange-600 font-medium">
+              {destinations.length} domicilios:
+            </span>
+            <div className="text-xs text-gray-600">
+              {destinations.join(', ')}
+            </div>
+          </div>
+        </div>
+      );
+    } else if (isPaqueteria && visitData?.destinationCount > 1) {
+      // Fallback: mostrar información de múltiples destinos aunque no tengamos la lista
+      return (
+        <div className="flex items-start space-x-1">
+          <Home className="h-3 w-3 text-orange-500 mt-0.5" />
+          <div className="flex flex-col space-y-1">
+            <span className="text-sm text-orange-600 font-medium">
+              {visitData.destinationCount} domicilios
+            </span>
+            <div className="text-xs text-gray-600">
+              Múltiples destinos
+            </div>
+          </div>
+        </div>
+      );
+    }
+  }
   
   if (!domicilio) {
     return <span className="text-muted-foreground">Sin domicilio</span>;
