@@ -35,11 +35,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   Star,
-  Hash,
   Clock,
-  Grid3X3,
-  List,
-  Sliders,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -50,7 +46,6 @@ interface Question {
   pregunta: string;
   tipo: string;
   opciones?: string[];
-  matrizOpciones?: Record<string, string[]>;
   minValue?: number;
   maxValue?: number;
   escalaMax?: number;
@@ -70,11 +65,7 @@ const questionTypes = [
   { value: 'opcionMultiple', label: 'Opción múltiple', icon: CheckSquare, description: 'Seleccionar varias opciones' },
   { value: 'siNo', label: 'Sí/No', icon: ThumbsUp, description: 'Respuesta binaria' },
   { value: 'escalaLikert', label: 'Escala Likert', icon: Star, description: 'Escala de 1-5' },
-  { value: 'escalaNumero', label: 'Escala numérica', icon: Hash, description: 'Números con slider' },
   { value: 'escalaFrecuencia', label: 'Escala frecuencia', icon: Clock, description: 'Nunca-Siempre' },
-  { value: 'matriz', label: 'Matriz', icon: Grid3X3, description: 'Preguntas matriciales' },
-  { value: 'clasificacion', label: 'Clasificación', icon: List, description: 'Ordenar opciones' },
-  { value: 'deslizante', label: 'Deslizante', icon: Sliders, description: 'Valor con slider' },
 ];
 
 export function CreateSurveyDialog({ open, onOpenChange, onSubmit, residencialId, creadorUid }: CreateSurveyDialogProps) {
@@ -257,7 +248,6 @@ export function CreateSurveyDialog({ open, onOpenChange, onSubmit, residencialId
           pregunta: q.pregunta.trim(),
           tipo: q.tipo,
           opciones: q.opciones?.filter(opt => opt.trim()),
-          matrizOpciones: q.matrizOpciones,
           minValue: q.minValue,
           maxValue: q.maxValue,
           escalaMax: q.escalaMax
@@ -498,43 +488,6 @@ export function CreateSurveyDialog({ open, onOpenChange, onSubmit, residencialId
                         </div>
                       )}
 
-                      {/* Configuraciones adicionales para escalas */}
-                      {question.tipo === 'escalaNumero' && (
-                        <div>
-                          <Label htmlFor={`escalaMax-${question.id}`}>Valor máximo</Label>
-                          <Input
-                            id={`escalaMax-${question.id}`}
-                            type="number"
-                            value={question.escalaMax || 10}
-                            onChange={(e) => updateQuestion(question.id, { escalaMax: parseInt(e.target.value) || 10 })}
-                            min="1"
-                            max="100"
-                          />
-                        </div>
-                      )}
-
-                      {question.tipo === 'deslizante' && (
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor={`minValue-${question.id}`}>Valor mínimo</Label>
-                            <Input
-                              id={`minValue-${question.id}`}
-                              type="number"
-                              value={question.minValue || 0}
-                              onChange={(e) => updateQuestion(question.id, { minValue: parseFloat(e.target.value) || 0 })}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor={`maxValue-${question.id}`}>Valor máximo</Label>
-                            <Input
-                              id={`maxValue-${question.id}`}
-                              type="number"
-                              value={question.maxValue || 100}
-                              onChange={(e) => updateQuestion(question.id, { maxValue: parseFloat(e.target.value) || 100 })}
-                            />
-                          </div>
-                        </div>
-                      )}
                     </CardContent>
                   </Card>
                 ))

@@ -34,7 +34,7 @@ export interface UserModel {
 export interface Residencial {
   id: string;
   nombre: string;
-  name?: string; 
+  name?: string;
   direccion: string;
   address?: string;
   ciudad?: string;
@@ -73,6 +73,57 @@ export interface DrawerItem {
 
 export interface NavigationItem {
   label: string;
-  route: string; 
+  route: string;
   icon: string;
+}
+
+export type BlogPostStatus = 'draft' | 'published' | 'scheduled' | 'archived';
+
+export interface IBlogPost {
+  id?: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  content: string; // HTML content from Tiptap
+  coverImage: string;
+  author: {
+    uid: string;
+    name: string;
+    photoURL?: string;
+  };
+
+  // Status & Publishing
+  status: BlogPostStatus; // Granular status
+  published: boolean; // Backward compatibility
+  publishedAt?: Date | any | null;
+  scheduledFor?: Date | any | null; // For scheduled posts
+  createdAt?: Date | any | null;
+  updatedAt?: Date | any | null;
+
+  // Content & Metadata
+  tags: string[];
+  readTime: number; // in minutes
+  featured?: boolean;
+  wordCount?: number; // Auto-calculated
+
+  // SEO Advanced
+  seo?: {
+    metaTitle?: string | null; // Falls back to title
+    metaDescription?: string | null; // Falls back to excerpt
+    canonicalUrl?: string | null;
+    noindex?: boolean;
+    nofollow?: boolean;
+    ogImage?: string | null; // Falls back to coverImage
+  };
+
+  // AI & Embeddings
+  content_for_ai?: string; // Clean text without HTML/emojis for embeddings
+  embedding_id?: string; // Reference to vector DB
+
+  // Versioning
+  version?: number;
+  lastEmbeddedAt?: Date | any;
+
+  // Display Order
+  order?: number; // Manual ordering on homepage
 } 

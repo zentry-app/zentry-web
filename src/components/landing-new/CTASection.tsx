@@ -1,11 +1,14 @@
+"use client";
+
 import React from 'react';
 import { motion } from 'framer-motion';
+import StoreBadges from './StoreBadges';
 
 const CTASection = () => {
   return (
     <section className="w-full py-20 md:py-28 bg-gradient-to-b from-white to-gray-50/50">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <motion.h2 
+        <motion.h2
           className="text-4xl md:text-5xl lg:text-6xl font-heading font-bold mb-6 text-gray-900"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -13,8 +16,8 @@ const CTASection = () => {
         >
           ¿Quieres llevar tu residencial al siguiente nivel?
         </motion.h2>
-        
-        <motion.p 
+
+        <motion.p
           className="text-xl md:text-2xl text-gray-600 mb-12 max-w-3xl mx-auto leading-relaxed"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -23,9 +26,11 @@ const CTASection = () => {
           Contáctanos y descubre cómo Zentry puede adaptarse a las necesidades de tu comunidad.
         </motion.p>
 
-        {/* Botón premium estilo rainbow/glowy */}
-        <motion.button 
-          className="relative bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white font-bold px-10 py-5 rounded-full transition-all duration-300 shadow-lg hover:shadow-2xl transform hover:scale-105 flex items-center gap-3 mx-auto text-lg md:text-xl"
+        <motion.a
+          href="https://wa.me/521234567890?text=Hola!%20Me%20gustaría%20más%20información%20sobre%20Zentry%20para%20mi%20residencial."
+          target="_blank"
+          rel="noopener noreferrer"
+          className="relative bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white font-bold px-10 py-5 rounded-full transition-all duration-300 shadow-lg hover:shadow-2xl transform hover:scale-105 flex items-center gap-3 mx-auto text-lg md:text-xl mb-12"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           initial={{ opacity: 0, y: 20 }}
@@ -39,10 +44,19 @@ const CTASection = () => {
           }}
         >
           <span>⚡ Hablar con un asesor</span>
-        </motion.button>
+        </motion.a>
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.5 }}
+        >
+          <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-6">O descarga la app ahora</p>
+          <StoreBadges className="justify-center" variant="light" />
+        </motion.div>
 
         {/* Copy adicional pequeño y sobrio */}
-        <motion.p 
+        <motion.p
           className="text-gray-500 text-sm mt-6 opacity-80"
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}

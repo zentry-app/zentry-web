@@ -40,15 +40,15 @@ export async function POST(request: NextRequest) {
 
     // Validar datos requeridos
     if (!titulo || !descripcion || !fechaFin || !preguntas || !residencialId || !creadorUid) {
-      return NextResponse.json({ 
-        error: 'Faltan datos requeridos: titulo, descripcion, fechaFin, preguntas, residencialId, creadorUid' 
+      return NextResponse.json({
+        error: 'Faltan datos requeridos: titulo, descripcion, fechaFin, preguntas, residencialId, creadorUid'
       }, { status: 400 });
     }
 
     // Validar que haya al menos una pregunta
     if (!Array.isArray(preguntas) || preguntas.length === 0) {
-      return NextResponse.json({ 
-        error: 'Debe haber al menos una pregunta' 
+      return NextResponse.json({
+        error: 'Debe haber al menos una pregunta'
       }, { status: 400 });
     }
 
@@ -56,16 +56,16 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < preguntas.length; i++) {
       const pregunta = preguntas[i];
       if (!pregunta.pregunta || !pregunta.tipo) {
-        return NextResponse.json({ 
-          error: `Pregunta ${i + 1}: falta texto o tipo` 
+        return NextResponse.json({
+          error: `Pregunta ${i + 1}: falta texto o tipo`
         }, { status: 400 });
       }
 
       // Validar opciones para preguntas de selección
       if (['opcionUnica', 'opcionMultiple'].includes(pregunta.tipo)) {
         if (!pregunta.opciones || pregunta.opciones.length < 2) {
-          return NextResponse.json({ 
-            error: `Pregunta ${i + 1}: debe tener al menos 2 opciones` 
+          return NextResponse.json({
+            error: `Pregunta ${i + 1}: debe tener al menos 2 opciones`
           }, { status: 400 });
         }
       }
@@ -76,10 +76,10 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     // Permitir fechas futuras con un margen de 1 minuto para evitar problemas de timing
     const oneMinuteFromNow = new Date(now.getTime() + 60000);
-    
+
     if (isNaN(fechaFinDate.getTime()) || fechaFinDate <= oneMinuteFromNow) {
-      return NextResponse.json({ 
-        error: 'La fecha límite debe ser válida y al menos 1 minuto en el futuro' 
+      return NextResponse.json({
+        error: 'La fecha límite debe ser válida y al menos 1 minuto en el futuro'
       }, { status: 400 });
     }
 
@@ -87,10 +87,10 @@ export async function POST(request: NextRequest) {
     let residencialDoc;
     let residencialData;
     let residencialCode;
-    
+
     // Primero intentar buscar por ID del documento
     residencialDoc = await adminDb.collection('residenciales').doc(residencialId).get();
-    
+
     if (residencialDoc.exists) {
       residencialData = residencialDoc.data();
       residencialCode = residencialData?.residencialID;
@@ -101,14 +101,14 @@ export async function POST(request: NextRequest) {
         .where('residencialID', '==', residencialId)
         .limit(1)
         .get();
-      
+
       if (residencialesSnapshot.empty) {
         return NextResponse.json(
           { error: 'Residencial no encontrado' },
           { status: 404 }
         );
       }
-      
+
       residencialDoc = residencialesSnapshot.docs[0];
       residencialData = residencialDoc.data();
       residencialCode = residencialData?.residencialID;
@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
     try {
       // Importar Firebase Admin SDK para llamar Cloud Functions
       const admin = require('firebase-admin');
-      
+
       // Preparar los datos para la Cloud Function
       const surveyNotificationData = {
         residencialId: residencialCode,
@@ -156,21 +156,21 @@ export async function POST(request: NextRequest) {
         titulo: titulo.trim(),
         fechaFin: fechaFinDate.toISOString()
       };
-      
+
       console.log('🔔 [SURVEY] Llamando a sendSurveyNotification con:', surveyNotificationData);
-      
+
       // Nota: En un entorno de producción, esto debería ser llamado desde el cliente
       // usando Firebase Functions httpsCallable. Aquí lo hacemos directamente
       // desde el servidor usando el Admin SDK.
-      
+
       // Por ahora, crearemos las notificaciones locales directamente
       const usersSnapshot = await adminDb
         .collection('usuarios')
         .where('residencialID', '==', residencialCode)
         .get();
-      
+
       console.log(`🔔 [SURVEY] Encontrados ${usersSnapshot.docs.length} usuarios para notificar`);
-      
+
       const batch = adminDb.batch();
       for (const userDoc of usersSnapshot.docs) {
         const notifRef = adminDb
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
           .doc(userDoc.id)
           .collection('notificaciones')
           .doc();
-        
+
         batch.set(notifRef, {
           title: 'Nueva encuesta disponible',
           body: `Hay una nueva encuesta: "${titulo.trim()}" (Vence: ${fechaFinDate.toLocaleDateString('es-ES')})`,
@@ -197,9 +197,34 @@ export async function POST(request: NextRequest) {
       }
       await batch.commit();
       console.log(`✅ [SURVEY] ${usersSnapshot.docs.length} notificaciones locales creadas`);
-      
-      // Enviar notificación push por tópico
+
+      // Generar trackingId único
+      const trackingId = adminDb.collection('notification_logs').doc().id;
+
+      // Definir el tópico para las notificaciones push
       const topic = `category_${residencialCode}_announcement`;
+
+      // Crear registro de log
+      await adminDb.collection('notification_logs').doc(trackingId).set({
+        trackingId: trackingId,
+        type: 'new_survey',
+        status: 'sent',
+        userId: 'topic (' + topic + ')',
+        title: '📊 Nueva Encuesta Disponible',
+        body: `Hay una nueva encuesta: "${titulo.trim()}". ¡Comparte tu opinión!`,
+        metadata: {
+          type: 'new_survey',
+          surveyId: surveyRef.id,
+          surveyTitle: titulo.trim(),
+          deadline: fechaFinDate.toISOString(),
+          residencialId: residencialCode
+        },
+        sentAt: FieldValue.serverTimestamp(),
+        platform: 'topic_push',
+        topic: topic
+      });
+
+      // Enviar notificación push por tópico
       const message = {
         notification: {
           title: '📊 Nueva Encuesta Disponible',
@@ -211,7 +236,8 @@ export async function POST(request: NextRequest) {
           surveyTitle: titulo.trim(),
           deadline: fechaFinDate.toISOString(),
           residencialId: residencialCode,
-          saveToUserCollection: 'true'
+          saveToUserCollection: 'true',
+          trackingId: trackingId
         },
         topic: topic,
         apns: {
@@ -233,25 +259,30 @@ export async function POST(request: NextRequest) {
           },
         },
       };
-      
+
       const response = await admin.messaging().send(message);
-      console.log(`✅ [SURVEY] Notificación push enviada al tópico ${topic}. Message ID: ${response}`);
-      
+      console.log(`✅ [SURVEY] Notificación push enviada al tópico ${topic}. Message ID: ${response} (TrackingId: ${trackingId})`);
+
+      // Actualizar log con messageId
+      await adminDb.collection('notification_logs').doc(trackingId).update({
+        messageId: response
+      });
+
     } catch (notificationError) {
       console.error('❌ [SURVEY] Error enviando notificaciones:', notificationError);
       // No fallar la creación de la encuesta si falla el envío de notificaciones
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       surveyId: surveyRef.id,
-      message: 'Encuesta creada exitosamente' 
+      message: 'Encuesta creada exitosamente'
     });
 
   } catch (error: any) {
     console.error('Error creating survey:', error);
-    return NextResponse.json({ 
-      error: error.message || 'Error interno del servidor' 
+    return NextResponse.json({
+      error: error.message || 'Error interno del servidor'
     }, { status: 500 });
   }
 }

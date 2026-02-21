@@ -2,44 +2,44 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from 'next/navigation';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
 } from "@/components/ui/card";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "@/components/ui/table";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogHeader, 
-  DialogTitle 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Search, CreditCard, DollarSign, Clock, CheckCircle, XCircle, Eye, Wifi, Loader2, Calendar, Plus, FileText, Download } from "lucide-react";
-import { 
-  Residencial, 
-  getResidenciales, 
-  getPagos, 
+import {
+  Residencial,
+  getResidenciales,
+  getPagos,
   suscribirseAPagos
 } from "@/lib/firebase/firestore";
 import { AllPaymentsService, AllPayment } from "@/lib/services/all-payments-service";
@@ -49,6 +49,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import dynamic from 'next/dynamic';
 import { Suspense } from 'react';
+import { motion } from "framer-motion";
 import TablaPagos from '@/components/dashboard/pagos/TablaPagos';
 import { Pago, convertFirestoreTimestampToDate } from "@/types/pagos";
 
@@ -113,14 +114,14 @@ export default function PagosPage() {
   const [selectedPago, setSelectedPago] = useState<Pago | null>(null);
   const [detailsOpen, setDetailsOpen] = useState<boolean>(false);
   const [logs, setLogs] = useState<string[]>([]);
-  const [mapeoResidenciales, setMapeoResidenciales] = useState<{[key: string]: string}>({});
+  const [mapeoResidenciales, setMapeoResidenciales] = useState<{ [key: string]: string }>({});
   const [activeTab, setActiveTab] = useState<'unified' | 'all'>('unified');
   const [isGeneratingReport, setIsGeneratingReport] = useState<boolean>(false);
   const [allAvailablePagos, setAllAvailablePagos] = useState<Pago[]>([]);
 
   const esAdminDeResidencial = useMemo(() => userClaims?.isResidencialAdmin && !userClaims?.isGlobalAdmin, [userClaims]);
   const residencialCodigoDelAdmin = useMemo(() => esAdminDeResidencial ? userClaims?.managedResidencialId : null, [esAdminDeResidencial, userClaims]);
-  
+
   const residencialIdDocDelAdmin = useMemo(() => {
     if (!esAdminDeResidencial || !residencialCodigoDelAdmin || Object.keys(mapeoResidenciales).length === 0) return null;
     return Object.keys(mapeoResidenciales).find(
@@ -132,7 +133,7 @@ export default function PagosPage() {
     return (userClaims?.isGlobalAdmin && residencialFilter !== 'todos') || esAdminDeResidencial;
   }, [userClaims, residencialFilter, esAdminDeResidencial]);
 
-  const addLog = useCallback((message: string) => { 
+  const addLog = useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString();
     const logMessage = `[${timestamp}] ${message}`;
     setLogs(prevLogs => [logMessage, ...prevLogs.slice(0, 99)]);
@@ -145,8 +146,8 @@ export default function PagosPage() {
         addLog("🏢 Cargando residenciales...");
         const residencialesData = await getResidenciales();
         setResidenciales(residencialesData);
-        
-        const mapeo = residencialesData.reduce<{[key: string]: string}>((acc, r) => {
+
+        const mapeo = residencialesData.reduce<{ [key: string]: string }>((acc, r) => {
           if (r.id && r.nombre) acc[r.id] = r.nombre;
           return acc;
         }, {});
@@ -178,11 +179,11 @@ export default function PagosPage() {
   useEffect(() => {
     const fetchPagos = async () => {
       if (authLoading) return;
-      
+
       if ((residenciales.length === 0 && !esAdminDeResidencial) || (esAdminDeResidencial && !residencialIdDocDelAdmin)) {
         if (residenciales.length === 0) addLog("⏳ Esperando carga de residenciales para fetchPagos...");
         if (esAdminDeResidencial && !residencialIdDocDelAdmin) addLog("⏳ Admin de Res: Esperando residencialIdDocDelAdmin para fetchPagos...");
-        return; 
+        return;
       }
 
       setLoading(true);
@@ -190,11 +191,11 @@ export default function PagosPage() {
       try {
         logMessages.push(`🔍 Iniciando fetchPagos con filtro: ${residencialFilter}`);
         logMessages.push(`🏢 Residenciales disponibles: ${residenciales.map(r => r.nombre).join(', ')}`);
-        
+
         if (residencialFilter === "todos") {
           logMessages.push(`📋 Cargando pagos de TODOS los residenciales`);
           const allPagos: Pago[] = [];
-          
+
           for (const residencial of residenciales) {
             if (residencial.id) {
               logMessages.push(`🔄 Obteniendo pagos para residencial: ${residencial.nombre} (ID: ${residencial.id})`);
@@ -207,26 +208,26 @@ export default function PagosPage() {
               allPagos.push(...pagosConResidencial);
             }
           }
-          
+
           // Ordenar por timestamp
           allPagos.sort((a, b) => {
             const dateA = convertFirestoreTimestampToDate(a.timestamp).getTime();
             const dateB = convertFirestoreTimestampToDate(b.timestamp).getTime();
             return dateB - dateA;
           });
-          
+
           logMessages.push(`📊 Total de pagos encontrados: ${allPagos.length}`);
           setPagos(allPagos);
           setAllAvailablePagos(allPagos);
-          
+
         } else {
           logMessages.push(`📋 Cargando pagos para residencial específico: ${residencialFilter}`);
           const pagosResidencial = await getPagos(residencialFilter);
           logMessages.push(`✅ Pagos obtenidos: ${pagosResidencial.length}`);
-          
+
           const residencial = residenciales.find(r => r.id === residencialFilter);
           logMessages.push(`🏢 Residencial encontrado: ${residencial?.nombre || "No encontrado"}`);
-          
+
           if (pagosResidencial.length > 0) {
             const pagosConResidencial = pagosResidencial.map(pago => ({
               ...pago,
@@ -320,8 +321,8 @@ export default function PagosPage() {
 
   const filteredPagos = useMemo(() => pagos.filter(pago => {
     const matchesStatus = statusFilter === "todos" || pago.status === statusFilter;
-    const matchesSearch = 
-      searchTerm === "" || 
+    const matchesSearch =
+      searchTerm === "" ||
       (pago.userName && pago.userName.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (pago.userEmail && pago.userEmail.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (pago.description && pago.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -338,22 +339,28 @@ export default function PagosPage() {
       }, 0);
     }
   }, [pagos.length, filteredPagos.length, addLog]);
-  
+
   if (authLoading) {
     return (
-      <div className="space-y-6 p-4 md:p-8">
-        <Skeleton className="h-10 w-2/3 mb-4" />
-        <Skeleton className="h-8 w-1/3 mb-6" />
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
-            <Skeleton className="h-10 flex-1" />
-            <Skeleton className="h-10 flex-1" />
-            <Skeleton className="h-10 flex-1" />
+      <div className="min-h-screen bg-premium p-4 lg:p-10 space-y-8 pb-20">
+        <div className="flex flex-col lg:flex-row justify-between gap-6 items-start">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-32 rounded-full" />
+            <Skeleton className="h-14 w-64" />
+            <Skeleton className="h-6 w-96" />
+          </div>
+          <Skeleton className="h-14 w-48 rounded-2xl" />
         </div>
-        <Card>
-            <CardHeader><Skeleton className="h-8 w-1/2" /></CardHeader>
-            <CardContent className="space-y-3">
-                {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
-            </CardContent>
+        <Card className="border-none shadow-zentry-lg bg-white/80 backdrop-blur-2xl rounded-[2.5rem] overflow-hidden">
+          <div className="p-8 space-y-6">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-14 rounded-2xl" />
+            <div className="space-y-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+              ))}
+            </div>
+          </div>
         </Card>
       </div>
     );
@@ -361,15 +368,15 @@ export default function PagosPage() {
 
   if (!userClaims?.isGlobalAdmin && !esAdminDeResidencial) {
     return (
-        <div className="flex flex-col items-center justify-center h-[calc(100vh-var(--navbar-height,4rem))] p-8">
-            <Card className="w-full max-w-md text-center">
-                <CardHeader><CardTitle>Acceso Denegado</CardTitle></CardHeader>
-                <CardContent>
-                    <p className="text-muted-foreground">No tienes permisos para acceder a esta sección.</p>
-                    <Button onClick={() => router.push('/dashboard')} className="mt-6">Volver al Dashboard</Button>
-                </CardContent>
-            </Card>
-        </div>
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-var(--navbar-height,4rem))] p-8">
+        <Card className="w-full max-w-md text-center">
+          <CardHeader><CardTitle>Acceso Denegado</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">No tienes permisos para acceder a esta sección.</p>
+            <Button onClick={() => router.push('/dashboard')} className="mt-6">Volver al Dashboard</Button>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
@@ -404,7 +411,7 @@ export default function PagosPage() {
   // Formatear fecha usando la función helper
   const formatDate = (timestamp: any) => {
     if (!timestamp) return "Fecha desconocida";
-    
+
     try {
       const date = convertFirestoreTimestampToDate(timestamp);
       return formatDistanceToNow(date, { addSuffix: true, locale: es });
@@ -417,7 +424,7 @@ export default function PagosPage() {
   // Formatear fecha completa
   const formatDateFull = (timestamp: any) => {
     if (!timestamp) return "Fecha desconocida";
-    
+
     try {
       const date = convertFirestoreTimestampToDate(timestamp);
       return format(date, "P h:mm aa", { locale: es });
@@ -442,31 +449,31 @@ export default function PagosPage() {
   // Función para generar reporte de pagos
   const generateReport = async () => {
     setIsGeneratingReport(true);
-    
+
     try {
       // Si no hay pagos filtrados pero es un admin de residencial, obtener datos directamente
       let pagosParaReporte: PagoCombinado[] = filteredPagos as PagoCombinado[];
-      
+
       if (filteredPagos.length === 0 && esAdminDeResidencial && residencialFilter !== 'todos') {
         addLog(`🔄 Obteniendo todos los pagos para el reporte desde residencial: ${residencialFilter}`);
         try {
           // Usar el servicio correcto que maneja todos los pagos (efectivo y transferencias)
           // NO pasar parámetros de fecha para obtener TODOS los pagos como hace el dashboard
           const datosDirectos = await AllPaymentsService.getAllPayments(residencialFilter);
-          
+
           const residencial = residenciales.find(r => r.id === residencialFilter);
           pagosParaReporte = datosDirectos.map(pago => ({
             ...(pago as PagoCombinado),
             _residencialNombre: residencial?.nombre || "Desconocido"
           }));
-          
+
           addLog(`✅ Datos obtenidos exitosamente: ${pagosParaReporte.length} pagos`);
-          
+
           // Mostrar cada pago en los logs para debugging
           datosDirectos.forEach((pago, index) => {
             addLog(`📋 Pago ${index + 1}: ${pago.userName} - $${pago.amount} - ${pago.paymentType}`);
           });
-          
+
         } catch (error) {
           addLog(`❌ Error obteniendo datos directos: ${error}`);
           toast.error('Error obteniendo datos para el reporte');
@@ -476,8 +483,8 @@ export default function PagosPage() {
 
       const reportData = {
         title: `Reporte de Pagos`,
-        subtitle: residencialFilter === 'todos' 
-          ? 'Todos los Residenciales' 
+        subtitle: residencialFilter === 'todos'
+          ? 'Todos los Residenciales'
           : residenciales.find(r => r.id === residencialFilter)?.nombre || 'Residencial Seleccionado',
         fechaGeneracion: format(new Date(), "dd 'de' MMMM 'de' yyyy, HH:mm", { locale: es }),
         totalPagos: pagosParaReporte.length,
@@ -500,8 +507,8 @@ export default function PagosPage() {
           sumaTotal: pagosParaReporte
             .filter(p => p.status === 'completed')
             .reduce((sum, p) => {
-              const amount = p.paymentMethod === 'card' || p.paymentMethod === 'cash' 
-                ? p.amount / 100 
+              const amount = p.paymentMethod === 'card' || p.paymentMethod === 'cash'
+                ? p.amount / 100
                 : p.amount;
               return sum + amount;
             }, 0)
@@ -510,13 +517,13 @@ export default function PagosPage() {
 
       // Generar PDF usando la ventana de impresión del navegador
       const htmlReport = generateHTMLReport(reportData);
-      
+
       // Crear ventana nueva para imprimir/guardar como PDF
       const printWindow = window.open('', '_blank');
       if (printWindow) {
         printWindow.document.write(htmlReport);
         printWindow.document.close();
-        
+
         // Esperar un poco para que se cargue el contenido antes de imprimir
         setTimeout(() => {
           printWindow.print();
@@ -526,10 +533,10 @@ export default function PagosPage() {
         // Fallback: mostrar el reporte en página completa para imprimir
         toast.info('Por favor usa Ctrl+P (Cmd+P en Mac) para imprimir/guardar como PDF');
       }
-      
+
       toast.success('Reporte generado y listo para imprimir/guardar como PDF');
       addLog(`📄 Reporte generado con ${reportData.totalPagos} pagos`);
-      
+
     } catch (error) {
       console.error('Error generando reporte:', error);
       toast.error('Error al generar el reporte');
@@ -814,123 +821,135 @@ export default function PagosPage() {
 
 
   return (
-    <div className="flex flex-col h-full">
-      <header className="bg-white p-4 border-b">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold">Gestión de Pagos</h1>
-            <p className="text-gray-600">Supervisa y administra los pagos de los residentes.</p>
-          </div>
-          
-          {/* Botón de Generar Reporte */}
-          <div className="flex gap-3">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={generateReport}
-                    disabled={isGeneratingReport || (!filteredPagos.length && !esAdminDeResidencial)}
-                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-                  >
-                    {isGeneratingReport ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Generando...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="mr-2 h-4 w-4" />
-                        Generar Reporte
-                      </>
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {!filteredPagos.length && !esAdminDeResidencial
-                    ? "No hay pagos para generar reporte" 
-                    : esAdminDeResidencial
-                      ? "Generar reporte del residencial asignado"
-                      : "Generar reporte detallado de pagos"
-                  }
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
+    <div className="min-h-screen bg-premium p-4 lg:p-10 space-y-8 pb-20">
+      {/* Premium Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="flex flex-col lg:flex-row justify-between gap-6 items-start"
+      >
+        <div className="space-y-2">
+          <Badge className="bg-green-100 text-green-700 border-none font-black px-4 py-1 rounded-full flex gap-2 w-fit items-center shadow-sm">
+            <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+            Gestión Financiera
+          </Badge>
+          <h1 className="text-5xl font-extrabold tracking-tighter text-slate-900 flex items-center gap-3">
+            <DollarSign className="h-12 w-12 text-green-500" />
+            <span className="text-gradient-zentry">Pagos</span>
+          </h1>
+          <p className="text-slate-600 font-bold max-w-lg">
+            Supervisa y administra los pagos de los residentes
+          </p>
         </div>
-        
-      </header>
+
+        {/* Botón de generar reporte */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button
+                  onClick={generateReport}
+                  disabled={isGeneratingReport || (!filteredPagos.length && !esAdminDeResidencial)}
+                  className="rounded-2xl h-14 px-8 font-black shadow-zentry-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white hover-lift transition-all"
+                >
+                  {isGeneratingReport ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Generando...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="mr-2 h-5 w-5" />
+                      Generar Reporte
+                    </>
+                  )}
+                </Button>
+              </motion.div>
+            </TooltipTrigger>
+            <TooltipContent>
+              {!filteredPagos.length && !esAdminDeResidencial
+                ? "No hay pagos para generar reporte"
+                : esAdminDeResidencial
+                  ? "Generar reporte del residencial asignado"
+                  : "Generar reporte detallado de pagos"
+              }
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </motion.div>
 
       {/* Alerta de Stripe Connect */}
       {residencialFilter !== 'todos' && residencialFilter && (
         <StripeConnectAlert />
       )}
 
-      <main className="flex-1 p-4 bg-gray-50 overflow-auto">
-              {/* Filtro de Residencial */}
-              {userClaims?.isGlobalAdmin && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Filtro de Residencial</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <Select
-                  value={residencialFilter}
-                  onValueChange={(value) => {
-                    setResidencialFilter(value);
-                    if (value === "todos") {
-                      // Lógica para cargar todos los pagos
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un residencial" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos los Residenciales</SelectItem>
-                    {residenciales.map(r => (
-                      <SelectItem key={r.id} value={r.id!}>
-                        {r.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-            </CardContent>
-          </Card>
-        )}
+      {/* Filtro de Residencial */}
+      {userClaims?.isGlobalAdmin && (
+        <Card className="border-none shadow-zentry-lg bg-white/80 backdrop-blur-2xl rounded-[2.5rem] overflow-hidden">
+          <CardHeader className="p-8">
+            <CardTitle className="text-2xl font-black text-slate-900">Filtro de Residencial</CardTitle>
+          </CardHeader>
+          <CardContent className="p-8 pt-0">
+            <Select
+              value={residencialFilter}
+              onValueChange={(value) => {
+                setResidencialFilter(value);
+                if (value === "todos") {
+                  // Lógica para cargar todos los pagos
+                }
+              }}
+            >
+              <SelectTrigger className="h-14 bg-white border-slate-200 rounded-xl font-bold shadow-sm">
+                <SelectValue placeholder="Selecciona un residencial" />
+              </SelectTrigger>
+              <SelectContent className="rounded-2xl border-none shadow-2xl bg-white/95 backdrop-blur-3xl">
+                <div className="p-2">
+                  <SelectItem value="todos" className="font-bold mb-1 rounded-xl">Todos los Residenciales</SelectItem>
+                  {residenciales.map(r => (
+                    <SelectItem key={r.id} value={r.id!} className="font-bold mb-1 rounded-xl">
+                      {r.nombre}
+                    </SelectItem>
+                  ))}
+                </div>
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+      )}
 
-        {/* Dashboard principal de pagos */}
-        {residencialFilter !== 'todos' && residencialFilter ? (
-          <SimplifiedPaymentsDashboard residencialId={residencialFilter} />
-        ) : (
-          <Card>
-            <CardContent className="text-center py-12">
-              <div className="space-y-4">
-                <div className="mx-auto h-16 w-16 text-gray-400">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-4m-5 0H9m0 0H5m0 0h2M7 7h10M7 11h10M7 15h10" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Selecciona un Residencial
-                  </h3>
-                  <p className="text-gray-500">
-                    Para ver y gestionar los pagos, primero selecciona un residencial específico.
-                  </p>
-                </div>
+      {/* Dashboard principal de pagos */}
+      {residencialFilter !== 'todos' && residencialFilter ? (
+        <SimplifiedPaymentsDashboard residencialId={residencialFilter} />
+      ) : (
+        <Card className="border-none shadow-zentry-lg bg-white/80 backdrop-blur-2xl rounded-[2.5rem] overflow-hidden">
+          <CardContent className="text-center py-12">
+            <div className="space-y-4">
+              <div className="mx-auto h-16 w-16 text-slate-400">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-4m-5 0H9m0 0H5m0 0h2M7 7h10M7 11h10M7 15h10" />
+                </svg>
               </div>
-            </CardContent>
-          </Card>
-        )}
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  Selecciona un Residencial
+                </h3>
+                <p className="text-slate-600 font-medium">
+                  Para ver y gestionar los pagos, primero selecciona un residencial específico.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-      </main>
-      
+      {/* Dialog de detalles */}
       {selectedPago && (
         <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl rounded-[2rem] border-none shadow-2xl bg-white/95 backdrop-blur-3xl">
             <Suspense fallback={<p>Cargando detalles...</p>}>
-              <DetallesPagoDialogContent 
-                selectedPago={selectedPago} 
+              <DetallesPagoDialogContent
+                selectedPago={selectedPago}
                 getStatusLabel={getStatusLabel}
                 getStatusColor={getStatusColor}
                 formatDate={formatDateFull}
@@ -940,8 +959,6 @@ export default function PagosPage() {
           </DialogContent>
         </Dialog>
       )}
-
-
     </div>
   );
 } 

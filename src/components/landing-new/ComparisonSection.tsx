@@ -1,3 +1,5 @@
+"use client";
+
 import React from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
@@ -8,7 +10,7 @@ const ComparisonSection = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Título y subtítulo */}
         <div className="text-center mb-16">
-          <motion.h2 
+          <motion.h2
             className="text-4xl md:text-5xl font-heading font-bold mb-6 text-gray-900"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -16,7 +18,7 @@ const ComparisonSection = () => {
           >
             Administra tu residencial con transparencia y control.
           </motion.h2>
-          <motion.p 
+          <motion.p
             className="text-xl md:text-2xl text-gray-600 max-w-4xl mx-auto leading-relaxed"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -29,7 +31,7 @@ const ComparisonSection = () => {
         {/* Cards principales */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-16">
           {/* Card 1 - Gestión Financiera Transparente */}
-          <motion.div 
+          <motion.div
             className="bg-white rounded-3xl p-8 shadow-lg hover:shadow-xl transition-all duration-500 border border-gray-100"
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -79,7 +81,7 @@ const ComparisonSection = () => {
           </motion.div>
 
           {/* Card 2 - Comunicación y Control en Tiempo Real */}
-          <motion.div 
+          <motion.div
             className="bg-white rounded-3xl p-8 shadow-lg hover:shadow-xl transition-all duration-500 border border-gray-100"
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -130,7 +132,7 @@ const ComparisonSection = () => {
         </div>
 
         {/* Beneficio destacado ultra sobrio */}
-        <motion.div 
+        <motion.div
           className="relative text-center rounded-3xl p-8 md:p-12 bg-gray-50 border overflow-hidden"
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -146,9 +148,9 @@ const ComparisonSection = () => {
             <h3 className="text-2xl md:text-3xl font-bold mb-6 text-gray-900">
               Zentry le da al comité el control y la confianza que siempre buscaron.
             </h3>
-            
+
             {/* Botón rainbow simple */}
-            <motion.button 
+            <motion.button
               className="relative bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white font-bold px-8 py-4 rounded-full transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-2 mx-auto"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -160,7 +162,7 @@ const ComparisonSection = () => {
             >
               <span>⚡ Probar Zentry Ahora</span>
             </motion.button>
-            
+
             <p className="text-gray-600 text-sm mt-4">
               100% transparente. Sin complicaciones.
             </p>

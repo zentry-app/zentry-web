@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { adminAuth } from '@/lib/firebase/admin';
 
 // Interfaz para los datos del email
 interface EmailData {
@@ -76,7 +77,7 @@ async function sendEmailWithProvider(emailData: EmailData): Promise<boolean> {
     // Opción 3: Usar Gmail SMTP (igual que la app móvil)
     if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
       const nodemailer = require('nodemailer');
-      
+
       const transporter = nodemailer.createTransporter({
         host: 'smtp.gmail.com',
         port: 587,
@@ -115,12 +116,35 @@ export async function POST(request: NextRequest) {
     // Verificar que la petición venga del mismo dominio (seguridad básica)
     const origin = request.headers.get('origin');
     const host = request.headers.get('host');
-    
+
     if (process.env.NODE_ENV === 'production' && origin && !origin.includes(host || '')) {
       return NextResponse.json(
         { error: 'Origen no autorizado' },
         { status: 403 }
       );
+    }
+
+    // Verificar autenticación
+    const authorization = request.headers.get('authorization');
+    if (!authorization?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Autenticación requerida' }, { status: 401 });
+    }
+
+    if (!adminAuth) {
+      return NextResponse.json({ error: 'Servicio de autenticación no disponible' }, { status: 500 });
+    }
+
+    const idToken = authorization.split('Bearer ')[1];
+    try {
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const { admin, superadmin, isAdmin, role } = decodedToken;
+
+      // Verificar permisos: solo admins o trabajadores pueden enviar emails masivos/arbitrarios
+      if (!admin && !superadmin && !isAdmin && role !== 'worker') {
+        return NextResponse.json({ error: 'Permisos insuficientes para enviar correos' }, { status: 403 });
+      }
+    } catch (e) {
+      return NextResponse.json({ error: 'Token inválido o expirado' }, { status: 401 });
     }
 
     // Parsear los datos del email
@@ -151,7 +175,7 @@ export async function POST(request: NextRequest) {
 
     if (success) {
       return NextResponse.json(
-        { 
+        {
           message: 'Email enviado exitosamente',
           to: emailData.to,
           subject: emailData.subject
@@ -187,10 +211,10 @@ export async function GET() {
   return NextResponse.json({
     status: hasProvider ? 'configured' : 'not_configured',
     providers,
-    activeProvider: providers.gmail ? 'Gmail SMTP' : 
-                   providers.resend ? 'Resend' : 
-                   providers.sendgrid ? 'SendGrid' : 'None',
-    message: hasProvider 
+    activeProvider: providers.gmail ? 'Gmail SMTP' :
+      providers.resend ? 'Resend' :
+        providers.sendgrid ? 'SendGrid' : 'None',
+    message: hasProvider
       ? 'Servicio de email configurado correctamente'
       : 'No hay proveedores de email configurados'
   });

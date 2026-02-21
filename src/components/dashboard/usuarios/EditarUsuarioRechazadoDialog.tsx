@@ -15,17 +15,17 @@ import { doc, getDoc, deleteField } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import RegistrationResidentialService from '@/lib/services/registration-residential-service';
 import { toast as sonnerToast } from 'sonner';
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  Home, 
-  Building, 
-  FileText, 
-  Upload, 
-  CheckCircle, 
-  XCircle, 
-  Save, 
+import {
+  User,
+  Mail,
+  Phone,
+  Home,
+  Building,
+  FileText,
+  Upload,
+  CheckCircle,
+  XCircle,
+  Save,
   RefreshCw,
   AlertTriangle,
   Star,
@@ -59,18 +59,18 @@ interface FormData {
   isOwner: boolean;
 }
 
-const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> = ({ 
-  usuario, 
-  onClose, 
-  todosLosUsuarios, 
+const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> = ({
+  usuario,
+  onClose,
+  todosLosUsuarios,
   getResidencialNombre,
-  onUsuarioActualizado 
+  onUsuarioActualizado
 }) => {
   const [activeTab, setActiveTab] = useState('datos');
   const [loading, setLoading] = useState(false);
   const [residenciales, setResidenciales] = useState<Residencial[]>([]);
   const [callesDisponibles, setCallesDisponibles] = useState<string[]>([]);
-  
+
   // Estado del formulario
   const [formData, setFormData] = useState<FormData>({
     fullName: usuario.fullName || '',
@@ -90,20 +90,20 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
   // Estado de documentos
   const [identificacionFile, setIdentificacionFile] = useState<File | null>(null);
   const [comprobanteFile, setComprobanteFile] = useState<File | null>(null);
-  
+
   // Historial completo de documentos (arrays)
   const [identificacionHistorial, setIdentificacionHistorial] = useState<string[]>([]);
   const [comprobanteHistorial, setComprobanteHistorial] = useState<string[]>([]);
-  
+
   const [subiendoDocumentos, setSubiendoDocumentos] = useState(false);
-  
+
   // URLs de previsualización para archivos nuevos
   const [identificacionPreview, setIdentificacionPreview] = useState<string | null>(null);
   const [comprobantePreview, setComprobantePreview] = useState<string | null>(null);
-  
+
   // Estado de carga de documentos
   const [cargandoDocumentos, setCargandoDocumentos] = useState(true);
-  
+
   // Estados para mostrar/ocultar historial
   const [mostrarHistorialId, setMostrarHistorialId] = useState(false);
   const [mostrarHistorialComp, setMostrarHistorialComp] = useState(false);
@@ -115,20 +115,20 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
         setCallesDisponibles([]);
         return;
       }
-      
+
       console.log('🔍 Cargando calles para residencial ID:', residencialID);
-      
+
       // Buscar el residencial por residencialID (código)
       const residencialesData = await getResidenciales();
       const residencial = residencialesData.find(r => r.residencialID === residencialID);
-      
+
       if (residencial && residencial.id) {
         // Obtener el documento del residencial usando el ID del documento
         const residencialDoc = await getDoc(doc(db, 'residenciales', residencial.id));
-        
+
         if (residencialDoc.exists()) {
           const residencialData = residencialDoc.data();
-          
+
           // Verificar si existe el campo calles y es un array
           if (residencialData.calles && Array.isArray(residencialData.calles)) {
             console.log('✅ Calles encontradas:', residencialData.calles);
@@ -172,7 +172,7 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
             usuario.calle,
             usuario.houseNumber
           );
-          
+
           // Solo actualizar si el formato actual es diferente
           if (usuario.houseID !== houseIDCorrect) {
             setFormData(prev => ({
@@ -199,7 +199,7 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
   const cargarDocumentosExistentes = async () => {
     try {
       const usuarioData = usuario as any;
-      
+
       // Arrays para almacenar URLs de documentos
       const identificacionUrls: string[] = [];
       const comprobanteUrls: string[] = [];
@@ -207,14 +207,14 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
       // **COMPATIBILIDAD**: Manejar estructura antigua (campos únicos)
       const identificacionPath = usuarioData.identificacionPath;
       const comprobantePath = usuarioData.comprobantePath;
-      
+
       // **NUEVA ESTRUCTURA**: Manejar arrays de documentos
       const identificacionPaths = usuarioData.identificacionPaths || [];
       const comprobantePaths = usuarioData.comprobantePaths || [];
 
       // Cargar documentos de identificación
       console.log('🔍 Cargando historial de identificación...');
-      
+
       // Si existe estructura antigua, migrarla
       if (identificacionPath && !identificacionPaths.length) {
         console.log('📦 Migrando estructura antigua de identificación');
@@ -228,7 +228,7 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
           console.warn('⚠️ Error al cargar identificación antigua:', error);
         }
       }
-      
+
       // Cargar todas las identificaciones del historial
       for (const path of identificacionPaths) {
         try {
@@ -244,7 +244,7 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
 
       // Cargar documentos de comprobante
       console.log('🔍 Cargando historial de comprobante...');
-      
+
       // Si existe estructura antigua, migrarla
       if (comprobantePath && !comprobantePaths.length) {
         console.log('📦 Migrando estructura antigua de comprobante');
@@ -258,7 +258,7 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
           console.warn('⚠️ Error al cargar comprobante antiguo:', error);
         }
       }
-      
+
       // Cargar todos los comprobantes del historial
       for (const path of comprobantePaths) {
         try {
@@ -275,9 +275,9 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
       // Establecer los historiales
       setIdentificacionHistorial(identificacionUrls);
       setComprobanteHistorial(comprobanteUrls);
-      
+
       console.log(`📋 Historial cargado - ID: ${identificacionUrls.length} docs, Comp: ${comprobanteUrls.length} docs`);
-      
+
     } catch (error) {
       console.error('Error general al cargar documentos:', error);
       sonnerToast.warning('Error al cargar algunos documentos del historial');
@@ -288,7 +288,7 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
   const handleInputChange = useCallback((field: keyof FormData, value: string | boolean) => {
     setFormData(prev => {
       const newData = { ...prev, [field]: value };
-      
+
       // Generar nuevo houseID cuando cambian calle o número usando la estructura correcta
       if (field === 'calle' || field === 'houseNumber') {
         if (newData.calle && newData.houseNumber && newData.residencialID) {
@@ -299,7 +299,7 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
           );
         }
       }
-      
+
       return newData;
     });
   }, []);
@@ -357,11 +357,11 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
 
     try {
       const usuarioData = usuario as any;
-      
+
       // Obtener arrays existentes o crear nuevos
       const identificacionPathsExistentes = usuarioData.identificacionPaths || [];
       const comprobantePathsExistentes = usuarioData.comprobantePaths || [];
-      
+
       // Migrar estructura antigua si existe
       if (usuarioData.identificacionPath && !identificacionPathsExistentes.length) {
         identificacionPathsExistentes.push(usuarioData.identificacionPath);
@@ -378,18 +378,18 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
           if (!extension || !['jpg', 'jpeg', 'png', 'pdf'].includes(extension)) {
             throw new Error('Formato de archivo no válido para identificación');
           }
-          
+
           const timestamp = Date.now();
           const identificacionPath = `usuarios/${usuario.id}/identificacion_${timestamp}.${extension}`;
           await subirDocumento(identificacionFile, identificacionPath);
-          
+
           // AGREGAR al historial (no reemplazar)
           const nuevosIdentificacionPaths = [...identificacionPathsExistentes, identificacionPath];
           documentos.identificacionPaths = nuevosIdentificacionPaths;
-          
+
           // Mantener compatibilidad con estructura antigua
           documentos.identificacionPath = identificacionPath;
-          
+
           console.log('✅ Identificación agregada al historial:', identificacionPath);
           console.log('📋 Total documentos de identificación:', nuevosIdentificacionPaths.length);
           sonnerToast.success(`Identificación agregada al historial (${nuevosIdentificacionPaths.length} documentos)`);
@@ -407,18 +407,18 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
           if (!extension || !['jpg', 'jpeg', 'png', 'pdf'].includes(extension)) {
             throw new Error('Formato de archivo no válido para comprobante');
           }
-          
+
           const timestamp = Date.now();
           const comprobantePath = `usuarios/${usuario.id}/comprobante_${timestamp}.${extension}`;
           await subirDocumento(comprobanteFile, comprobantePath);
-          
+
           // AGREGAR al historial (no reemplazar)
           const nuevosComprobantePaths = [...comprobantePathsExistentes, comprobantePath];
           documentos.comprobantePaths = nuevosComprobantePaths;
-          
+
           // Mantener compatibilidad con estructura antigua
           documentos.comprobantePath = comprobantePath;
-          
+
           console.log('✅ Comprobante agregado al historial:', comprobantePath);
           console.log('📋 Total documentos de comprobante:', nuevosComprobantePaths.length);
           sonnerToast.success(`Comprobante agregado al historial (${nuevosComprobantePaths.length} documentos)`);
@@ -481,7 +481,7 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
       console.log('🟢 [AprobarUsuario] Subiendo documentos nuevos (si hay)...');
       const documentosActualizados = await subirDocumentos();
       console.log('🟢 [AprobarUsuario] Documentos subidos:', documentosActualizados);
-      
+
       const datosActualizados = {
         ...formData,
         ...documentosActualizados,
@@ -506,7 +506,7 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
   };
 
   // Usuarios ligados al mismo houseID
-  const usuariosMismaCasa = formData.houseID 
+  const usuariosMismaCasa = formData.houseID
     ? todosLosUsuarios.filter(u => u.houseID === formData.houseID && u.id !== usuario.id && u.status === 'approved')
     : [];
 
@@ -619,11 +619,10 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
                   {/* Indicador automático de tipo de usuario */}
-                  <div className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 ${
-                    formData.isPrimaryUser 
-                      ? 'bg-blue-50 border-blue-200 text-blue-800' 
+                  <div className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 ${formData.isPrimaryUser
+                      ? 'bg-blue-50 border-blue-200 text-blue-800'
                       : 'bg-green-50 border-green-200 text-green-800'
-                  }`}>
+                    }`}>
                     {formData.isPrimaryUser ? (
                       <>
                         <Star className="h-4 w-4 text-yellow-500" />
@@ -636,16 +635,16 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
                       </>
                     )}
                   </div>
-                  
+
                   {/* Badge de información */}
                   <div className="text-xs text-muted-foreground">
-                    {formData.isPrimaryUser 
-                      ? "Responsable de la aplicación" 
+                    {formData.isPrimaryUser
+                      ? "Responsable de la aplicación"
                       : "Usuario autorizado"
                     }
                   </div>
                 </div>
-                
+
                 {/* Información adicional */}
                 {principalYaExiste && !formData.isPrimaryUser && (
                   <div className="text-xs text-blue-600 flex items-center gap-1">
@@ -654,11 +653,11 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
                   </div>
                 )}
               </div>
-              
+
               {/* Información sobre detección automática */}
               <div className="text-xs text-muted-foreground bg-gray-50 p-2 rounded">
                 <Info className="h-3 w-3 inline mr-1" />
-                El tipo de usuario se determina automáticamente según el orden de registro. 
+                El tipo de usuario se determina automáticamente según el orden de registro.
                 El primer inquilino registrado es el principal.
               </div>
             </div>
@@ -816,7 +815,7 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
                             {mostrarHistorialId ? 'Ocultar' : 'Ver todos'}
                           </Button>
                         </div>
-                        
+
                         {/* Documento más reciente (siempre visible) */}
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
@@ -828,8 +827,8 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
                           <div className="border-2 border-green-200 rounded-lg overflow-hidden bg-green-50">
                             <TransformWrapper>
                               <TransformComponent>
-                                <img 
-                                  src={identificacionHistorial[identificacionHistorial.length - 1]} 
+                                <img
+                                  src={identificacionHistorial[identificacionHistorial.length - 1]}
                                   alt="Identificación más reciente"
                                   className="w-full h-40 object-contain"
                                   onError={(e) => {
@@ -841,7 +840,7 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
                             </TransformWrapper>
                           </div>
                         </div>
-                        
+
                         {/* Historial completo (expandible) */}
                         {mostrarHistorialId && identificacionHistorial.length > 1 && (
                           <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -859,8 +858,8 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
                                 <div className="border rounded-lg overflow-hidden bg-gray-50">
                                   <TransformWrapper>
                                     <TransformComponent>
-                                      <img 
-                                        src={url} 
+                                      <img
+                                        src={url}
                                         alt={`Identificación anterior ${index + 1}`}
                                         className="w-full h-32 object-contain"
                                         onError={(e) => {
@@ -877,7 +876,7 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
                         )}
                       </div>
                     )}
-                    
+
                     {/* Preview del nuevo documento */}
                     {identificacionPreview && (
                       <div className="space-y-2">
@@ -885,8 +884,8 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
                         <div className="border-2 border-blue-200 rounded-lg overflow-hidden bg-blue-50">
                           <TransformWrapper>
                             <TransformComponent>
-                              <img 
-                                src={identificacionPreview} 
+                              <img
+                                src={identificacionPreview}
                                 alt="Nueva identificación"
                                 className="w-full h-40 object-contain"
                               />
@@ -898,12 +897,12 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
                         </p>
                       </div>
                     )}
-                    
+
                     {/* Input para subir nuevo archivo */}
                     <div className="space-y-2">
-                                          <Label htmlFor="identificacion">
-                      {identificacionHistorial.length > 0 ? 'Agregar nueva identificación al historial' : 'Subir primera identificación'}
-                    </Label>
+                      <Label htmlFor="identificacion">
+                        {identificacionHistorial.length > 0 ? 'Agregar nueva identificación al historial' : 'Subir primera identificación'}
+                      </Label>
                       <Input
                         id="identificacion"
                         type="file"
@@ -942,137 +941,137 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
                         Formatos permitidos: JPG, PNG, PDF (máx. 10MB)
                       </CardDescription>
                     </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Historial de documentos de comprobante */}
-                    {comprobanteHistorial.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-xs text-muted-foreground">
-                            Historial de comprobantes ({comprobanteHistorial.length}):
-                          </Label>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setMostrarHistorialComp(!mostrarHistorialComp)}
-                            className="h-auto p-1 text-xs"
-                          >
-                            {mostrarHistorialComp ? 'Ocultar' : 'Ver todos'}
-                          </Button>
-                        </div>
-                        
-                        {/* Documento más reciente (siempre visible) */}
+                    <CardContent className="space-y-4">
+                      {/* Historial de documentos de comprobante */}
+                      {comprobanteHistorial.length > 0 && (
                         <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="default" className="text-xs">Más reciente</Badge>
-                            <span className="text-xs text-green-600">
-                              Documento {comprobanteHistorial.length}
-                            </span>
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs text-muted-foreground">
+                              Historial de comprobantes ({comprobanteHistorial.length}):
+                            </Label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setMostrarHistorialComp(!mostrarHistorialComp)}
+                              className="h-auto p-1 text-xs"
+                            >
+                              {mostrarHistorialComp ? 'Ocultar' : 'Ver todos'}
+                            </Button>
                           </div>
-                          <div className="border-2 border-green-200 rounded-lg overflow-hidden bg-green-50">
+
+                          {/* Documento más reciente (siempre visible) */}
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="default" className="text-xs">Más reciente</Badge>
+                              <span className="text-xs text-green-600">
+                                Documento {comprobanteHistorial.length}
+                              </span>
+                            </div>
+                            <div className="border-2 border-green-200 rounded-lg overflow-hidden bg-green-50">
+                              <TransformWrapper>
+                                <TransformComponent>
+                                  <img
+                                    src={comprobanteHistorial[comprobanteHistorial.length - 1]}
+                                    alt="Comprobante más reciente"
+                                    className="w-full h-40 object-contain"
+                                    onError={(e) => {
+                                      console.error('Error al cargar imagen de comprobante');
+                                      (e.target as HTMLImageElement).src = '/images/document-error.png';
+                                    }}
+                                  />
+                                </TransformComponent>
+                              </TransformWrapper>
+                            </div>
+                          </div>
+
+                          {/* Historial completo (expandible) */}
+                          {mostrarHistorialComp && comprobanteHistorial.length > 1 && (
+                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                              <Label className="text-xs text-muted-foreground">Documentos anteriores:</Label>
+                              {comprobanteHistorial.slice(0, -1).reverse().map((url, index) => (
+                                <div key={index} className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="secondary" className="text-xs">
+                                      Documento {comprobanteHistorial.length - 1 - index}
+                                    </Badge>
+                                    <span className="text-xs text-gray-500">
+                                      (Anterior)
+                                    </span>
+                                  </div>
+                                  <div className="border rounded-lg overflow-hidden bg-gray-50">
+                                    <TransformWrapper>
+                                      <TransformComponent>
+                                        <img
+                                          src={url}
+                                          alt={`Comprobante anterior ${index + 1}`}
+                                          className="w-full h-32 object-contain"
+                                          onError={(e) => {
+                                            console.error('Error al cargar imagen de comprobante anterior');
+                                            (e.target as HTMLImageElement).src = '/images/document-error.png';
+                                          }}
+                                        />
+                                      </TransformComponent>
+                                    </TransformWrapper>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Preview del nuevo documento */}
+                      {comprobantePreview && (
+                        <div className="space-y-2">
+                          <Label className="text-xs text-blue-600 font-medium">Nuevo documento (pendiente de guardar):</Label>
+                          <div className="border-2 border-blue-200 rounded-lg overflow-hidden bg-blue-50">
                             <TransformWrapper>
                               <TransformComponent>
-                                <img 
-                                  src={comprobanteHistorial[comprobanteHistorial.length - 1]} 
-                                  alt="Comprobante más reciente"
+                                <img
+                                  src={comprobantePreview}
+                                  alt="Nuevo comprobante"
                                   className="w-full h-40 object-contain"
-                                  onError={(e) => {
-                                    console.error('Error al cargar imagen de comprobante');
-                                    (e.target as HTMLImageElement).src = '/images/document-error.png';
-                                  }}
                                 />
                               </TransformComponent>
                             </TransformWrapper>
                           </div>
+                          <p className="text-xs text-blue-600">
+                            Este documento se agregará al historial al guardar (será el documento #{comprobanteHistorial.length + 1})
+                          </p>
                         </div>
-                        
-                        {/* Historial completo (expandible) */}
-                        {mostrarHistorialComp && comprobanteHistorial.length > 1 && (
-                          <div className="space-y-2 max-h-64 overflow-y-auto">
-                            <Label className="text-xs text-muted-foreground">Documentos anteriores:</Label>
-                            {comprobanteHistorial.slice(0, -1).reverse().map((url, index) => (
-                              <div key={index} className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="secondary" className="text-xs">
-                                    Documento {comprobanteHistorial.length - 1 - index}
-                                  </Badge>
-                                  <span className="text-xs text-gray-500">
-                                    (Anterior)
-                                  </span>
-                                </div>
-                                <div className="border rounded-lg overflow-hidden bg-gray-50">
-                                  <TransformWrapper>
-                                    <TransformComponent>
-                                      <img 
-                                        src={url} 
-                                        alt={`Comprobante anterior ${index + 1}`}
-                                        className="w-full h-32 object-contain"
-                                        onError={(e) => {
-                                          console.error('Error al cargar imagen de comprobante anterior');
-                                          (e.target as HTMLImageElement).src = '/images/document-error.png';
-                                        }}
-                                      />
-                                    </TransformComponent>
-                                  </TransformWrapper>
-                                </div>
-                              </div>
-                            ))}
+                      )}
+
+                      {/* Input para subir nuevo archivo */}
+                      <div className="space-y-2">
+                        <Label htmlFor="comprobante">
+                          {comprobanteHistorial.length > 0 ? 'Agregar nuevo comprobante al historial' : 'Subir primer comprobante'}
+                        </Label>
+                        <Input
+                          id="comprobante"
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,application/pdf"
+                          onChange={(e) => handleFileSelect('comprobante', e.target.files?.[0] || null)}
+                          className="cursor-pointer"
+                        />
+                        {comprobanteFile && (
+                          <div className="flex items-center gap-2 text-xs text-green-600">
+                            <CheckCircle className="h-3 w-3" />
+                            <span>Archivo seleccionado: {comprobanteFile.name}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleFileSelect('comprobante', null)}
+                              className="h-auto p-1 text-red-500 hover:text-red-700"
+                            >
+                              <XCircle className="h-3 w-3" />
+                            </Button>
                           </div>
                         )}
                       </div>
-                    )}
-                    
-                    {/* Preview del nuevo documento */}
-                    {comprobantePreview && (
-                      <div className="space-y-2">
-                        <Label className="text-xs text-blue-600 font-medium">Nuevo documento (pendiente de guardar):</Label>
-                        <div className="border-2 border-blue-200 rounded-lg overflow-hidden bg-blue-50">
-                          <TransformWrapper>
-                            <TransformComponent>
-                              <img 
-                                src={comprobantePreview} 
-                                alt="Nuevo comprobante"
-                                className="w-full h-40 object-contain"
-                              />
-                            </TransformComponent>
-                          </TransformWrapper>
-                        </div>
-                        <p className="text-xs text-blue-600">
-                          Este documento se agregará al historial al guardar (será el documento #{comprobanteHistorial.length + 1})
-                        </p>
-                      </div>
-                    )}
-                    
-                    {/* Input para subir nuevo archivo */}
-                    <div className="space-y-2">
-                      <Label htmlFor="comprobante">
-                        {comprobanteHistorial.length > 0 ? 'Agregar nuevo comprobante al historial' : 'Subir primer comprobante'}
-                      </Label>
-                      <Input
-                        id="comprobante"
-                        type="file"
-                        accept="image/jpeg,image/jpg,image/png,application/pdf"
-                        onChange={(e) => handleFileSelect('comprobante', e.target.files?.[0] || null)}
-                        className="cursor-pointer"
-                      />
-                      {comprobanteFile && (
-                        <div className="flex items-center gap-2 text-xs text-green-600">
-                          <CheckCircle className="h-3 w-3" />
-                          <span>Archivo seleccionado: {comprobanteFile.name}</span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleFileSelect('comprobante', null)}
-                            className="h-auto p-1 text-red-500 hover:text-red-700"
-                          >
-                            <XCircle className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
                 ) : (
                   /* Mensaje informativo para inquilinos */
                   <Card className="bg-green-50 border-green-200">
@@ -1082,7 +1081,7 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
                         <div>
                           <p className="text-sm font-medium text-green-800">Documentos completos</p>
                           <p className="text-xs text-green-600 mt-1">
-                            Los inquilinos solo requieren identificación oficial. 
+                            Los inquilinos solo requieren identificación oficial.
                             No es necesario subir comprobante de domicilio.
                           </p>
                         </div>
@@ -1111,7 +1110,7 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
                 </Card>
               </div>
             )}
-            
+
             {/* Información adicional */}
             <Card className="bg-blue-50 border-blue-200">
               <CardContent className="pt-4">

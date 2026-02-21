@@ -69,63 +69,63 @@ const EditarUsuarioDialog: React.FC<EditarUsuarioDialogProps> = ({ usuario, isOp
       }
     };
 
-      const loadCallesResidencial = async () => {
-    if (usuario) {
-      const residencialId = (usuario as any).residencialID || (usuario as any).residencialId;
-      console.log('🔍 Debug usuario completo:', {
-        usuario: usuario,
-        residencialID: (usuario as any).residencialID,
-        residencialId: (usuario as any).residencialId,
-        residencialIdFinal: residencialId
-      });
-      
-      if (residencialId) {
-        setIsLoadingCalles(true);
-        try {
-          console.log('🔍 Cargando calles para residencial ID:', residencialId);
-        
-        // Buscar el documento del residencial por su campo residencialID
-        console.log('🔍 Buscando residencial por residencialID:', residencialId);
-        const residencialesRef = collection(db, 'residenciales');
-        const q = query(residencialesRef, where('residencialID', '==', residencialId));
-        const residencialSnap = await getDocs(q);
-        
-        if (!residencialSnap.empty) {
-          const residencialDoc = residencialSnap.docs[0];
-          console.log('📄 Documento encontrado con ID:', residencialDoc.id);
-          const residencialData = residencialDoc.data();
-          console.log('📄 Documento residencial completo:', residencialData);
-          
-          // Verificar si existe el campo calles y es un array
-          if (residencialData.calles && Array.isArray(residencialData.calles)) {
-            console.log('✅ Calles encontradas en residencial:', residencialData.calles);
-            const callesFiltradas = residencialData.calles.filter((calle: string) => calle && calle.trim() !== '');
-            console.log('🏠 Calles filtradas:', callesFiltradas.length, callesFiltradas);
-            setCallesDisponibles(callesFiltradas);
-          } else {
-            console.log('⚠️ No se encontraron calles en el residencial. Campo calles:', residencialData.calles);
-            console.log('⚠️ Tipo de campo calles:', typeof residencialData.calles);
-            console.log('⚠️ Es array?:', Array.isArray(residencialData.calles));
+    const loadCallesResidencial = async () => {
+      if (usuario) {
+        const residencialId = (usuario as any).residencialID || (usuario as any).residencialId;
+        console.log('🔍 Debug usuario completo:', {
+          usuario: usuario,
+          residencialID: (usuario as any).residencialID,
+          residencialId: (usuario as any).residencialId,
+          residencialIdFinal: residencialId
+        });
+
+        if (residencialId) {
+          setIsLoadingCalles(true);
+          try {
+            console.log('🔍 Cargando calles para residencial ID:', residencialId);
+
+            // Buscar el documento del residencial por su campo residencialID
+            console.log('🔍 Buscando residencial por residencialID:', residencialId);
+            const residencialesRef = collection(db, 'residenciales');
+            const q = query(residencialesRef, where('residencialID', '==', residencialId));
+            const residencialSnap = await getDocs(q);
+
+            if (!residencialSnap.empty) {
+              const residencialDoc = residencialSnap.docs[0];
+              console.log('📄 Documento encontrado con ID:', residencialDoc.id);
+              const residencialData = residencialDoc.data();
+              console.log('📄 Documento residencial completo:', residencialData);
+
+              // Verificar si existe el campo calles y es un array
+              if (residencialData.calles && Array.isArray(residencialData.calles)) {
+                console.log('✅ Calles encontradas en residencial:', residencialData.calles);
+                const callesFiltradas = residencialData.calles.filter((calle: string) => calle && calle.trim() !== '');
+                console.log('🏠 Calles filtradas:', callesFiltradas.length, callesFiltradas);
+                setCallesDisponibles(callesFiltradas);
+              } else {
+                console.log('⚠️ No se encontraron calles en el residencial. Campo calles:', residencialData.calles);
+                console.log('⚠️ Tipo de campo calles:', typeof residencialData.calles);
+                console.log('⚠️ Es array?:', Array.isArray(residencialData.calles));
+                setCallesDisponibles([]);
+              }
+            } else {
+              console.log('❌ No se encontró residencial con residencialID:', residencialId);
+              setCallesDisponibles([]);
+            }
+
+          } catch (error) {
+            console.error('Error cargando calles del residencial:', error);
             setCallesDisponibles([]);
+          } finally {
+            setIsLoadingCalles(false);
           }
         } else {
-          console.log('❌ No se encontró residencial con residencialID:', residencialId);
+          console.log('❌ No se encontró residencialID en el usuario');
           setCallesDisponibles([]);
         }
-        
-      } catch (error) {
-        console.error('Error cargando calles del residencial:', error);
-        setCallesDisponibles([]);
-              } finally {
-          setIsLoadingCalles(false);
-        }
       } else {
-        console.log('❌ No se encontró residencialID en el usuario');
+        console.log('❌ No hay usuario disponible');
         setCallesDisponibles([]);
-      }
-    } else {
-      console.log('❌ No hay usuario disponible');
-      setCallesDisponibles([]);
       }
     };
 
@@ -143,9 +143,9 @@ const EditarUsuarioDialog: React.FC<EditarUsuarioDialogProps> = ({ usuario, isOp
       const houseNumber = (usuario as any).houseNumber || '';
       const residencialId = (usuario as any).residencialID || (usuario as any).residencialId || '';
       const existingHouseID = (usuario as any).houseID || (usuario as any).houseId || '';
-      
+
       // Si no hay houseID existente pero sí hay calle y número, generar uno nuevo
-      const calculatedHouseID = !existingHouseID && residencialId && calle && houseNumber 
+      const calculatedHouseID = !existingHouseID && residencialId && calle && houseNumber
         ? generateHouseID(residencialId, calle, houseNumber)
         : existingHouseID;
 
@@ -173,7 +173,7 @@ const EditarUsuarioDialog: React.FC<EditarUsuarioDialogProps> = ({ usuario, isOp
   // Función para generar houseID estructurado: {residencialId}-{calle_normalizada}-{houseNumber}
   const generateHouseID = (residencialId: string, calle: string, houseNumber: string): string => {
     if (!residencialId || !calle || !houseNumber) return '';
-    
+
     const normalizeStreet = (street: string): string => {
       return street
         .replace(/^CALLE\s+/i, '') // Quitar prefijo 'CALLE'
@@ -186,7 +186,7 @@ const EditarUsuarioDialog: React.FC<EditarUsuarioDialogProps> = ({ usuario, isOp
         .replace(/\s+/g, '_')
         .toUpperCase();
     };
-    
+
     const calleNorm = normalizeStreet(calle);
     const houseID = `${residencialId}-${calleNorm}-${houseNumber}`;
     console.log('🏠 House ID generado (estructurado):', houseID);
@@ -199,13 +199,13 @@ const EditarUsuarioDialog: React.FC<EditarUsuarioDialogProps> = ({ usuario, isOp
         ...prev,
         [field]: value,
       };
-      
+
       // Generar/actualizar houseID en tiempo real cuando cambian calle o número
       if (field === 'calle' || field === 'houseNumber') {
         const newCalle = field === 'calle' ? value : prev.calle;
         const newHouseNumber = field === 'houseNumber' ? value : prev.houseNumber;
         const residencialId = (usuario as any)?.residencialID || (usuario as any)?.residencialId || '';
-        
+
         // Generar houseID estructurado si todos los campos están presentes
         if (residencialId && newCalle && newHouseNumber) {
           updated.houseID = generateHouseID(residencialId, newCalle, newHouseNumber);
@@ -213,7 +213,7 @@ const EditarUsuarioDialog: React.FC<EditarUsuarioDialogProps> = ({ usuario, isOp
           updated.houseID = ''; // Limpiar si faltan datos
         }
       }
-      
+
       return updated;
     });
   };
@@ -237,7 +237,7 @@ const EditarUsuarioDialog: React.FC<EditarUsuarioDialogProps> = ({ usuario, isOp
 
   const handleSubmit = async () => {
     setIsSaving(true);
-    
+
     // Datos de información personal
     let dataToUpdate: Partial<Usuario> = {
       fullName: formData.fullName,
@@ -251,7 +251,7 @@ const EditarUsuarioDialog: React.FC<EditarUsuarioDialogProps> = ({ usuario, isOp
     (dataToUpdate as any).calle = formData.calle;
     (dataToUpdate as any).houseNumber = formData.houseNumber;
     (dataToUpdate as any).houseID = formData.houseID;
-    
+
     if (usuario.isMoroso) {
       // Deshabilitar todas las funciones para usuarios morosos
       dataToUpdate.features = {
@@ -261,11 +261,11 @@ const EditarUsuarioDialog: React.FC<EditarUsuarioDialogProps> = ({ usuario, isOp
         reservas: false,
         encuestas: false,
       };
-      
+
       // Limitar códigos QR a 5 por día para usuarios morosos
       dataToUpdate.max_codigos_qr_diarios = 5;
     }
-    
+
     await onUpdate(dataToUpdate);
     setIsSaving(false);
   };
@@ -280,211 +280,218 @@ const EditarUsuarioDialog: React.FC<EditarUsuarioDialogProps> = ({ usuario, isOp
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>Editar Usuario: {usuario.fullName}</DialogTitle>
-          <DialogDescription>
-            Modifica la información personal, permisos y límites del usuario. Los cambios se aplicarán en tiempo real.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="py-4 overflow-y-auto flex-1">
+      <DialogContent className="sm:max-w-[800px] border-none shadow-2xl bg-white/95 backdrop-blur-2xl rounded-[2.5rem] p-0 overflow-hidden">
+        {/* Header con gradiente suave */}
+        <div className="bg-gradient-to-r from-slate-50 to-white border-b border-slate-100 p-8 pb-6">
+          <DialogHeader>
+            <div className="flex items-center gap-4 mb-2">
+              <div className="h-12 w-12 rounded-2xl bg-slate-900 flex items-center justify-center text-white shadow-lg shadow-slate-900/20">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </div>
+              <div>
+                <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight">Editar Usuario</DialogTitle>
+                <DialogDescription className="text-slate-500 font-medium text-base">
+                  {usuario.fullName}
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+        </div>
+
+        <div className="p-8 pt-6 h-[60vh] overflow-y-auto bg-slate-50/50">
           {/* Indicador de estado de moroso */}
           {usuario.isMoroso && (
-            <Card className="mb-4 border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800">
-              <CardContent className="pt-4">
-                <div className="flex items-center space-x-2 text-red-700 dark:text-red-300">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                  <span className="font-medium">Usuario marcado como moroso</span>
-                </div>
-                <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                  Las funciones están bloqueadas y no se pueden modificar. Los códigos QR están limitados a 5 por día.
+            <div className="mb-6 p-4 rounded-3xl border border-red-100 bg-red-50 text-red-900 shadow-sm flex items-start gap-4">
+              <div className="p-2 bg-red-100 rounded-xl text-red-600">
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div>
+                <h4 className="font-bold text-lg mb-1">Usuario Moroso</h4>
+                <p className="text-sm opacity-90 leading-relaxed">
+                  Las funciones están bloqueadas y los códigos QR limitados a 5 por día. Para restablecer el acceso completo, primero debe regularizar el estado del usuario.
                 </p>
-                <p className="text-xs text-red-500 dark:text-red-400 mt-2 font-medium">
-                  💡 Para habilitar las funciones, primero debe desmarcar al usuario como moroso desde la tabla principal.
-                </p>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
 
-          {/* Pestañas */}
-          <Tabs defaultValue="personal" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="personal">Información Personal</TabsTrigger>
-              <TabsTrigger value="funciones">Funciones y Límites</TabsTrigger>
+          {/* Pestañas Modernas */}
+          <Tabs defaultValue="personal" className="space-y-6">
+            <TabsList className="bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm w-full grid grid-cols-2 h-auto">
+              <TabsTrigger
+                value="personal"
+                className="rounded-xl py-2.5 font-bold text-slate-500 data-[state=active]:bg-slate-900 data-[state=active]:text-white transition-all duration-300"
+              >
+                Información Personal
+              </TabsTrigger>
+              <TabsTrigger
+                value="funciones"
+                className="rounded-xl py-2.5 font-bold text-slate-500 data-[state=active]:bg-slate-900 data-[state=active]:text-white transition-all duration-300"
+              >
+                Funciones y Accesos
+              </TabsTrigger>
             </TabsList>
-            
+
             {/* Pestaña de Información Personal */}
-            <TabsContent value="personal" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Datos Personales</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+            <TabsContent value="personal" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="space-y-6">
+                {/* Sección Datos */}
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Datos Personales</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="fullName">Nombre</Label>
+                      <Label htmlFor="fullName" className="text-xs font-bold text-slate-500 ml-1">Nombre</Label>
                       <Input
                         id="fullName"
                         value={formData.fullName}
                         onChange={(e) => handlePersonalInfoChange('fullName', e.target.value)}
-                        placeholder="Nombre completo"
+                        className="rounded-xl h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-slate-900/10 font-medium"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="paternalLastName">Apellido Paterno</Label>
+                      <Label htmlFor="paternalLastName" className="text-xs font-bold text-slate-500 ml-1">Apellido Paterno</Label>
                       <Input
                         id="paternalLastName"
                         value={formData.paternalLastName}
                         onChange={(e) => handlePersonalInfoChange('paternalLastName', e.target.value)}
-                        placeholder="Apellido paterno"
+                        className="rounded-xl h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-slate-900/10 font-medium"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="maternalLastName">Apellido Materno</Label>
+                      <Label htmlFor="maternalLastName" className="text-xs font-bold text-slate-500 ml-1">Apellido Materno</Label>
                       <Input
                         id="maternalLastName"
                         value={formData.maternalLastName}
                         onChange={(e) => handlePersonalInfoChange('maternalLastName', e.target.value)}
-                        placeholder="Apellido materno"
+                        className="rounded-xl h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-slate-900/10 font-medium"
                       />
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Información de Residencia</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+                {/* Sección Residencia */}
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Ubicación</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="calle">Calle</Label>
+                      <Label htmlFor="calle" className="text-xs font-bold text-slate-500 ml-1">Calle</Label>
                       <Select
                         value={formData.calle}
                         onValueChange={(value) => handlePersonalInfoChange('calle', value)}
                         disabled={isLoadingCalles}
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder={isLoadingCalles ? "Cargando calles..." : "Selecciona una calle"} />
+                        <SelectTrigger className="rounded-xl h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-slate-900/10 font-medium">
+                          <SelectValue placeholder={isLoadingCalles ? "Cargando..." : "Selecciona calle"} />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="rounded-xl border-none shadow-xl bg-white/95 backdrop-blur-xl">
                           {callesDisponibles.map((calle) => (
-                            <SelectItem key={calle} value={calle}>
-                              {calle}
-                            </SelectItem>
+                            <SelectItem key={calle} value={calle} className="font-medium">{calle}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="houseNumber">Número de Casa</Label>
+                      <Label htmlFor="houseNumber" className="text-xs font-bold text-slate-500 ml-1">Número</Label>
                       <Input
                         id="houseNumber"
                         value={formData.houseNumber}
                         onChange={(e) => handlePersonalInfoChange('houseNumber', e.target.value)}
-                        placeholder="Número de casa"
+                        className="rounded-xl h-11 border-slate-200 bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-slate-900/10 font-medium"
                       />
                     </div>
                     <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="houseID">House ID</Label>
-                      <Input
-                        id="houseID"
-                        value={formData.houseID}
-                        readOnly
-                        className="bg-gray-100 dark:bg-gray-800"
-                        placeholder="ResidencialID-Calle-Número (ej: ABC123-JUAREZ-15)"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        El House ID se genera automáticamente con el formato: ResidencialID-Calle-Número. Se actualiza en tiempo real al cambiar calle o número.
+                      <Label htmlFor="houseID" className="text-xs font-bold text-slate-500 ml-1">House ID</Label>
+                      <div className="relative">
+                        <Input
+                          id="houseID"
+                          value={formData.houseID}
+                          readOnly
+                          className="rounded-xl h-11 border-slate-200 bg-slate-100 font-mono text-slate-600 pl-10"
+                        />
+                        <div className="absolute left-3 top-3 opacity-30">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide mt-2 ml-1">
+                        Generado automáticamente: Residencial-Calle-Número
                       </p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </TabsContent>
 
             {/* Pestaña de Funciones y Límites */}
-            <TabsContent value="funciones" className="space-y-4">
-              {/* Indicador de restricciones globales */}
-          {usuario.role === 'resident' && globalRestrictions && (
-                <Card className="border-orange-200 bg-orange-50 dark:bg-orange-900/20 dark:border-orange-800">
-              <CardContent className="pt-4">
-                <div className="flex items-center space-x-2 text-orange-700 dark:text-orange-300">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                  <span className="font-medium">Restricciones globales activas</span>
+            <TabsContent value="funciones" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              {/* Restricciones Globales */}
+              {usuario.role === 'resident' && globalRestrictions && (
+                <div className="p-4 rounded-3xl border border-amber-100 bg-amber-50 text-amber-900">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-xl">🔒</span>
+                    <h4 className="font-bold">Restricciones Globales Activas</h4>
+                  </div>
+                  <p className="text-sm opacity-80 pl-8">Algunas funciones están deshabilitadas para todo el residencial.</p>
                 </div>
-                <p className="text-sm text-orange-600 dark:text-orange-400 mt-1">
-                  Algunas funciones están bloqueadas a nivel global para todos los residentes del residencial.
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Control de Funciones</CardTitle>
-              {usuario.isMoroso && (
-                <p className="text-sm text-amber-600 dark:text-amber-400">
-                  ⚠️ Usuario marcado como moroso. Las funciones están bloqueadas y no se pueden modificar.
-                </p>
               )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {featureLabels.map(({ key, label }) => (
-                <div key={key} className="flex items-center justify-between space-x-2 p-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <Label htmlFor={key} className="flex-1 cursor-pointer">
-                    {label}
-                  </Label>
-                  <Switch
-                    id={key}
-                    checked={formData.features[key]}
-                    onCheckedChange={(value) => handleFeatureChange(key, value)}
+
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6">Permisos de App</h3>
+                <div className="space-y-4">
+                  {featureLabels.map(({ key, label }) => (
+                    <div key={key} className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
+                      <Label htmlFor={key} className="font-bold text-slate-700 cursor-pointer flex-1">{label}</Label>
+                      <Switch
+                        id={key}
+                        checked={formData.features[key]}
+                        onCheckedChange={(value) => handleFeatureChange(key, value)}
+                        disabled={usuario.isMoroso}
+                        className={`${formData.features[key] ? 'bg-green-500' : 'bg-slate-200'} transition-all`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6">Límites</h3>
+                <div className="flex items-center justify-between gap-4 p-2">
+                  <div className="flex-1">
+                    <Label htmlFor="qr-limit" className="block text-sm font-bold text-slate-700 mb-1">
+                      Códigos QR Diarios
+                    </Label>
+                    <p className="text-xs text-slate-400 font-medium">Límite máximo de códigos generados por día</p>
+                  </div>
+                  <Input
+                    id="qr-limit"
+                    type="number"
+                    value={formData.max_codigos_qr_diarios}
+                    onChange={handleQrLimitChange}
                     disabled={usuario.isMoroso}
-                    className={`${formData.features[key] ? 'bg-green-500' : ''} ${usuario.isMoroso ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className="w-24 rounded-xl text-center font-bold text-lg h-12 border-slate-200"
                   />
                 </div>
-              ))}
-            </CardContent>
-          </Card>
-          
-              <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Límites</CardTitle>
-              {usuario.isMoroso && (
-                <p className="text-sm text-amber-600 dark:text-amber-400">
-                  ⚠️ Los códigos QR están limitados a 5 por día para usuarios morosos y no se pueden modificar.
-                </p>
-              )}
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between space-x-2">
-                <Label htmlFor="qr-limit" className="flex-1">
-                  Códigos QR por día
-                </Label>
-                <Input
-                  id="qr-limit"
-                  type="number"
-                  value={formData.max_codigos_qr_diarios}
-                  onChange={handleQrLimitChange}
-                  disabled={usuario.isMoroso}
-                  className={`w-24 ${usuario.isMoroso ? 'opacity-50 cursor-not-allowed' : ''}`}
-                />
               </div>
-            </CardContent>
-          </Card>
             </TabsContent>
           </Tabs>
         </div>
-        
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isSaving}>Cancelar</Button>
-          <Button onClick={handleSubmit} disabled={isSaving}>
+
+        <DialogFooter className="p-6 bg-slate-50/50 border-t border-slate-100">
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            disabled={isSaving}
+            className="rounded-xl h-12 px-6 font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100/50"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={isSaving}
+            className="rounded-xl h-12 px-8 font-bold bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-900/20"
+          >
             {isSaving ? 'Guardando...' : 'Guardar Cambios'}
           </Button>
         </DialogFooter>

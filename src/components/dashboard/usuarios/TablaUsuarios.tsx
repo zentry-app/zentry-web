@@ -66,7 +66,7 @@ const TablaUsuarios: React.FC<TablaUsuariosProps> = memo(({
 }) => {
   const [usuariosSeleccionados, setUsuariosSeleccionados] = useState<Set<string>>(new Set());
   const [mostrarDialogoEliminarMultiples, setMostrarDialogoEliminarMultiples] = useState(false);
-  
+
   // Estado para el modal de detalles de usuario aprobado
   const [usuarioParaDetalles, setUsuarioParaDetalles] = useState<Usuario | null>(null);
   const [mostrarDetallesUsuario, setMostrarDetallesUsuario] = useState(false);
@@ -85,7 +85,7 @@ const TablaUsuarios: React.FC<TablaUsuariosProps> = memo(({
     const nombre = usuario.fullName || '';
     const apellidoPaterno = usuario.paternalLastName || '';
     const apellidoMaterno = usuario.maternalLastName || '';
-    
+
     const nombreCompleto = `${nombre} ${apellidoPaterno} ${apellidoMaterno}`.trim();
     return nombreCompleto || 'Sin nombre';
   };
@@ -94,7 +94,7 @@ const TablaUsuarios: React.FC<TablaUsuariosProps> = memo(({
   const getDireccionFormateada = (usuario: Usuario): string => {
     const calle = usuario.calle || '';
     const numero = usuario.houseNumber || '';
-    
+
     if (calle && numero) {
       return `${calle} #${numero}`;
     } else if (calle) {
@@ -119,14 +119,14 @@ const TablaUsuarios: React.FC<TablaUsuariosProps> = memo(({
   // Obtener calles únicas disponibles
   const callesDisponibles = useMemo(() => {
     const callesSet = new Set<string>();
-    
+
     usuarios.forEach(usuario => {
       const calle = usuario.calle;
       if (calle && typeof calle === 'string' && calle.trim() !== '') {
         callesSet.add(calle);
       }
     });
-    
+
     return Array.from(callesSet).sort();
   }, [usuarios]);
 
@@ -142,7 +142,7 @@ const TablaUsuarios: React.FC<TablaUsuariosProps> = memo(({
     if (field === 'rol' && tipoVista !== 'residentes') {
       return;
     }
-    
+
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
@@ -163,7 +163,7 @@ const TablaUsuarios: React.FC<TablaUsuariosProps> = memo(({
     if (field === 'rol' && tipoVista !== 'residentes') {
       return null;
     }
-    
+
     if (sortField !== field) {
       return <ArrowUpDown className="h-4 w-4" />;
     }
@@ -258,11 +258,11 @@ const TablaUsuarios: React.FC<TablaUsuariosProps> = memo(({
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  
+
   // Si disableInternalPagination está habilitado, usar directamente los usuarios recibidos
   // Si no, aplicar paginación interna (SOLO para mostrar en la tabla)
-  const currentUsers = disableInternalPagination 
-    ? usuariosFiltradosYOrdenados 
+  const currentUsers = disableInternalPagination
+    ? usuariosFiltradosYOrdenados
     : usuariosFiltradosYOrdenados.slice(startIndex, endIndex);
 
   // Debug: Verificar que la paginación funcione correctamente
@@ -321,8 +321,8 @@ const TablaUsuarios: React.FC<TablaUsuariosProps> = memo(({
 
   // Verificar si todos están seleccionados
   const todosSonSeleccionados = useMemo(() => {
-    return currentUsers.length > 0 && 
-           currentUsers.every(u => u.id && usuariosSeleccionados.has(u.id));
+    return currentUsers.length > 0 &&
+      currentUsers.every(u => u.id && usuariosSeleccionados.has(u.id));
   }, [currentUsers, usuariosSeleccionados]);
 
   // Verificar si algunos están seleccionados
@@ -368,124 +368,84 @@ const TablaUsuarios: React.FC<TablaUsuariosProps> = memo(({
 
   return (
     <>
-    <Card className="mb-6">
-      <CardHeader className="p-4">
-          <div className="flex justify-between items-start">
-            <div>
-        <CardTitle className="text-xl">
-          {titulo}
-          {filtroMorosos !== 'todos' && (
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
-              • {filtroMorosos === 'morosos' ? 'Solo morosos' : 'No morosos'}
-            </span>
-          )}
-        </CardTitle>
-        <CardDescription>
-          {totalUsuarios ? 
-            `${usuarios.length} de ${totalUsuarios} usuarios` : 
-            `${usuariosFiltradosYOrdenados.length} usuarios encontrados`
-          }
-          {usuariosSeleccionados.size > 0 && (
-            <span className="ml-2 text-blue-600 dark:text-blue-400">
-              • {usuariosSeleccionados.size} seleccionado{usuariosSeleccionados.size !== 1 ? 's' : ''}
-            </span>
-          )}
-          {actualizacionEnTiempoReal && (
-            <span className="ml-2 inline-flex items-center text-xs text-green-600 dark:text-green-500">
-              <RefreshCcw className="h-3 w-3 inline mr-1" />
-              Actualización en tiempo real
-            </span>
-          )}
-        </CardDescription>
-            </div>
-            
-            {/* Controles de selección múltiple */}
-            {usuariosSeleccionados.size > 0 && (
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="destructive" 
-                  size="sm"
-                  onClick={handleEliminarSeleccionados}
-                  className="flex items-center gap-1"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Eliminar seleccionados ({usuariosSeleccionados.size})
-                </Button>
-              </div>
-            )}
-          </div>
-      </CardHeader>
-      <CardContent>
-        {/* Estadísticas y Filtros */}
-        <div className="mb-4 space-y-4">
-          {/* Estadísticas - Basadas en TODOS los usuarios filtrados (no solo la página actual) */}
-          <div className="flex items-center gap-6 text-sm">
-            <div className="flex items-center gap-2 group relative">
-              <span className="font-medium">Total usuarios:</span>
-              <span className="text-muted-foreground">
-                {totalUsuarios || usuariosFiltradosYOrdenados.length}
-              </span>
-              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                {totalUsuarios ? 'Total de usuarios en el sistema' : 'Total de usuarios que coinciden con los filtros aplicados'}
+      <div className="relative border-none shadow-zentry-lg bg-white/70 backdrop-blur-xl rounded-[2.5rem] overflow-hidden transition-all duration-300">
+        <div className="p-8 pb-4 border-b border-slate-100/50">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div className="space-y-1">
+              <h2 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-3">
+                {titulo}
+                {filtroMorosos !== 'todos' && (
+                  <span className={`px-3 py-1 rounded-full text-[10px] uppercase tracking-widest border ${filtroMorosos === 'morosos'
+                      ? 'bg-rose-50 text-rose-600 border-rose-100'
+                      : 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                    }`}>
+                    {filtroMorosos === 'morosos' ? 'Restringidos' : 'Sin Restricciones'}
+                  </span>
+                )}
+              </h2>
+              <div className="flex items-center gap-2 text-slate-500 font-bold text-xs uppercase tracking-wider">
+                <span>{totalUsuarios || usuariosFiltradosYOrdenados.length} Registros</span>
+                {usuariosSeleccionados.size > 0 && (
+                  <>
+                    <span className="h-1 w-1 rounded-full bg-slate-300" />
+                    <span className="text-blue-600">
+                      {usuariosSeleccionados.size} Seleccionados
+                    </span>
+                  </>
+                )}
+                {actualizacionEnTiempoReal && (
+                  <>
+                    <span className="h-1 w-1 rounded-full bg-slate-300" />
+                    <span className="inline-flex items-center text-emerald-600 animate-pulse">
+                      <RefreshCcw className="h-3 w-3 mr-1" />
+                      Live
+                    </span>
+                  </>
+                )}
               </div>
             </div>
 
+            {/* Controles de selección múltiple */}
+            {usuariosSeleccionados.size > 0 && (
+              <Button
+                onClick={handleEliminarSeleccionados}
+                className="bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-100 shadow-sm rounded-xl font-black text-xs uppercase tracking-widest px-6 h-10"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Eliminar ({usuariosSeleccionados.size})
+              </Button>
+            )}
           </div>
-          
-          {/* Filtros */}
-          <div className="flex flex-wrap gap-4 items-center">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Filtros:</span>
-            </div>
-          
-            {/* Filtro de restricciones - solo mostrar si mostrarColumnaMoroso es true */}
-            {mostrarColumnaMoroso && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Estado de restricciones:</span>
+        </div>
+
+        <div className="p-0">
+          {/* Estadísticas y Filtros */}
+          <div className="px-8 py-4 bg-slate-50/50 border-b border-slate-100/50 flex flex-wrap gap-4 items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-100">
+                <Filter className="h-4 w-4 text-slate-400" />
+              </div>
+
+              {/* Filtro de restricciones - solo mostrar si mostrarColumnaMoroso es true */}
+              {mostrarColumnaMoroso && (
                 <Select value={filtroMorosos} onValueChange={(value: 'todos' | 'morosos' | 'noMorosos') => setFiltroMorosos(value)}>
-                  <SelectTrigger className="w-48">
+                  <SelectTrigger className="w-48 h-10 rounded-xl border-none bg-white shadow-sm font-bold text-xs text-slate-600">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">
-                      <div className="flex items-center justify-between w-full">
-                        <span>Todos los usuarios</span>
-                        <span className="text-xs text-muted-foreground ml-2">({usuariosFiltradosYOrdenados.length})</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="morosos">
-                      <div className="flex items-center justify-between w-full">
-                        <span>Con restricciones</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="noMorosos">
-                      <div className="flex items-center justify-between w-full">
-                        <span>Sin restricciones</span>
-                      </div>
-                    </SelectItem>
+                  <SelectContent className="rounded-xl border-none shadow-xl bg-white/90 backdrop-blur-xl">
+                    <SelectItem value="todos" className="font-bold text-xs">Todos los usuarios</SelectItem>
+                    <SelectItem value="morosos" className="font-bold text-xs text-rose-600">Con restricciones</SelectItem>
+                    <SelectItem value="noMorosos" className="font-bold text-xs text-emerald-600">Sin restricciones</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-            )}
-            
-            {/* Información de resultados */}
-            <div className="ml-auto flex items-center gap-4">
-              <div className="text-sm text-muted-foreground">
-                <span className="font-medium">Página {currentPage} de {totalPages}</span>
-                <span className="mx-2">•</span>
-                <span>Mostrando {currentUsers.length} de {totalItems} usuarios</span>
-                {filtroMorosos !== 'todos' && (
-                  <span className="ml-2 text-xs bg-muted px-2 py-1 rounded">
-                    Filtro: {filtroMorosos === 'morosos' ? 'Con restricciones' : 'Sin restricciones'}
-                  </span>
-                )}
-              </div>
-              
-              {/* Botón para limpiar filtros */}
+              )}
+            </div>
+
+            {/* Información de resultados y Limpiar */}
+            <div className="flex items-center gap-3">
               {((mostrarColumnaMoroso && filtroMorosos !== 'todos') || sortField !== 'nombre' || sortDirection !== 'asc') && (
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   onClick={() => {
                     setFiltroMorosos('todos');
@@ -493,43 +453,45 @@ const TablaUsuarios: React.FC<TablaUsuariosProps> = memo(({
                     setSortDirection('asc');
                     setCurrentPage(1);
                   }}
-                  className="flex items-center gap-1 text-xs"
+                  className="text-slate-400 hover:text-slate-600 font-bold text-[10px] uppercase tracking-widest hover:bg-transparent"
                 >
-                  <RefreshCw className="h-3 w-3" />
-                  Limpiar filtros
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Reset Filtros
                 </Button>
               )}
+              <div className="text-[10px] font-black uppercase tracking-widest text-slate-300 bg-slate-900/5 px-3 py-1 rounded-lg">
+                Página {currentPage} / {totalPages}
+              </div>
             </div>
           </div>
-        </div>
 
-        {isLoading ? (
-          <div className="flex justify-center items-center min-h-[200px]">
-            <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : currentUsers.length === 0 ? (
-          <div className="text-center py-10">
-            <Users className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
-            <p className="text-muted-foreground">
-              {filtroMorosos !== 'todos' 
-                ? `No se encontraron usuarios ${filtroMorosos === 'morosos' ? 'con restricciones' : 'sin restricciones'}`
-                : filterCalle 
-                  ? 'No se encontraron usuarios en esa calle' 
-                  : 'No se encontraron usuarios'
-              }
-            </p>
-            {filtroMorosos !== 'todos' && (
-              <p className="text-sm text-muted-foreground mt-2">
-                Intenta cambiar el filtro o limpiar los filtros aplicados
+          {isLoading ? (
+            <div className="flex flex-col justify-center items-center min-h-[300px] gap-4">
+              <div className="relative h-16 w-16">
+                <div className="absolute inset-0 rounded-full border-4 border-slate-100"></div>
+                <div className="absolute inset-0 rounded-full border-t-4 border-primary animate-spin"></div>
+              </div>
+              <p className="font-black text-slate-300 text-xs uppercase tracking-[0.2em] animate-pulse">Cargando Usuarios...</p>
+            </div>
+          ) : currentUsers.length === 0 ? (
+            <div className="text-center py-20 px-6">
+              <div className="bg-slate-50 w-24 h-24 rounded-[2rem] flex items-center justify-center mx-auto mb-6 transform rotate-12 shadow-inner">
+                <Users className="h-10 w-10 text-slate-300" />
+              </div>
+              <h3 className="text-lg font-black text-slate-900 mb-2">No se encontraron usuarios</h3>
+              <p className="text-slate-500 font-medium max-w-xs mx-auto">
+                {filtroMorosos !== 'todos'
+                  ? `No hay usuarios coincidiendo con el filtro de ${filtroMorosos === 'morosos' ? 'restricciones' : 'sin restricciones'}.`
+                  : 'Intenta ajustar los términos de búsqueda o filtros.'
+                }
               </p>
-            )}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b">
-                    <th className="py-2 px-4 text-left w-12">
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/50">
+                    <th className="py-4 px-6 text-left w-16">
                       <Checkbox
                         checked={todosSonSeleccionados}
                         onCheckedChange={handleSeleccionarTodos}
@@ -538,89 +500,76 @@ const TablaUsuarios: React.FC<TablaUsuariosProps> = memo(({
                             (ref as any).indeterminate = algunosSonSeleccionados;
                           }
                         }}
-                        aria-label="Seleccionar todos los usuarios"
+                        className="rounded-lg data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                       />
                     </th>
-                  <th className="py-2 px-4 text-left">
-                    <button
-                      onClick={() => handleSort('nombre')}
-                      className="flex items-center gap-1 hover:text-primary transition-colors"
-                      title="Ordenar por nombre"
-                    >
-                      Nombre Completo {getSortIcon('nombre')}
-                    </button>
-                  </th>
-                  <th className="py-2 px-4 text-left">
-                    <button
-                      onClick={() => handleSort('email')}
-                      className="flex items-center gap-1 hover:text-primary transition-colors"
-                      title="Ordenar por email"
-                    >
-                      Email {getSortIcon('email')}
-                    </button>
-                  </th>
-                  <th className="py-2 px-4 text-left">
-                    <button
-                      onClick={() => handleSort('residencial')}
-                      className="flex items-center gap-1 hover:text-primary transition-colors"
-                      title="Ordenar por residencial"
-                    >
-                      Residencial {getSortIcon('residencial')}
-                    </button>
-                  </th>
-                  {/* Columna de dirección - solo mostrar para residentes */}
-                  {tipoVista === 'residentes' && (
-                    <th className="py-2 px-4 text-left">
+                    <th className="py-4 px-4 text-left">
                       <button
-                        onClick={() => handleSort('direccion')}
-                        className="flex items-center gap-1 hover:text-primary transition-colors"
-                        title="Ordenar por dirección"
+                        onClick={() => handleSort('nombre')}
+                        className="flex items-center gap-2 hover:text-primary transition-colors text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 w-full"
                       >
-                        Dirección {getSortIcon('direccion')}
+                        Usuario {getSortIcon('nombre')}
                       </button>
                     </th>
-                  )}
-                  {/* Columna de tipo de usuario - solo mostrar para residentes */}
-                  {tipoVista === 'residentes' && (
-                    <th className="py-2 px-4 text-left">
+                    <th className="py-4 px-4 text-left">
                       <button
-                        onClick={() => handleSort('rol')}
-                        className="flex items-center gap-1 hover:text-primary transition-colors"
-                        title="Ordenar por tipo"
+                        onClick={() => handleSort('email')}
+                        className="flex items-center gap-2 hover:text-primary transition-colors text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 w-full"
                       >
-                        Tipo {getSortIcon('rol')}
+                        Contacto {getSortIcon('email')}
                       </button>
                     </th>
-                  )}
-                  <th className="py-2 px-4 text-left">
-                    <button
-                      onClick={() => handleSort('estado')}
-                      className="flex items-center gap-1 hover:text-primary transition-colors"
-                      title="Ordenar por estado"
-                    >
-                      Estado {getSortIcon('estado')}
-                    </button>
-                  </th>
-                  {/* Columna de moroso - solo mostrar para residentes si mostrarColumnaMoroso es true */}
-                  {mostrarColumnaMoroso && tipoVista === 'residentes' && (
-                    <th className="py-2 px-4 text-left">
+                    <th className="py-4 px-4 text-left">
                       <button
-                        onClick={() => handleSort('moroso')}
-                        className="flex items-center gap-1 hover:text-primary transition-colors group"
-                        title="Haz clic para ordenar por estado de moroso (morosos primero/último)"
+                        onClick={() => handleSort('residencial')}
+                        className="flex items-center gap-2 hover:text-primary transition-colors text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 w-full"
                       >
-                        <span className="group-hover:text-primary">Moroso</span>
-                        {getSortIcon('moroso')}
+                        Comunidad {getSortIcon('residencial')}
                       </button>
                     </th>
-                  )}
-                  <th className="py-2 px-4 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {currentUsers.map((usuario) => (
-                  <tr key={usuario.id} className="border-b hover:bg-muted/50">
-                      <td className="py-2 px-4">
+                    {/* Columna de dirección */}
+                    {tipoVista === 'residentes' && (
+                      <th className="py-4 px-4 text-left">
+                        <button
+                          onClick={() => handleSort('direccion')}
+                          className="flex items-center gap-2 hover:text-primary transition-colors text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 w-full"
+                        >
+                          Dirección {getSortIcon('direccion')}
+                        </button>
+                      </th>
+                    )}
+                    {/* Columna de tipo */}
+                    {tipoVista === 'residentes' && (
+                      <th className="py-4 px-4 text-left">
+                        <button
+                          onClick={() => handleSort('rol')}
+                          className="flex items-center gap-2 hover:text-primary transition-colors text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 w-full"
+                        >
+                          Rol {getSortIcon('rol')}
+                        </button>
+                      </th>
+                    )}
+                    <th className="py-4 px-4 text-left">
+                      <button
+                        onClick={() => handleSort('estado')}
+                        className="flex items-center gap-2 hover:text-primary transition-colors text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 w-full"
+                      >
+                        Status {getSortIcon('estado')}
+                      </button>
+                    </th>
+                    {/* Columna de moroso */}
+                    {mostrarColumnaMoroso && tipoVista === 'residentes' && (
+                      <th className="py-4 px-4 text-left text-[10px] font-black uppercase tracking-[0.15em] text-slate-500">
+                        Restricción
+                      </th>
+                    )}
+                    <th className="py-4 px-6 text-right text-[10px] font-black uppercase tracking-[0.15em] text-slate-500">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {currentUsers.map((usuario) => (
+                    <tr key={usuario.id} className="group hover:bg-slate-50/80 transition-all duration-200">
+                      <td className="py-4 px-6">
                         <Checkbox
                           checked={usuario.id ? usuariosSeleccionados.has(usuario.id) : false}
                           onCheckedChange={(checked) => {
@@ -628,119 +577,111 @@ const TablaUsuarios: React.FC<TablaUsuariosProps> = memo(({
                               handleSeleccionarUsuario(usuario.id, checked as boolean);
                             }
                           }}
-                          aria-label={`Seleccionar usuario ${getNombreCompleto(usuario)}`}
+                          className="rounded-lg border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                         />
                       </td>
-                    <td className="py-2 px-4">
-                      <div className="font-medium">{getNombreCompleto(usuario)}</div>
-                    </td>
-                    <td className="py-2 px-4">{usuario.email || "Sin email"}</td>
-                    <td className="py-2 px-4">{getResidencialNombre(usuario.residencialID)}</td>
-                    {/* Celda de dirección - solo mostrar para residentes */}
-                    {tipoVista === 'residentes' && (
-                      <td className="py-2 px-4">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-1">
-                            <Home className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-sm">{getDireccionFormateada(usuario)}</span>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-slate-100 to-white border border-slate-200 flex items-center justify-center text-slate-500 font-black text-xs shadow-sm">
+                            {getNombreCompleto(usuario).charAt(0)}
                           </div>
-                          {usuario.houseID && (
-                            <div className="flex items-center gap-1">
-                              <span className="text-xs text-muted-foreground">ID:</span>
-                              <span className="text-xs font-mono bg-muted px-1 py-0.5 rounded">
-                                {usuario.houseID}
-                              </span>
-                            </div>
-                          )}
+                          <div className="font-bold text-slate-900 text-sm">{getNombreCompleto(usuario)}</div>
                         </div>
                       </td>
-                    )}
-                    {/* Celda de tipo de usuario - solo mostrar para residentes */}
-                    {tipoVista === 'residentes' && (
-                      <td className="py-2 px-4">
-                        <div className="flex items-center gap-1">
+                      <td className="py-4 px-4">
+                        <div className="text-xs font-semibold text-slate-500">{usuario.email || "---"}</div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className="font-bold text-xs text-slate-700">{getResidencialNombre(usuario.residencialID)}</span>
+                      </td>
+                      {/* Celda de dirección */}
+                      {tipoVista === 'residentes' && (
+                        <td className="py-4 px-4">
+                          <div className="flex flex-col gap-1">
+                            <div className="text-xs font-bold text-slate-600">{getDireccionFormateada(usuario)}</div>
+                            {usuario.houseID && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">HID</span>
+                                <span className="text-[10px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">
+                                  {usuario.houseID}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                      {/* Celda de tipo */}
+                      {tipoVista === 'residentes' && (
+                        <td className="py-4 px-4">
                           {getTipoUsuario(usuario) === 'Propietario' ? (
-                            <Building className="h-3 w-3 text-blue-600" />
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 text-[10px] font-bold uppercase tracking-wide">
+                              <Building className="h-3 w-3" /> Prop.
+                            </span>
                           ) : (
-                            <User className="h-3 w-3 text-purple-600" />
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 border border-purple-100 text-[10px] font-bold uppercase tracking-wide">
+                              <User className="h-3 w-3" /> Inq.
+                            </span>
                           )}
-                          <span className="text-xs font-medium">
-                            {getTipoUsuario(usuario)}
-                          </span>
-                        </div>
-                      </td>
-                    )}
-                    <td className="py-2 px-4">{getEstadoBadge(usuario.status)}</td>
-                    {/* Celda de moroso - solo mostrar para residentes si mostrarColumnaMoroso es true */}
-                    {mostrarColumnaMoroso && tipoVista === 'residentes' && (
-                      <td className="py-2 px-4">
-                        <div className="flex items-center justify-center gap-2">
-                          {/* Indicador visual del estado */}
-                          <div className={`w-3 h-3 rounded-full ${
-                            usuario.isMoroso ? 'bg-red-500' : 'bg-green-500'
-                          }`} />
-                          
+                        </td>
+                      )}
+                      <td className="py-4 px-4">{getEstadoBadge(usuario.status)}</td>
+                      {/* Celda de moroso */}
+                      {mostrarColumnaMoroso && tipoVista === 'residentes' && (
+                        <td className="py-4 px-4">
                           {/* Switch para cambiar estado */}
-                          <Switch
-                            checked={usuario.isMoroso || false}
-                            onCheckedChange={async (checked) => {
-                              if (usuario.id) {
-                                try {
-                                  await cambiarEstadoMoroso(usuario.id, checked);
-                                  
-                                  // Si hay callback disponible, notificar al componente padre
-                                  if (onCambiarEstadoMoroso) {
-                                    onCambiarEstadoMoroso(usuario.id, checked);
+                          <div onClick={(e) => e.stopPropagation()} className="flex items-center">
+                            <Switch
+                              checked={usuario.isMoroso || false}
+                              onCheckedChange={async (checked) => {
+                                if (usuario.id) {
+                                  try {
+                                    await cambiarEstadoMoroso(usuario.id, checked);
+                                    if (onCambiarEstadoMoroso) {
+                                      onCambiarEstadoMoroso(usuario.id, checked);
+                                    }
+                                  } catch (error) {
+                                    console.error('Error al cambiar estado:', error);
                                   }
-                                  
-                                  console.log(`✅ Estado moroso actualizado para ${usuario.email}: ${checked}`);
-                                } catch (error) {
-                                  console.error('Error al cambiar estado de restricciones:', error);
-                                  // Aquí podrías mostrar un toast de error
                                 }
-                              }
-                            }}
-                            aria-label={`Cambiar estado de restricciones para ${getNombreCompleto(usuario)}`}
-                            className={`${usuario.isMoroso ? 'bg-red-500' : ''}`}
-                          />
-                          
-
+                              }}
+                              className={`${usuario.isMoroso ? 'bg-rose-500' : 'bg-slate-200'}`}
+                            />
+                          </div>
+                        </td>
+                      )}
+                      <td className="py-4 px-6 text-right">
+                        <div className="flex justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleVerDetalles(usuario)}
+                            className="h-8 w-8 rounded-lg flex items-center justify-center hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-all"
+                            title="Ver detalles"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => onEditarUsuario(usuario)}
+                            className="h-8 w-8 rounded-lg flex items-center justify-center hover:bg-amber-50 text-slate-400 hover:text-amber-600 transition-all"
+                            title="Editar usuario"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => onEliminarUsuario(usuario)}
+                            className="h-8 w-8 rounded-lg flex items-center justify-center hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-all"
+                            title="Eliminar usuario"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
                       </td>
-                    )}
-                    <td className="py-2 px-4 text-right">
-                      <div className="flex justify-end space-x-2">
-                        <button
-                          onClick={() => handleVerDetalles(usuario)}
-                          className="p-1 hover:bg-muted rounded-full transition-colors"
-                          title="Ver detalles"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => onEditarUsuario(usuario)}
-                          className="p-1 hover:bg-muted rounded-full transition-colors"
-                          title="Editar usuario"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => onEliminarUsuario(usuario)}
-                          className="p-1 hover:bg-muted rounded-full text-destructive transition-colors"
-                          title="Eliminar usuario"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Controles de paginación */}
       {!disableInternalPagination && (
@@ -748,8 +689,8 @@ const TablaUsuarios: React.FC<TablaUsuariosProps> = memo(({
           {/* Selector de elementos por página */}
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">Mostrar:</span>
-            <Select 
-              value={itemsPerPage.toString()} 
+            <Select
+              value={itemsPerPage.toString()}
               onValueChange={(value) => {
                 console.log('Cambiando itemsPerPage de', itemsPerPage, 'a', value);
                 setItemsPerPage(parseInt(value));
@@ -788,11 +729,11 @@ const TablaUsuarios: React.FC<TablaUsuariosProps> = memo(({
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              
+
               <span className="text-sm">
                 Página {currentPage} de {totalPages}
               </span>
-              
+
               <Button
                 variant="outline"
                 size="sm"
@@ -840,7 +781,7 @@ const TablaUsuarios: React.FC<TablaUsuariosProps> = memo(({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={confirmarEliminarMultiples}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >

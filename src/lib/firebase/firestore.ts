@@ -1,17 +1,17 @@
 import { getFirestore } from 'firebase/firestore';
 import { app } from './config';
-import { 
-  collection, 
-  doc, 
-  getDocs, 
-  getDoc, 
-  setDoc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  where, 
-  orderBy, 
+import {
+  collection,
+  doc,
+  getDocs,
+  getDoc,
+  setDoc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  orderBy,
   limit,
   serverTimestamp,
   Timestamp,
@@ -108,7 +108,7 @@ export interface Usuario {
   // --- NUEVOS CAMPOS PARA CONTROL DE FEATURES ---
   features?: UserFeatures;
   max_codigos_qr_diarios?: number;
-  
+
   // --- CAMPO PARA CONTROL DE MOROSOS ---
   isMoroso?: boolean; // Indica si el usuario está marcado como moroso
   max_codigos_qr_original?: number; // Valor original de códigos QR antes de ser marcado como moroso
@@ -132,6 +132,8 @@ export interface Residencial {
   };
   // 🆕 NUEVO: Restricciones globales de pantallas para residentes
   globalScreenRestrictions?: GlobalScreenRestrictions;
+  // 🆕 NUEVO: Límite de códigos QR para usuarios morosos (por defecto 5)
+  maxCodigosQRMorosos?: number;
   fechaRegistro: Timestamp | null;
   fechaActualizacion: Timestamp | null;
 }
@@ -167,8 +169,21 @@ export interface Reglamento {
   diasDeshabilitados: string[]; // Fechas específicas deshabilitadas en formato YYYY-MM-DD
   diasSemanaDeshabilitados?: string[]; // Días de la semana deshabilitados permanentemente
   // 🆕 NUEVAS PROPIEDADES PARA CONTROL DE RESERVAS
-  tipoReservas?: 'bloques' | 'traslapes' | 'horarios_fijos'; // Tipo de reservas: por bloques fijos o con traslapes
+  tipoReservas?: 'bloques' | 'traslapes' | 'horarios_fijos' | 'hibrida'; // Tipo de reservas: por bloques fijos o con traslapes
   permiteTraslapes?: boolean; // Permite que las reservas se superpongan en tiempo
+  // 🆕 PROPIEDADES PARA RESERVAS HÍBRIDAS (Gratuita + Pago)
+  maxHorasGratuitas?: number; // Máximo horas para reservas gratuitas (default: 3)
+  maxHorasPago?: number; // Máximo horas para reservas de pago (default: 5)
+  maxPersonasGratuitas?: number; // Máximo personas para reservas gratuitas (default: 6)
+  maxPersonasPago?: number; // Máximo personas para reservas de pago (default: 50)
+  antelacionMinimaPago?: number; // Antelación mínima en días para reservas de pago (default: 7)
+  antelacionMinimaGratuita?: number; // Antelación mínima en días para reservas gratuitas (default: 0)
+  permiteReservasPagoSimultaneas?: boolean; // Permite múltiples reservas de pago por día
+  maxReservasPagoPorDia?: number; // Máximo reservas de pago por día (default: 1)
+  ventanaHorarioPago?: {
+    inicio: string; // formato "HH:MM"
+    fin: string;   // formato "HH:MM"
+  };
   // 🆕 NUEVA PROPIEDAD PARA HORARIOS FIJOS POR DÍA
   ventanasHorariosFijos?: {
     dia: string; // día de la semana
@@ -211,6 +226,8 @@ export interface AreaComun {
   capacidad: number;
   esDePago: boolean;
   precio?: number;
+  requiereDeposito?: boolean;
+  deposito?: number;
   activa: boolean;
   reglamento?: Reglamento;
   // Propiedad para compatibilidad con estructura antigua
@@ -254,6 +271,8 @@ export interface Tag {
 export interface Evento {
   id?: string;
   residencialId: string;
+  residencialCodigo?: string;
+  residencialNombre?: string;
   titulo: string;
   descripcion: string;
   fechaInicio: Timestamp;
@@ -261,8 +280,18 @@ export interface Evento {
   ubicacion: string;
   organizador: string;
   estado: 'programado' | 'en_curso' | 'finalizado' | 'cancelado';
+  createdBy?: string;
+  capacidadMaxima?: number;
+  asistentesCount?: number;
   fechaRegistro: Timestamp | null;
   fechaActualizacion: Timestamp | null;
+}
+
+export interface AsistenteEvento {
+  userId: string;
+  userName: string;
+  userEmail?: string;
+  respondedAt: Timestamp;
 }
 
 export interface Alerta {
@@ -296,7 +325,7 @@ export interface AlertaPanico {
 }
 
 // Funciones para Usuarios
-export const getUsuarios = async (opciones?: { 
+export const getUsuarios = async (opciones?: {
   limit?: number,
   orderBy?: string,
   orderDirection?: 'asc' | 'desc',
@@ -306,45 +335,45 @@ export const getUsuarios = async (opciones?: {
   try {
     const debug = opciones?.debug || false;
     const usuariosRef = collection(db, 'usuarios');
-    
+
     // Si getAll es true, obtener todos los usuarios sin límite
     if (opciones?.getAll) {
       if (debug) console.log('🔍 Obteniendo TODOS los usuarios sin límite...');
-      
+
       // Intentar método simple primero
       try {
         const snapshot = await getDocs(usuariosRef);
         if (debug) console.log(`✅ Total de usuarios obtenidos: ${snapshot.docs.length}`);
-        
+
         return snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         })) as Usuario[];
       } catch (error) {
         if (debug) console.log('⚠️ Método simple falló, usando método alternativo...');
-        
+
         // Si falla, usar la función getAllUsuarios como respaldo
         return await getAllUsuarios({ debug });
       }
     }
-    
+
     // Aplicar opciones si existen
     const limitValue = opciones?.limit || 50;
     const orderByField = opciones?.orderBy || 'fullName';
     const orderDirection = opciones?.orderDirection || 'asc';
-    
+
     if (debug) console.log(`🔍 Obteniendo usuarios con límite: ${limitValue}, ordenado por: ${orderByField}`);
-    
+
     // Limitar a usuarios por página y ordenar
     const q = query(
-      usuariosRef, 
-      orderBy(orderByField, orderDirection), 
+      usuariosRef,
+      orderBy(orderByField, orderDirection),
       limit(limitValue)
     );
-    
+
     const snapshot = await getDocs(q);
     if (debug) console.log(`✅ Usuarios obtenidos: ${snapshot.docs.length}/${limitValue}`);
-    
+
     // Usar un mapeo optimizado con clave específica 
     return snapshot.docs.map(doc => ({
       id: doc.id,
@@ -352,7 +381,7 @@ export const getUsuarios = async (opciones?: {
     })) as Usuario[];
   } catch (error) {
     console.error("❌ Error al obtener usuarios:", error);
-    
+
     // En caso de error, intentar método simple como respaldo
     try {
       console.log('🔄 Intentando método de respaldo...');
@@ -372,14 +401,14 @@ export const getUsuariosPorResidencial = async (residencialId: string, opciones?
     if (!residencialId) {
       return [];
     }
-    
+
     const debug = opciones?.debug || false;
     if (debug) console.log(`🔍 Obteniendo usuarios del residencial: ${residencialId}`);
-    
+
     // Si getAll es true, usar la nueva función que obtiene todos los usuarios
     if (opciones?.getAll) {
       if (debug) console.log('🔄 Usando método getAll para obtener todos los usuarios...');
-      
+
       try {
         const todosLosUsuarios = await getAllUsuarios({ debug });
         const usuariosFiltrados = todosLosUsuarios.filter(usuario => {
@@ -389,7 +418,7 @@ export const getUsuariosPorResidencial = async (residencialId: string, opciones?
         return usuariosFiltrados;
       } catch (error) {
         if (debug) console.log('⚠️ Método getAll falló, usando método alternativo...');
-        
+
         // Método alternativo: obtener usuarios directamente y filtrar
         const usuarios = await getUsuariosSimple();
         const usuariosFiltrados = usuarios.filter(usuario => {
@@ -399,19 +428,19 @@ export const getUsuariosPorResidencial = async (residencialId: string, opciones?
         return usuariosFiltrados;
       }
     }
-    
+
     // IMPORTANTE: Pasar un límite alto para obtener todos los usuarios
     const usuarios = await getUsuarios({ limit: 1000, debug });
-    
+
     const usuariosFiltrados = usuarios.filter(usuario => {
       return usuario.residencialID === residencialId;
     });
-    
+
     if (debug) console.log(`✅ Usuarios del residencial ${residencialId}: ${usuariosFiltrados.length}`);
     return usuariosFiltrados;
   } catch (error) {
     console.error('❌ Error en getUsuariosPorResidencial:', error);
-    
+
     // En caso de error, intentar método simple como respaldo
     try {
       console.log('🔄 Intentando método de respaldo para residencial...');
@@ -470,7 +499,7 @@ export const isRegistrationComplete = (usuario: Usuario): boolean => {
   // Determinar el tipo de usuario según el modelo actual de Flutter
   const isOwner = usuario.ownershipStatus === 'own' || (usuario as any).isOwner === true;
   const isTenant = usuario.ownershipStatus === 'rent' || (usuario as any).isOwner === false;
-  
+
   // Información adicional para debugging
   const tenantCodes = (usuario as any).tenantCodes || [];
   const hasOwnerId = !!(usuario as any).ownerId;
@@ -495,67 +524,67 @@ export const isRegistrationComplete = (usuario: Usuario): boolean => {
       (usuario as any).proofOfResidenceUrl ||
       (usuario as any).proofOfResidencePath
     );
-    
+
     const isComplete = hasIdentification && hasComprobante;
-    
-         if (!isComplete) {
-       console.log('❌ Propietario incompleto:', {
-         id: usuario.id,
-         name: usuario.fullName,
-         hasIdentification,
-         hasComprobante,
-         // Debug: mostrar todos los campos de documentos
-         identificacionUrl: !!usuario.identificacionUrl,
-         identificacionPath: !!(usuario as any).identificacionPath,
-         comprobanteUrl: !!usuario.comprobanteUrl,
-         comprobantePath: !!(usuario as any).comprobantePath,
-         ownershipStatus: usuario.ownershipStatus,
-         isOwner: (usuario as any).isOwner,
-         tenantCodes: tenantCodes.length,
-         hasOwnerId
-       });
-     }
-    
-         if (isComplete) {
-       const propietarioTipo = tenantCodes.length > 0 ? 'que renta' : 'que vive en casa';
-       console.log('✅ Propietario completo:', {
-         id: usuario.id,
-         name: usuario.fullName,
-         tipo: propietarioTipo,
-         tenantCodes: tenantCodes.length,
-         hasIdentification,
-         hasComprobante
-       });
-     }
-     
-     return isComplete;
+
+    if (!isComplete) {
+      console.log('❌ Propietario incompleto:', {
+        id: usuario.id,
+        name: usuario.fullName,
+        hasIdentification,
+        hasComprobante,
+        // Debug: mostrar todos los campos de documentos
+        identificacionUrl: !!usuario.identificacionUrl,
+        identificacionPath: !!(usuario as any).identificacionPath,
+        comprobanteUrl: !!usuario.comprobanteUrl,
+        comprobantePath: !!(usuario as any).comprobantePath,
+        ownershipStatus: usuario.ownershipStatus,
+        isOwner: (usuario as any).isOwner,
+        tenantCodes: tenantCodes.length,
+        hasOwnerId
+      });
+    }
+
+    if (isComplete) {
+      const propietarioTipo = tenantCodes.length > 0 ? 'que renta' : 'que vive en casa';
+      console.log('✅ Propietario completo:', {
+        id: usuario.id,
+        name: usuario.fullName,
+        tipo: propietarioTipo,
+        tenantCodes: tenantCodes.length,
+        hasIdentification,
+        hasComprobante
+      });
+    }
+
+    return isComplete;
   } else if (isTenant) {
     // Inquilinos requieren identificación e isPrimaryUser definido
     const hasPrimaryUserStatus = typeof usuario.isPrimaryUser === 'boolean';
     const isComplete = hasIdentification && hasPrimaryUserStatus;
-    
-         if (!isComplete) {
-       console.log('❌ Inquilino incompleto:', {
-         id: usuario.id,
-         name: usuario.fullName,
-         hasIdentification,
-         hasPrimaryUserStatus,
-         isPrimaryUser: usuario.isPrimaryUser,
-         hasOwnerId,
-         ownerId: (usuario as any).ownerId
-       });
-     } else {
-       const inquilinoTipo = usuario.isPrimaryUser ? 'principal' : 'secundario';
-       console.log('✅ Inquilino completo:', {
-         id: usuario.id,
-         name: usuario.fullName,
-         tipo: inquilinoTipo,
-         hasIdentification,
-         hasOwnerId,
-         ownerId: (usuario as any).ownerId
-       });
-     }
-    
+
+    if (!isComplete) {
+      console.log('❌ Inquilino incompleto:', {
+        id: usuario.id,
+        name: usuario.fullName,
+        hasIdentification,
+        hasPrimaryUserStatus,
+        isPrimaryUser: usuario.isPrimaryUser,
+        hasOwnerId,
+        ownerId: (usuario as any).ownerId
+      });
+    } else {
+      const inquilinoTipo = usuario.isPrimaryUser ? 'principal' : 'secundario';
+      console.log('✅ Inquilino completo:', {
+        id: usuario.id,
+        name: usuario.fullName,
+        tipo: inquilinoTipo,
+        hasIdentification,
+        hasOwnerId,
+        ownerId: (usuario as any).ownerId
+      });
+    }
+
     return isComplete;
   }
 
@@ -564,7 +593,7 @@ export const isRegistrationComplete = (usuario: Usuario): boolean => {
     id: usuario.id,
     ownershipStatus: usuario.ownershipStatus
   });
-  
+
   return hasIdentification; // Al menos que tenga identificación
 };
 
@@ -572,21 +601,21 @@ export const getUsuariosPendientes = async (opciones?: { limit?: number }) => {
   try {
     const usuariosRef = collection(db, 'usuarios');
     const limitValue = opciones?.limit || 50;
-    
+
     const q = query(
-      usuariosRef, 
+      usuariosRef,
       where('status', '==', 'pending'),
       orderBy('createdAt', 'desc'),
       limit(limitValue)
     );
     const snapshot = await getDocs(q);
-    
+
     // Filtrar solo usuarios con registro completo
     const usuariosPendientes = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as Usuario[];
-    
+
     return usuariosPendientes.filter(usuario => isRegistrationComplete(usuario));
   } catch (error) {
     throw error;
@@ -598,21 +627,21 @@ export const getUsuariosPendientesIncompletos = async (opciones?: { limit?: numb
   try {
     const usuariosRef = collection(db, 'usuarios');
     const limitValue = opciones?.limit || 50;
-    
+
     const q = query(
-      usuariosRef, 
+      usuariosRef,
       where('status', '==', 'pending'),
       orderBy('createdAt', 'desc'),
       limit(limitValue)
     );
     const snapshot = await getDocs(q);
-    
+
     // Filtrar solo usuarios con registro incompleto
     const usuariosPendientes = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as Usuario[];
-    
+
     return usuariosPendientes.filter(usuario => !isRegistrationComplete(usuario));
   } catch (error) {
     throw error;
@@ -649,25 +678,25 @@ export interface TenantInvitation {
 export const getTenantInvitations = async (residencialId: string, opciones?: { limit?: number }) => {
   try {
     const limitValue = opciones?.limit || 100;
-    
+
     // Buscar el documento del residencial por residencialID
     const residencialesSnapshot = await getDocs(
       query(collection(db, 'residenciales'), where('residencialID', '==', residencialId))
     );
-    
+
     if (residencialesSnapshot.empty) {
       throw new Error(`No se encontró residencial con ID: ${residencialId}`);
     }
-    
+
     const residencialDocId = residencialesSnapshot.docs[0].id;
-    
+
     const invitationsRef = collection(db, 'residenciales', residencialDocId, 'tenant_invitations');
     const q = query(
       invitationsRef,
       orderBy('createdAt', 'desc'),
       limit(limitValue)
     );
-    
+
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({
       id: doc.id,
@@ -686,20 +715,20 @@ export const findTenantInvitation = async (residencialId: string, code: string) 
     const residencialesSnapshot = await getDocs(
       query(collection(db, 'residenciales'), where('residencialID', '==', residencialId))
     );
-    
+
     if (residencialesSnapshot.empty) {
       throw new Error(`No se encontró residencial con ID: ${residencialId}`);
     }
-    
+
     const residencialDocId = residencialesSnapshot.docs[0].id;
-    
+
     const invitationRef = doc(db, 'residenciales', residencialDocId, 'tenant_invitations', code);
     const invitationDoc = await getDoc(invitationRef);
-    
+
     if (!invitationDoc.exists()) {
       return null;
     }
-    
+
     return {
       id: invitationDoc.id,
       ...invitationDoc.data()
@@ -717,15 +746,15 @@ export const markTenantInvitationAsUsed = async (residencialId: string, code: st
     const residencialesSnapshot = await getDocs(
       query(collection(db, 'residenciales'), where('residencialID', '==', residencialId))
     );
-    
+
     if (residencialesSnapshot.empty) {
       throw new Error(`No se encontró residencial con ID: ${residencialId}`);
     }
-    
+
     const residencialDocId = residencialesSnapshot.docs[0].id;
-    
+
     const invitationRef = doc(db, 'residenciales', residencialDocId, 'tenant_invitations', code);
-    
+
     await updateDoc(invitationRef, {
       isUsed: true,
       status: 'used',
@@ -733,7 +762,7 @@ export const markTenantInvitationAsUsed = async (residencialId: string, code: st
       usedBy: userId,
       updatedAt: serverTimestamp()
     });
-    
+
     return true;
   } catch (error) {
     console.error('Error marcando invitación como usada:', error);
@@ -748,16 +777,16 @@ export const deleteTenantInvitation = async (residencialId: string, code: string
     const residencialesSnapshot = await getDocs(
       query(collection(db, 'residenciales'), where('residencialID', '==', residencialId))
     );
-    
+
     if (residencialesSnapshot.empty) {
       throw new Error(`No se encontró residencial con ID: ${residencialId}`);
     }
-    
+
     const residencialDocId = residencialesSnapshot.docs[0].id;
-    
+
     const invitationRef = doc(db, 'residenciales', residencialDocId, 'tenant_invitations', code);
     await deleteDoc(invitationRef);
-    
+
     return true;
   } catch (error) {
     console.error('Error eliminando invitación de inquilino:', error);
@@ -772,20 +801,20 @@ export const expireTenantInvitation = async (residencialId: string, code: string
     const residencialesSnapshot = await getDocs(
       query(collection(db, 'residenciales'), where('residencialID', '==', residencialId))
     );
-    
+
     if (residencialesSnapshot.empty) {
       throw new Error(`No se encontró residencial con ID: ${residencialId}`);
     }
-    
+
     const residencialDocId = residencialesSnapshot.docs[0].id;
-    
+
     const invitationRef = doc(db, 'residenciales', residencialDocId, 'tenant_invitations', code);
-    
+
     await updateDoc(invitationRef, {
       status: 'expired',
       updatedAt: serverTimestamp()
     });
-    
+
     return true;
   } catch (error) {
     console.error('Error expirando invitación de inquilino:', error);
@@ -797,7 +826,7 @@ export const getUsuario = async (id: string) => {
   try {
     const usuarioRef = doc(db, 'usuarios', id);
     const docSnap = await getDoc(usuarioRef);
-    
+
     if (docSnap.exists()) {
       return {
         id: docSnap.id,
@@ -816,21 +845,21 @@ export const crearUsuario = async (usuarioData: Partial<Usuario> & { uid: string
     if (!usuarioData.uid) {
       throw new Error('El campo uid es obligatorio para crear un usuario');
     }
-    
+
     // Verificar que sea un UID válido (formato Firebase: alfanumérico largo)
     if (usuarioData.uid.length < 10) {
       throw new Error('El UID proporcionado no parece válido (demasiado corto)');
     }
-    
+
     // Verificar que no estemos usando el auth.currentUser.uid para creación
     const auth = await getAuthSafe();
     if (auth && auth.currentUser && auth.currentUser.uid === usuarioData.uid && usuarioData.signInProvider === 'manual_creation') {
       throw new Error('No se puede crear un usuario con el mismo UID que el usuario actual');
     }
-    
+
     // Usar el uid proporcionado como ID del documento
     const usuarioRef = doc(db, 'usuarios', usuarioData.uid);
-    
+
     // Asegurarnos de que los campos obligatorios estén presentes
     const datosMinimos = {
       email: usuarioData.email || '',
@@ -842,10 +871,10 @@ export const crearUsuario = async (usuarioData: Partial<Usuario> & { uid: string
       updatedAt: serverTimestamp(),
       signInProvider: usuarioData.signInProvider || 'firebase'
     };
-    
+
     // Guardar en Firestore
     await setDoc(usuarioRef, datosMinimos);
-    
+
     return {
       id: usuarioData.uid,
       ...datosMinimos
@@ -863,7 +892,7 @@ export const actualizarUsuario = async (id: string, usuario: Partial<Usuario>) =
       ...usuario,
       updatedAt: serverTimestamp()
     };
-    
+
     await updateDoc(usuarioRef, datosActualizados);
     return {
       id,
@@ -892,18 +921,18 @@ export const cambiarEstadoUsuario = async (id: string, estado: Usuario['status']
 export const cambiarEstadoMoroso = async (id: string, isMoroso: boolean) => {
   try {
     console.log(`🔄 Cambiando estado de moroso para usuario ${id}: ${isMoroso ? 'Marcado como moroso' : 'Desmarcado como moroso'}`);
-    
+
     // Primero obtener el usuario actual para preservar valores
     const usuarioActual = await getUsuario(id);
     if (!usuarioActual) {
       throw new Error(`Usuario con ID ${id} no encontrado`);
     }
-    
+
     // Preparar los datos a actualizar
     const datosActualizacion: Partial<Usuario> = { isMoroso };
-    
+
     if (isMoroso) {
-      // Si se marca como moroso, desactivar todas las funciones y limitar códigos QR a 5
+      // Si se marca como moroso, desactivar todas las funciones y limitar códigos QR
       datosActualizacion.features = {
         visitas: false,
         eventos: false,
@@ -911,14 +940,29 @@ export const cambiarEstadoMoroso = async (id: string, isMoroso: boolean) => {
         reservas: false,
         encuestas: false
       };
-      datosActualizacion.max_codigos_qr_diarios = 5;
-      
+
+      // Obtener el residencial para usar su configuración de códigos QR para morosos
+      let maxCodigosQRMorosos = 5; // Valor por defecto
+      if (usuarioActual.residencialID) {
+        try {
+          const residencial = await getResidencialPorID(usuarioActual.residencialID);
+          if (residencial?.maxCodigosQRMorosos !== undefined) {
+            maxCodigosQRMorosos = residencial.maxCodigosQRMorosos;
+            console.log(`📋 Usando límite de códigos QR para morosos del residencial: ${maxCodigosQRMorosos}`);
+          }
+        } catch (error) {
+          console.warn(`⚠️ No se pudo obtener la configuración del residencial, usando valor por defecto (5):`, error);
+        }
+      }
+
+      datosActualizacion.max_codigos_qr_diarios = maxCodigosQRMorosos;
+
       // Guardar el valor original de max_codigos_qr_diarios para restaurarlo después
       if (usuarioActual.max_codigos_qr_diarios !== undefined) {
         datosActualizacion.max_codigos_qr_original = usuarioActual.max_codigos_qr_diarios;
       }
-      
-      console.log(`🔒 Usuario marcado como moroso - Desactivando todas las funciones y limitando códigos QR a 5 por día`);
+
+      console.log(`🔒 Usuario marcado como moroso - Desactivando todas las funciones y limitando códigos QR a ${maxCodigosQRMorosos} por día`);
     } else {
       // Si se desmarca como moroso, restaurar funciones por defecto
       datosActualizacion.features = {
@@ -928,7 +972,7 @@ export const cambiarEstadoMoroso = async (id: string, isMoroso: boolean) => {
         reservas: true,
         encuestas: true
       };
-      
+
       // Restaurar el valor original de max_codigos_qr_diarios
       if (usuarioActual.max_codigos_qr_original !== undefined) {
         datosActualizacion.max_codigos_qr_diarios = usuarioActual.max_codigos_qr_original;
@@ -938,13 +982,51 @@ export const cambiarEstadoMoroso = async (id: string, isMoroso: boolean) => {
         // Si no hay valor original guardado, usar 10 como valor por defecto
         datosActualizacion.max_codigos_qr_diarios = 10;
       }
-      
+
       console.log(`🔓 Usuario desmarcado como moroso - Restaurando funciones por defecto y códigos QR originales`);
     }
-    
+
     const resultado = await actualizarUsuario(id, datosActualizacion);
-    
+
     console.log(`✅ Estado de moroso y funciones actualizados correctamente para usuario ${id}`);
+
+    // --- Historial de morosidad ---
+    try {
+      const tipo = isMoroso ? 'entrada' : 'salida';
+      const houseId = usuarioActual.houseID || (usuarioActual.domicilio ? `${usuarioActual.domicilio.calle}#${usuarioActual.domicilio.houseNumber}` : null);
+
+      // Historial a nivel usuario
+      const userHistRef = collection(db, 'usuarios', id, 'morosidad_historial');
+      await addDoc(userHistRef, {
+        fecha: serverTimestamp(),
+        tipo,
+        isMoroso,
+        residencialId: usuarioActual.residencialID || null,
+        houseId: houseId || null,
+        fuente: 'admin_web',
+      });
+
+      // Historial a nivel residencial
+      if (usuarioActual.residencialID) {
+        const residencial = await getResidencialPorID(usuarioActual.residencialID);
+        if (residencial?.id) {
+          const resHistRef = collection(db, 'residenciales', residencial.id, 'morosidad_historial');
+          await addDoc(resHistRef, {
+            fecha: serverTimestamp(),
+            userId: id,
+            userName: usuarioActual.fullName || null,
+            houseId: houseId || null,
+            tipo,
+            fuente: 'admin_web',
+          });
+        }
+      }
+
+      console.log(`📝 Historial de morosidad registrado para usuario ${id}`);
+    } catch (historialError) {
+      console.warn(`⚠️ Error escribiendo historial de morosidad (no crítico):`, historialError);
+    }
+
     return resultado;
   } catch (error) {
     console.error(`❌ Error al cambiar estado de moroso para usuario ${id}:`, error);
@@ -964,7 +1046,7 @@ export const cambiarMorosidadPorCasa = async (
   try {
     const { residencialId, houseID, houseId, calle, houseNumber } = params;
     console.log('🔍 [cambiarMorosidadPorCasa] Parámetros recibidos:', { residencialId, houseID, houseId, calle, houseNumber, isMoroso });
-    
+
     if (!residencialId) throw new Error('residencialId es requerido');
 
     const usuariosRef = collection(db, 'usuarios');
@@ -974,14 +1056,14 @@ export const cambiarMorosidadPorCasa = async (
     const targetHouseId = (houseID || houseId || '').trim();
     if (targetHouseId) {
       console.log('🔍 [cambiarMorosidadPorCasa] Buscando por houseID:', targetHouseId);
-      
+
       q = query(usuariosRef,
         where('residencialID', '==', residencialId),
         where('houseID', '==', targetHouseId)
       );
       let snap = await getDocs(q);
       console.log('🔍 [cambiarMorosidadPorCasa] Primer query (houseID) encontró:', snap.size, 'usuarios');
-      
+
       if (snap.empty) {
         console.log('🔍 [cambiarMorosidadPorCasa] Intentando fallback con houseId');
         // Fallback: algunos documentos usan 'houseId'
@@ -1011,7 +1093,7 @@ export const cambiarMorosidadPorCasa = async (
           console.error(`❌ Error actualizando usuario ${d.id}:`, error);
         }
       }
-      
+
       console.log(`🔍 [cambiarMorosidadPorCasa] Total usuarios actualizados: ${updated}`);
       return updated;
     }
@@ -1019,7 +1101,7 @@ export const cambiarMorosidadPorCasa = async (
     // 2) Por calle + houseNumber
     if (calle && houseNumber) {
       console.log('🔍 [cambiarMorosidadPorCasa] Buscando por calle + houseNumber:', { calle, houseNumber });
-      
+
       q = query(usuariosRef,
         where('residencialID', '==', residencialId),
         where('calle', '==', calle),
@@ -1027,7 +1109,7 @@ export const cambiarMorosidadPorCasa = async (
       );
       const snap = await getDocs(q);
       console.log('🔍 [cambiarMorosidadPorCasa] Query por dirección encontró:', snap.size, 'usuarios');
-      
+
       if (snap.size > 0) {
         console.log('🔍 [cambiarMorosidadPorCasa] Usuarios encontrados para actualizar:');
         snap.docs.forEach((doc, index) => {
@@ -1046,7 +1128,7 @@ export const cambiarMorosidadPorCasa = async (
           console.error(`❌ Error actualizando usuario ${d.id}:`, error);
         }
       }
-      
+
       console.log(`🔍 [cambiarMorosidadPorCasa] Total usuarios actualizados: ${updated}`);
       return updated;
     }
@@ -1065,47 +1147,47 @@ export const eliminarUsuario = async (id: string) => {
       console.error('❌ ID de usuario no válido o vacío');
       throw new Error('ID de usuario no válido');
     }
-    
+
     console.log(`🗑️ Iniciando eliminación de usuario con ID: ${id}`);
-    
+
     // Obtenemos primero el documento para verificar que existe y guardar sus datos
     const usuarioRef = doc(db, 'usuarios', id);
-    
+
     try {
       // Verificar si el documento existe
       const usuarioDoc = await getDoc(usuarioRef);
-      
+
       if (!usuarioDoc.exists()) {
         console.log(`⚠️ El usuario con ID ${id} no existe`);
         throw new Error(`Usuario con ID ${id} no encontrado`);
       }
-      
+
       // Datos del usuario para logging
       const userData = usuarioDoc.data();
       console.log(`📝 Datos del usuario a eliminar: ${userData.email || 'email desconocido'}, rol: ${userData.role || 'rol desconocido'}`);
-      
+
       // Intentar eliminar el usuario
       await deleteDoc(usuarioRef);
-      
+
       console.log(`✅ Usuario con ID ${id} eliminado correctamente`);
       return true;
     } catch (error: any) {
       console.error(`❌ Error al acceder o eliminar el documento de usuario ${id}:`, error);
-      
+
       // Si el error es de permisos, dar un mensaje más claro
       if (error.code === 'permission-denied') {
         throw new Error(`No tienes permisos para eliminar el usuario con ID ${id}`);
       }
-      
+
       throw error;
     }
   } catch (error: any) {
     // Mejorar el mensaje de error para debugging
     const errorMsg = error.message || 'Error desconocido';
     const errorCode = error.code || 'sin_codigo';
-    
+
     console.error(`❌ Error al eliminar usuario ${id}: [${errorCode}] ${errorMsg}`);
-    
+
     // Reenviar el error para que sea manejado por el componente
     throw error;
   }
@@ -1129,7 +1211,7 @@ export const getResidencial = async (id: string) => {
   try {
     const residencialRef = doc(db, 'residenciales', id);
     const docSnap = await getDoc(residencialRef);
-    
+
     if (docSnap.exists()) {
       return {
         id: docSnap.id,
@@ -1143,6 +1225,28 @@ export const getResidencial = async (id: string) => {
   }
 };
 
+// Obtener residencial por residencialID (código de 6 caracteres)
+export const getResidencialPorID = async (residencialID: string) => {
+  try {
+    const residencialesSnapshot = await getDocs(
+      query(collection(db, 'residenciales'), where('residencialID', '==', residencialID))
+    );
+
+    if (residencialesSnapshot.empty) {
+      return null;
+    }
+
+    const residencialDoc = residencialesSnapshot.docs[0];
+    return {
+      id: residencialDoc.id,
+      ...residencialDoc.data()
+    } as Residencial;
+  } catch (error) {
+    console.error('Error obteniendo residencial por ID:', error);
+    throw error;
+  }
+};
+
 export const crearResidencial = async (residencial: Omit<Residencial, 'id' | 'fechaRegistro' | 'fechaActualizacion'>) => {
   try {
     const residencialesRef = collection(db, 'residenciales');
@@ -1151,7 +1255,7 @@ export const crearResidencial = async (residencial: Omit<Residencial, 'id' | 'fe
       fechaRegistro: serverTimestamp(),
       fechaActualizacion: serverTimestamp()
     };
-    
+
     const docRef = await addDoc(residencialesRef, nuevoResidencial);
     return {
       id: docRef.id,
@@ -1169,7 +1273,7 @@ export const actualizarResidencial = async (id: string, residencial: Partial<Res
       ...residencial,
       fechaActualizacion: serverTimestamp()
     };
-    
+
     await updateDoc(residencialRef, datosActualizados);
     return {
       id,
@@ -1208,7 +1312,7 @@ export const getAreaComun = async (residencialID: string, areaId: string) => {
   try {
     const areaComunRef = doc(db, `residenciales/${residencialID}/areasComunes/${areaId}`);
     const docSnap = await getDoc(areaComunRef);
-    
+
     if (docSnap.exists()) {
       return {
         id: docSnap.id,
@@ -1231,7 +1335,7 @@ export const crearAreaComun = async (residencialID: string, areaComun: Omit<Area
       fechaRegistro: serverTimestamp(),
       fechaActualizacion: serverTimestamp()
     };
-    
+
     const docRef = await addDoc(areasComunesRef, nuevaAreaComun);
     return {
       id: docRef.id,
@@ -1249,7 +1353,7 @@ export const actualizarAreaComun = async (residencialID: string, areaId: string,
       ...areaComun,
       fechaActualizacion: serverTimestamp()
     };
-    
+
     await updateDoc(areaComunRef, datosActualizados);
     return {
       id: areaId,
@@ -1274,13 +1378,13 @@ export const eliminarAreaComun = async (residencialID: string, areaId: string) =
 export const suscribirseAAreasComunes = (residencialID: string, callback: (areasComunes: AreaComun[]) => void) => {
   try {
     const areasComunesRef = collection(db, `residenciales/${residencialID}/areasComunes`);
-    
+
     return onSnapshot(areasComunesRef, (snapshot) => {
       const areasComunes = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as AreaComun[];
-      
+
       callback(areasComunes);
     }, (error) => {
       throw error;
@@ -1296,10 +1400,10 @@ export const getGuardias = async (residencialID: string) => {
     if (!residencialID) {
       throw new Error('ID del residencial es requerido');
     }
-    
+
     const guardiasRef = collection(db, `residenciales/${residencialID}/guardias`);
     const snapshot = await getDocs(guardiasRef);
-    
+
     return snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -1314,10 +1418,10 @@ export const getGuardia = async (residencialID: string, guardiaID: string) => {
     if (!residencialID || !guardiaID) {
       throw new Error('ID del residencial y del guardia son requeridos');
     }
-    
+
     const guardiaRef = doc(db, `residenciales/${residencialID}/guardias/${guardiaID}`);
     const docSnap = await getDoc(guardiaRef);
-    
+
     if (docSnap.exists()) {
       return {
         id: docSnap.id,
@@ -1336,7 +1440,7 @@ export const crearGuardia = async (residencialID: string, guardia: Omit<Guardia,
     if (!residencialID) {
       throw new Error('ID del residencial es requerido');
     }
-    
+
     const guardiasRef = collection(db, `residenciales/${residencialID}/guardias`);
     const nuevoGuardia = {
       ...guardia,
@@ -1344,7 +1448,7 @@ export const crearGuardia = async (residencialID: string, guardia: Omit<Guardia,
       fechaRegistro: serverTimestamp(),
       fechaActualizacion: serverTimestamp()
     };
-    
+
     const docRef = await addDoc(guardiasRef, nuevoGuardia);
     return {
       id: docRef.id,
@@ -1360,13 +1464,13 @@ export const actualizarGuardia = async (residencialID: string, guardiaID: string
     if (!residencialID || !guardiaID) {
       throw new Error('ID del residencial y del guardia son requeridos');
     }
-    
+
     const guardiaRef = doc(db, `residenciales/${residencialID}/guardias/${guardiaID}`);
     const datosActualizados = {
       ...guardia,
       fechaActualizacion: serverTimestamp()
     };
-    
+
     await updateDoc(guardiaRef, datosActualizados);
     return {
       id: guardiaID,
@@ -1382,10 +1486,10 @@ export const eliminarGuardia = async (residencialID: string, guardiaID: string) 
     if (!residencialID || !guardiaID) {
       throw new Error('ID del residencial y del guardia son requeridos');
     }
-    
+
     const guardiaRef = doc(db, `residenciales/${residencialID}/guardias/${guardiaID}`);
     await deleteDoc(guardiaRef);
-    
+
     return { id: guardiaID };
   } catch (error) {
     throw error;
@@ -1398,15 +1502,15 @@ export const suscribirseAGuardias = (residencialID: string, callback: (guardias:
     if (!residencialID) {
       throw new Error('ID del residencial es requerido');
     }
-    
+
     const guardiasRef = collection(db, `residenciales/${residencialID}/guardias`);
-    
+
     return onSnapshot(guardiasRef, (snapshot) => {
       const guardias = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Guardia[];
-      
+
       callback(guardias);
     }, (error) => {
       throw error;
@@ -1449,7 +1553,7 @@ export const getTagsPorCasa = async (residencialId: string, casa: string) => {
   try {
     const tagsRef = collection(db, 'tags');
     const q = query(
-      tagsRef, 
+      tagsRef,
       where('residencialId', '==', residencialId),
       where('casa', '==', casa)
     );
@@ -1471,7 +1575,7 @@ export const crearTag = async (tag: Omit<Tag, 'id' | 'fechaRegistro' | 'fechaAct
       fechaRegistro: serverTimestamp(),
       fechaActualizacion: serverTimestamp()
     };
-    
+
     const docRef = await addDoc(tagsRef, nuevoTag);
     return {
       id: docRef.id,
@@ -1489,7 +1593,7 @@ export const actualizarTag = async (id: string, tag: Partial<Tag>) => {
       ...tag,
       fechaActualizacion: serverTimestamp()
     };
-    
+
     await updateDoc(tagRef, datosActualizados);
     return {
       id,
@@ -1509,7 +1613,7 @@ export const getEventos = async (residencialId: string) => {
   try {
     const eventosRef = collection(db, 'eventos');
     const q = query(
-      eventosRef, 
+      eventosRef,
       where('residencialId', '==', residencialId),
       orderBy('fechaInicio', 'desc')
     );
@@ -1531,7 +1635,7 @@ export const crearEvento = async (evento: Omit<Evento, 'id' | 'fechaRegistro' | 
       fechaRegistro: serverTimestamp(),
       fechaActualizacion: serverTimestamp()
     };
-    
+
     const docRef = await addDoc(eventosRef, nuevoEvento);
     return {
       id: docRef.id,
@@ -1549,7 +1653,7 @@ export const actualizarEvento = async (id: string, evento: Partial<Evento>) => {
       ...evento,
       fechaActualizacion: serverTimestamp()
     };
-    
+
     await updateDoc(eventoRef, datosActualizados);
     return {
       id,
@@ -1570,12 +1674,43 @@ export const eliminarEvento = async (id: string) => {
   }
 };
 
+export const suscribirseAEventos = (
+  residencialId: string,
+  callback: (eventos: Evento[]) => void,
+) => {
+  const eventosRef = collection(db, 'eventos');
+  const q = query(
+    eventosRef,
+    where('residencialId', '==', residencialId),
+    orderBy('fechaInicio', 'desc'),
+  );
+  return onSnapshot(q, (snapshot) => {
+    callback(
+      snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Evento)),
+    );
+  });
+};
+
+export const getAsistentesEvento = async (eventoId: string): Promise<AsistenteEvento[]> => {
+  const snap = await getDocs(collection(db, `eventos/${eventoId}/asistentes`));
+  return snap.docs.map((d) => ({ userId: d.id, ...d.data() } as AsistenteEvento));
+};
+
+export const suscribirseAAsistentesEvento = (
+  eventoId: string,
+  callback: (asistentes: AsistenteEvento[]) => void,
+) => {
+  return onSnapshot(collection(db, `eventos/${eventoId}/asistentes`), (snap) => {
+    callback(snap.docs.map((d) => ({ userId: d.id, ...d.data() } as AsistenteEvento)));
+  });
+};
+
 // Funciones para Alertas
 export const getAlertas = async (residencialId: string) => {
   try {
     const alertasRef = collection(db, 'alertas');
     const q = query(
-      alertasRef, 
+      alertasRef,
       where('residencialId', '==', residencialId),
       orderBy('fechaAlerta', 'desc')
     );
@@ -1593,7 +1728,7 @@ export const getAlertasActivas = async (residencialId: string) => {
   try {
     const alertasRef = collection(db, 'alertas');
     const q = query(
-      alertasRef, 
+      alertasRef,
       where('residencialId', '==', residencialId),
       where('estado', '==', 'activa'),
       orderBy('fechaAlerta', 'desc')
@@ -1616,7 +1751,7 @@ export const crearAlerta = async (alerta: Omit<Alerta, 'id' | 'fechaRegistro' | 
       fechaRegistro: serverTimestamp(),
       fechaActualizacion: serverTimestamp()
     };
-    
+
     const docRef = await addDoc(alertasRef, nuevaAlerta);
     return {
       id: docRef.id,
@@ -1634,7 +1769,7 @@ export const actualizarAlerta = async (id: string, alerta: Partial<Alerta>) => {
       ...alerta,
       fechaActualizacion: serverTimestamp()
     };
-    
+
     await updateDoc(alertaRef, datosActualizados);
     return {
       id,
@@ -1663,12 +1798,12 @@ export const eliminarAlerta = async (id: string) => {
 export const getAlertasPanico = async (residencialID: string) => {
   try {
     console.log(`🔍 getAlertasPanico: Buscando alertas para residencial ID: ${residencialID}`);
-    
+
     const alertas: AlertaPanico[] = [];
-    
+
     // Intentar con diferentes nombres de colección
     const coleccionesPosibles = ['alertas', 'alertasPanico', 'panicAlerts'];
-    
+
     // 1. Intentar primero en subcolecciones
     for (const nombreColeccion of coleccionesPosibles) {
       try {
@@ -1676,7 +1811,7 @@ export const getAlertasPanico = async (residencialID: string) => {
         const coleccionRef = collection(db, `residenciales/${residencialID}/${nombreColeccion}`);
         const snapshot = await getDocs(coleccionRef);
         console.log(`📊 Subcolección '${nombreColeccion}': ${snapshot.docs.length} documentos`);
-        
+
         if (snapshot.docs.length > 0) {
           const alertasEncontradas = snapshot.docs.map(doc => {
             const data = doc.data();
@@ -1687,7 +1822,7 @@ export const getAlertasPanico = async (residencialID: string) => {
               _residencialDocId: residencialID
             } as AlertaPanico;
           });
-          
+
           console.log(`✅ Se encontraron ${alertasEncontradas.length} alertas en la subcolección '${nombreColeccion}'`);
           alertas.push(...alertasEncontradas);
           break; // Si encontramos alertas en esta colección, no seguimos buscando
@@ -1697,25 +1832,25 @@ export const getAlertasPanico = async (residencialID: string) => {
         // Continuar con la siguiente colección
       }
     }
-    
+
     // 2. Si no se encontraron alertas en subcolecciones, intentar en colecciones raíz
     if (alertas.length === 0) {
       console.log(`🔍 No se encontraron alertas en subcolecciones. Buscando en colecciones raíz...`);
-      
+
       for (const nombreColeccion of coleccionesPosibles) {
         try {
           console.log(`🔍 Intentando con colección raíz: ${nombreColeccion}`);
           const coleccionRef = collection(db, nombreColeccion);
-          
+
           // Consulta para buscar documentos con ese ID de residencial
           const q = query(
             coleccionRef,
             where('residencialID', '==', residencialID)
           );
-          
+
           const snapshot = await getDocs(q);
           console.log(`📊 Colección raíz '${nombreColeccion}': ${snapshot.docs.length} documentos para residencial ${residencialID}`);
-          
+
           if (snapshot.docs.length > 0) {
             const alertasEncontradas = snapshot.docs.map(doc => {
               const data = doc.data();
@@ -1726,7 +1861,7 @@ export const getAlertasPanico = async (residencialID: string) => {
                 _residencialDocId: residencialID
               } as AlertaPanico;
             });
-            
+
             alertas.push(...alertasEncontradas);
             break; // Si encontramos alertas en esta colección, no seguimos buscando
           }
@@ -1736,18 +1871,18 @@ export const getAlertasPanico = async (residencialID: string) => {
         }
       }
     }
-    
+
     // 3. Último intento: buscar todas las alertas sin filtrar por residencial
     if (alertas.length === 0) {
       console.log(`🔍 Último intento: buscando todas las alertas sin filtrar por residencial...`);
-      
+
       for (const nombreColeccion of coleccionesPosibles) {
         try {
           console.log(`🔍 Intentando con colección raíz: ${nombreColeccion}`);
           const coleccionRef = collection(db, nombreColeccion);
           const snapshot = await getDocs(coleccionRef);
           console.log(`📊 Colección raíz '${nombreColeccion}' (sin filtro): ${snapshot.docs.length} documentos`);
-          
+
           if (snapshot.docs.length > 0) {
             // Filtrar manualmente por residencialID
             const alertasEncontradas = snapshot.docs
@@ -1764,7 +1899,7 @@ export const getAlertasPanico = async (residencialID: string) => {
                   _residencialDocId: residencialID
                 } as AlertaPanico;
               });
-            
+
             if (alertasEncontradas.length > 0) {
               alertas.push(...alertasEncontradas);
               break; // Si encontramos alertas en esta colección, no seguimos buscando
@@ -1776,13 +1911,13 @@ export const getAlertasPanico = async (residencialID: string) => {
         }
       }
     }
-    
+
     if (alertas.length === 0) {
       console.warn(`⚠️ No se encontraron alertas para el residencial ${residencialID} en ninguna colección`);
     } else {
       console.log(`✅ Total de alertas encontradas: ${alertas.length}`);
     }
-    
+
     // Ordenar por fecha (más recientes primero)
     return alertas.sort((a, b) => {
       const timestampA = a.timestamp?.seconds || 0;
@@ -1804,11 +1939,11 @@ export const getAlertasPanicoActivas = async (residencialID: string) => {
       where('status', '==', 'active'),
       orderBy('timestamp', 'desc')
     );
-    
+
     console.log(`⏳ Ejecutando consulta de alertas activas...`);
     const snapshot = await getDocs(q);
     console.log(`✅ Consulta completada. Alertas activas encontradas: ${snapshot.docs.length}`);
-    
+
     return snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -1822,17 +1957,17 @@ export const getAlertasPanicoActivas = async (residencialID: string) => {
 export const actualizarEstadoAlertaPanico = async (residencialID: string, alertaID: string, estado: AlertaPanico['status']) => {
   try {
     console.log(`🔄 actualizarEstadoAlertaPanico: Actualizando alerta ${alertaID} a estado ${estado} en residencial ${residencialID}`);
-    
+
     // Posible mapeo de IDs: Si el residencialID es un código corto (como "3C45M1"), 
     // necesitamos encontrar el ID real del documento en Firestore
     const residencialesRef = collection(db, 'residenciales');
     const residencialesSnapshot = await getDocs(residencialesRef);
     const residenciales = residencialesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Residencial[];
-    
+
     // Intentar encontrar un mapeo entre códigos cortos y IDs reales
     let residencialRealID = residencialID;
     let encontradoMapeo = false;
-    
+
     // Primero verificamos si ya es un ID válido de documento
     const docSnap = await getDoc(doc(db, 'residenciales', residencialID));
     if (docSnap.exists()) {
@@ -1841,35 +1976,35 @@ export const actualizarEstadoAlertaPanico = async (residencialID: string, alerta
       encontradoMapeo = true;
     } else {
       console.log(`⚠️ El ID ${residencialID} no es un ID válido de documento residencial, buscando alternativas...`);
-      
+
       // Si no es un ID válido, buscar en todos los residenciales para ver si alguno tiene este código
       for (const residencial of residenciales) {
         // Verificar si tiene algún código o ID alternativo que coincida
-        if (residencial.residencialID === residencialID || 
-            (residencial as any).codigo === residencialID ||
-            (residencial as any).codigoAlfa === residencialID) {
+        if (residencial.residencialID === residencialID ||
+          (residencial as any).codigo === residencialID ||
+          (residencial as any).codigoAlfa === residencialID) {
           residencialRealID = residencial.id || '';
           encontradoMapeo = true;
           console.log(`✅ Encontrado mapeo: código ${residencialID} -> ID real ${residencialRealID}`);
           break;
         }
       }
-      
+
       // Si no encontramos un mapeo explícito, intentemos buscar por nombre en los logs para debugging
       if (!encontradoMapeo) {
         console.log(`⚠️ No se encontró mapeo para código ${residencialID}, intentando encontrar alertas...`);
-        
+
         // Intento alternativo: verificar en qué residencial existen las alertas
         for (const residencial of residenciales) {
           const residencialId = residencial.id || '';
           if (!residencialId) continue;
-          
+
           console.log(`🔍 Verificando si la alerta existe en residencial ${residencial.nombre} (${residencialId})`);
-          
+
           // Verificar si la alerta existe en este residencial
           const alertaRef = doc(db, `residenciales/${residencialId}/alertas`, alertaID);
           const alertaSnap = await getDoc(alertaRef);
-          
+
           if (alertaSnap.exists()) {
             residencialRealID = residencialId;
             encontradoMapeo = true;
@@ -1879,57 +2014,57 @@ export const actualizarEstadoAlertaPanico = async (residencialID: string, alerta
         }
       }
     }
-    
+
     // Si no encontramos el residencial correcto, buscar dinámicamente en todos los residenciales
     if (!encontradoMapeo) {
       console.log(`🔍 Buscando dinámicamente en todos los residenciales para alerta: ${alertaID}`);
-      
+
       // Obtener lista de todos los residenciales dinámicamente
       try {
         const residencialesSnapshot = await getDocs(collection(db, 'residenciales'));
-        
+
         for (const residencialDoc of residencialesSnapshot.docs) {
           const residencialId = residencialDoc.id;
           console.log(`🔍 Verificando residencial dinámico: ${residencialId}`);
-          
+
           const alertaRef = doc(db, `residenciales/${residencialId}/alertas`, alertaID);
-        const alertaSnap = await getDoc(alertaRef);
-        
-        if (alertaSnap.exists()) {
+          const alertaSnap = await getDoc(alertaRef);
+
+          if (alertaSnap.exists()) {
             residencialRealID = residencialId;
-          encontradoMapeo = true;
+            encontradoMapeo = true;
             console.log(`✅ ¡Alerta encontrada en residencial dinámico: ${residencialId}!`);
-          break;
-        }
+            break;
+          }
         }
       } catch (error) {
         console.error('❌ Error buscando residenciales dinámicamente:', error);
       }
     }
-    
+
     console.log(`🔍 Resultado de mapeo: ID original ${residencialID} -> ID para búsqueda ${residencialRealID}`);
-    
+
     // Intentar con diferentes nombres de colección
     const coleccionesPosibles = ['alertas', 'alertasPanico', 'panicAlerts'];
     let actualizado = false;
-    
+
     // 1. Intentar primero en subcolecciones con el ID real del residencial
     for (const nombreColeccion of coleccionesPosibles) {
       try {
         console.log(`🔍 Intentando actualizar en subcolección: ${nombreColeccion}`);
         const alertaRef = doc(db, `residenciales/${residencialRealID}/${nombreColeccion}`, alertaID);
         console.log(`📍 Path completo: ${alertaRef.path}`);
-        
+
         // Verificar si el documento existe
         const docSnap = await getDoc(alertaRef);
         if (docSnap.exists()) {
           console.log(`✅ Documento encontrado en subcolección '${nombreColeccion}'`);
           console.log(`📄 Datos actuales: ${JSON.stringify(docSnap.data())}`);
-          
+
           // Determinar qué campos actualizar según la estructura
           const data = docSnap.data();
           const actualizacion = {};
-          
+
           if (data.status !== undefined) {
             // Estructura en inglés
             console.log(`🔤 Usando estructura en inglés (status: ${estado})`);
@@ -1939,11 +2074,11 @@ export const actualizarEstadoAlertaPanico = async (residencialID: string, alerta
             });
           } else if (data.estado !== undefined) {
             // Estructura en español
-            const estadoEspanol = 
-              estado === 'active' ? 'activa' : 
-              estado === 'resolved' ? 'resuelta' : 
-              estado === 'in_progress' ? 'en_proceso' : 'activa';
-            
+            const estadoEspanol =
+              estado === 'active' ? 'activa' :
+                estado === 'resolved' ? 'resuelta' :
+                  estado === 'in_progress' ? 'en_proceso' : 'activa';
+
             console.log(`🔤 Usando estructura en español (estado: ${estadoEspanol})`);
             Object.assign(actualizacion, {
               estado: estadoEspanol,
@@ -1954,16 +2089,16 @@ export const actualizarEstadoAlertaPanico = async (residencialID: string, alerta
             console.log(`⚠️ Estructura desconocida, intentando ambas`);
             Object.assign(actualizacion, {
               status: estado,
-              estado: estado === 'active' ? 'activa' : 
-                     estado === 'resolved' ? 'resuelta' : 
-                     estado === 'in_progress' ? 'en_proceso' : 'activa',
+              estado: estado === 'active' ? 'activa' :
+                estado === 'resolved' ? 'resuelta' :
+                  estado === 'in_progress' ? 'en_proceso' : 'activa',
               read: true,
               leida: true
             });
           }
-          
+
           console.log(`📝 Datos a actualizar: ${JSON.stringify(actualizacion)}`);
-          
+
           try {
             await updateDoc(alertaRef, actualizacion);
             console.log(`✅ Alerta actualizada correctamente en subcolección '${nombreColeccion}'`);
@@ -1982,28 +2117,28 @@ export const actualizarEstadoAlertaPanico = async (residencialID: string, alerta
         // Continuar con la siguiente colección
       }
     }
-    
+
     // 2. Si no se encontró en subcolecciones, intentar en colecciones raíz
     if (!actualizado) {
       console.log(`🔍 No se encontró en subcolecciones. Intentando en colecciones raíz...`);
-      
+
       for (const nombreColeccion of coleccionesPosibles) {
         try {
           console.log(`🔍 Buscando alerta en colección raíz: ${nombreColeccion}`);
           const alertaRef = doc(db, nombreColeccion, alertaID);
           console.log(`📍 Path completo: ${alertaRef.path}`);
-          
+
           // Buscar el documento por ID
           const docSnap = await getDoc(alertaRef);
-          
+
           if (docSnap.exists()) {
             console.log(`✅ Documento encontrado en colección raíz '${nombreColeccion}'`);
             console.log(`📄 Datos actuales: ${JSON.stringify(docSnap.data())}`);
-            
+
             // Determinar qué campos actualizar según la estructura
             const data = docSnap.data();
             const actualizacion = {};
-            
+
             if (data.status !== undefined) {
               // Estructura en inglés
               console.log(`🔤 Usando estructura en inglés (status: ${estado})`);
@@ -2013,11 +2148,11 @@ export const actualizarEstadoAlertaPanico = async (residencialID: string, alerta
               });
             } else if (data.estado !== undefined) {
               // Estructura en español
-              const estadoEspanol = 
-                estado === 'active' ? 'activa' : 
-                estado === 'resolved' ? 'resuelta' : 
-                estado === 'in_progress' ? 'en_proceso' : 'activa';
-              
+              const estadoEspanol =
+                estado === 'active' ? 'activa' :
+                  estado === 'resolved' ? 'resuelta' :
+                    estado === 'in_progress' ? 'en_proceso' : 'activa';
+
               console.log(`🔤 Usando estructura en español (estado: ${estadoEspanol})`);
               Object.assign(actualizacion, {
                 estado: estadoEspanol,
@@ -2028,16 +2163,16 @@ export const actualizarEstadoAlertaPanico = async (residencialID: string, alerta
               console.log(`⚠️ Estructura desconocida, intentando ambas`);
               Object.assign(actualizacion, {
                 status: estado,
-                estado: estado === 'active' ? 'activa' : 
-                       estado === 'resolved' ? 'resuelta' : 
-                       estado === 'in_progress' ? 'en_proceso' : 'activa',
+                estado: estado === 'active' ? 'activa' :
+                  estado === 'resolved' ? 'resuelta' :
+                    estado === 'in_progress' ? 'en_proceso' : 'activa',
                 read: true,
                 leida: true
               });
             }
-            
+
             console.log(`📝 Datos a actualizar: ${JSON.stringify(actualizacion)}`);
-            
+
             try {
               await updateDoc(alertaRef, actualizacion);
               console.log(`✅ Alerta actualizada correctamente en colección raíz '${nombreColeccion}'`);
@@ -2057,13 +2192,13 @@ export const actualizarEstadoAlertaPanico = async (residencialID: string, alerta
         }
       }
     }
-      
+
     // Si llegamos aquí, no se pudo actualizar en ninguna colección
     if (!actualizado) {
       console.error(`❌ No se pudo encontrar la alerta ${alertaID} en ninguna colección`);
       console.log(`📌 RESUMEN: Intentamos actualizar alerta ${alertaID} en residencial ${residencialID} (mapeado a ${residencialRealID}) sin éxito`);
       // En lugar de arrojar un error, vamos a devolver false para indicar fallo
-      return false; 
+      return false;
     }
   } catch (error) {
     console.error('❌ Error al actualizar estado de alerta de pánico:', error);
@@ -2074,21 +2209,21 @@ export const actualizarEstadoAlertaPanico = async (residencialID: string, alerta
 export const marcarAlertaPanicoComoLeida = async (residencialID: string, alertaID: string) => {
   try {
     console.log(`📖 marcarAlertaPanicoComoLeida: Marcando alerta ${alertaID} como leída`);
-    
+
     // Intentar con diferentes nombres de colección
     const coleccionesPosibles = ['alertas', 'alertasPanico', 'panicAlerts'];
     let actualizado = false;
-    
+
     for (const nombreColeccion of coleccionesPosibles) {
       try {
         console.log(`🔍 Intentando marcar como leída en colección: ${nombreColeccion}`);
         const alertaRef = doc(db, `residenciales/${residencialID}/${nombreColeccion}`, alertaID);
-        
+
         // Verificar si el documento existe
         const docSnap = await getDoc(alertaRef);
         if (docSnap.exists()) {
           console.log(`✅ Documento encontrado en colección '${nombreColeccion}'`);
-          
+
           // Determinar qué campos actualizar según la estructura
           const data = docSnap.data();
           if (data.read !== undefined) {
@@ -2108,7 +2243,7 @@ export const marcarAlertaPanicoComoLeida = async (residencialID: string, alertaI
               leida: true
             });
           }
-          
+
           console.log(`✅ Alerta marcada como leída correctamente en colección '${nombreColeccion}'`);
           actualizado = true;
           break;
@@ -2118,7 +2253,7 @@ export const marcarAlertaPanicoComoLeida = async (residencialID: string, alertaI
         // Continuar con la siguiente colección
       }
     }
-    
+
     if (!actualizado) {
       throw new Error(`No se pudo marcar la alerta como leída. No se encontró en ninguna colección.`);
     }
@@ -2130,33 +2265,33 @@ export const marcarAlertaPanicoComoLeida = async (residencialID: string, alertaI
 
 export const suscribirseAAlertasPanico = (residencialID: string, callback: (alertas: AlertaPanico[]) => void) => {
   try {
-    let unsubscribe: () => void = () => {};
+    let unsubscribe: () => void = () => { };
     console.log(`🔔 suscribirseAAlertasPanico: Iniciando suscripción para residencial ID: ${residencialID}`);
-    
+
     // Intentar con diferentes nombres de colección
     const coleccionesPosibles = ['alertas', 'alertasPanico', 'panicAlerts'];
-    
+
     // Función para probar una colección
     const probarColeccion = (nombreColeccion: string, esColeccionRaiz = false) => {
       try {
         // Definir la referencia a la colección dependiendo de si es raíz o subcolección
-        const coleccionPath = esColeccionRaiz 
+        const coleccionPath = esColeccionRaiz
           ? nombreColeccion // Colección raíz
           : `residenciales/${residencialID}/${nombreColeccion}`; // Subcolección
-        
+
         console.log(`🔍 Suscripción: Intentando con ${esColeccionRaiz ? 'colección raíz' : 'subcolección'}: ${coleccionPath}`);
-        
+
         const coleccionRef = collection(db, coleccionPath);
-        
+
         // Si es una colección raíz, necesitamos filtrar por residencialID
         const q = esColeccionRaiz
           ? query(coleccionRef, where('residencialID', '==', residencialID))
           : query(coleccionRef);
-        
+
         // Crear la suscripción
         return onSnapshot(q, (snapshot) => {
           console.log(`📊 Suscripción: ${nombreColeccion} (${esColeccionRaiz ? 'raíz' : 'subcolección'}): ${snapshot.docs.length} documentos`);
-          
+
           if (snapshot.docs.length > 0) {
             const alertas = snapshot.docs.map(doc => {
               const data = doc.data();
@@ -2178,12 +2313,12 @@ export const suscribirseAAlertasPanico = (residencialID: string, callback: (aler
                 _residencialDocId: data.residencialID || residencialID
               } as AlertaPanico;
             });
-            
+
             console.log(`✅ Suscripción: Enviando ${alertas.length} alertas al componente`);
             callback(alertas);
             return true; // Indicar que se encontraron alertas
           }
-          
+
           return false; // Indicar que no se encontraron alertas
         }, (error) => {
           console.error(`❌ Error en suscripción a ${nombreColeccion}:`, error);
@@ -2191,21 +2326,21 @@ export const suscribirseAAlertasPanico = (residencialID: string, callback: (aler
         });
       } catch (error) {
         console.error(`❌ Error al iniciar suscripción a ${nombreColeccion}:`, error);
-        return () => {}; // Devolver una función vacía en caso de error
+        return () => { }; // Devolver una función vacía en caso de error
       }
     };
-    
+
     // Primero intentar con subcolecciones
     let suscripcionActiva = false;
     let suscripcionesActivas: (() => void)[] = [];
-    
+
     // Intentar primero con subcolecciones
     for (const nombreColeccion of coleccionesPosibles) {
       if (!suscripcionActiva) {
         const unsub = probarColeccion(nombreColeccion);
         // Guardar la función de cancelación
         suscripcionesActivas.push(unsub);
-        
+
         // Verificar si esta suscripción está obteniendo datos
         setTimeout(() => {
           // Aquí no podemos verificar directamente si hay alertas, 
@@ -2213,19 +2348,19 @@ export const suscribirseAAlertasPanico = (residencialID: string, callback: (aler
         }, 500);
       }
     }
-    
+
     // Si después de 2 segundos no se han encontrado alertas en las subcolecciones,
     // intentar con colecciones raíz
     setTimeout(() => {
       console.log('⏳ Verificando si se encontraron alertas en subcolecciones...');
-      
+
       // Intentar con colecciones raíz si no hay alertas aún
       for (const nombreColeccion of coleccionesPosibles) {
         const unsub = probarColeccion(nombreColeccion, true); // true indica que es colección raíz
         suscripcionesActivas.push(unsub);
       }
     }, 2000);
-    
+
     // Devolver una función que cancele todas las suscripciones activas
     return () => {
       console.log(`🛑 Cancelando todas las suscripciones para residencial: ${residencialID}`);
@@ -2233,7 +2368,7 @@ export const suscribirseAAlertasPanico = (residencialID: string, callback: (aler
     };
   } catch (error) {
     console.error('❌ Error en suscribirseAAlertasPanico:', error);
-    return () => {}; // Devolver una función vacía en caso de error
+    return () => { }; // Devolver una función vacía en caso de error
   }
 };
 
@@ -2244,8 +2379,8 @@ export const suscribirseAAlertasPanico = (residencialID: string, callback: (aler
  */
 export const suscribirseAUsuarios = (
   callback: (usuarios: Usuario[]) => void,
-  opciones?: { 
-    limit?: number, 
+  opciones?: {
+    limit?: number,
     residencialID?: string,
     orderBy?: string,
     orderDirection?: 'asc' | 'desc'
@@ -2255,9 +2390,9 @@ export const suscribirseAUsuarios = (
   const limitValue = opciones?.limit || 1000; // Aumentar límite por defecto
   const orderByField = opciones?.orderBy || 'createdAt';
   const orderDirection = opciones?.orderDirection || 'desc';
-  
+
   console.log(`🔧 Configurando suscripción a usuarios con límite: ${limitValue}`);
-  
+
   // Construir query basado en opciones
   if (opciones?.residencialID) {
     q = query(
@@ -2278,7 +2413,7 @@ export const suscribirseAUsuarios = (
 
   let previousData: Usuario[] = [];
   let updateCount = 0;
-  
+
   return onSnapshot(q, (snapshot) => {
     const usuarios = snapshot.docs.map(doc => ({
       id: doc.id,
@@ -2314,7 +2449,7 @@ export const suscribirseAUsuariosPendientes = (
   opciones?: { limit?: number }
 ) => {
   const limitValue = opciones?.limit || 50;
-  
+
   const q = query(
     collection(db, 'usuarios'),
     where('status', '==', 'pending'),
@@ -2323,7 +2458,7 @@ export const suscribirseAUsuariosPendientes = (
   );
 
   let previousData: Usuario[] = [];
-  
+
   return onSnapshot(q, (snapshot) => {
     const usuarios = snapshot.docs.map(doc => ({
       id: doc.id,
@@ -2358,7 +2493,7 @@ export const suscribirseAResidenciales = (callback: (residenciales: Residencial[
   );
 
   let previousData: Residencial[] = [];
-  
+
   return onSnapshot(q, (snapshot) => {
     const residenciales = snapshot.docs.map(doc => ({
       id: doc.id,
@@ -2388,50 +2523,50 @@ export const esAdministradorDeResidencial = async (residencialId: string): Promi
     if (!auth || !auth.currentUser) {
       return false;
     }
-    
+
     const userRef = doc(db, 'usuarios', auth.currentUser.uid);
     const userSnap = await getDoc(userRef);
-    
+
     if (userSnap.exists() && userSnap.data().role === 'admin') {
       return true;
     }
-    
+
     const adminRef = doc(db, `residenciales/${residencialId}/admins/${auth.currentUser.uid}`);
     const adminSnap = await getDoc(adminRef);
-    
+
     if (adminSnap.exists()) {
       return true;
     }
-    
+
     const residencialRef = doc(db, `residenciales/${residencialId}`);
     const residencialSnap = await getDoc(residencialRef);
-    
+
     if (residencialSnap.exists()) {
       const residencialData = residencialSnap.data();
-      
-      if (residencialData.adminIds && 
-          Array.isArray(residencialData.adminIds) && 
-          residencialData.adminIds.includes(auth.currentUser.uid)) {
+
+      if (residencialData.adminIds &&
+        Array.isArray(residencialData.adminIds) &&
+        residencialData.adminIds.includes(auth.currentUser.uid)) {
         return true;
       }
-      
-      if (residencialData.administradores && 
-          Array.isArray(residencialData.administradores) && 
-          residencialData.administradores.includes(auth.currentUser.uid)) {
+
+      if (residencialData.administradores &&
+        Array.isArray(residencialData.administradores) &&
+        residencialData.administradores.includes(auth.currentUser.uid)) {
         return true;
       }
     }
-    
+
     const userResidencialRef = doc(db, `usuarios/${auth.currentUser.uid}/residenciales/${residencialId}`);
     const userResidencialSnap = await getDoc(userResidencialRef);
-    
+
     if (userResidencialSnap.exists()) {
       const userData = userResidencialSnap.data();
       if (userData.role === 'admin') {
         return true;
       }
     }
-    
+
     return false;
   } catch (error) {
     return false;
@@ -2446,11 +2581,11 @@ export const esAdministradorDeResidencial = async (residencialId: string): Promi
 export const getNotificaciones = async (residencialID: string) => {
   try {
     console.log(`🔍 getNotificaciones: Buscando notificaciones para residencial ID: ${residencialID}`);
-    
+
     const notificacionesRef = collection(db, `residenciales/${residencialID}/notificaciones`);
     const snapshot = await getDocs(notificacionesRef);
     console.log(`📊 Subcolección 'notificaciones': ${snapshot.docs.length} documentos`);
-    
+
     const notificaciones = snapshot.docs.map(doc => {
       const data = doc.data();
       return {
@@ -2460,7 +2595,7 @@ export const getNotificaciones = async (residencialID: string) => {
         _residencialDocId: residencialID
       } as AlertaPanico; // Reutilizamos la misma interfaz por ahora
     });
-    
+
     console.log(`✅ Se encontraron ${notificaciones.length} notificaciones`);
     return notificaciones;
   } catch (error) {
@@ -2478,13 +2613,13 @@ export const getNotificaciones = async (residencialID: string) => {
 export const suscribirseANotificaciones = (residencialID: string, callback: (notificaciones: AlertaPanico[]) => void) => {
   try {
     console.log(`🔔 suscribirseANotificaciones: Iniciando suscripción para residencial ID: ${residencialID}`);
-    
+
     const notificacionesRef = collection(db, `residenciales/${residencialID}/notificaciones`);
     const q = query(notificacionesRef);
-    
+
     return onSnapshot(q, (snapshot) => {
       console.log(`📊 Suscripción a notificaciones: ${snapshot.docs.length} documentos`);
-      
+
       if (snapshot.docs.length > 0) {
         const notificaciones = snapshot.docs.map(doc => {
           const data = doc.data();
@@ -2506,7 +2641,7 @@ export const suscribirseANotificaciones = (residencialID: string, callback: (not
             _residencialDocId: data.residencialID || residencialID
           } as AlertaPanico;
         });
-        
+
         console.log(`✅ Suscripción: Enviando ${notificaciones.length} notificaciones al componente`);
         callback(notificaciones);
       } else {
@@ -2515,12 +2650,103 @@ export const suscribirseANotificaciones = (residencialID: string, callback: (not
       }
     }, (error) => {
       console.error(`❌ Error en suscripción a notificaciones:`, error);
-      return () => {};
+      return () => { };
     });
   } catch (error) {
     console.error('❌ Error en suscribirseANotificaciones:', error);
+    return () => { };
+  }
+};
+
+// =====================================================
+// FUNCIONES PARA NOTIFICACIONES PROGRAMADAS
+// =====================================================
+
+export type RecurrenciaNotificacion = 'once' | 'daily' | 'weekly' | 'monthly';
+
+export interface NotificacionProgramada {
+  id: string;
+  message: string;
+  titulo: string;
+  type: string;
+  destinatarios: string; // 'todos' | 'residentes' | 'seguridad'
+  scheduledAt: Timestamp;
+  status: 'pending' | 'sent' | 'failed';
+  sentAt?: Timestamp;
+  error?: string;
+  residencialID: string;
+  residencialNombre?: string;
+  createdBy: string;
+  createdAt?: Timestamp;
+  /** 'once' = una vez, 'daily' = diaria, 'weekly' = semanal, 'monthly' = mensual */
+  recurrence?: RecurrenciaNotificacion;
+  /** Número de veces que se ha enviado (para recurrentes) */
+  sendCount?: number;
+  /** Última fecha/hora de envío */
+  lastSentAt?: Timestamp;
+  /** Últimos envíos (hasta 20) para historial */
+  sendHistory?: { sentAt: Timestamp }[];
+  [key: string]: any;
+}
+
+/**
+ * Obtener notificaciones programadas para un residencial
+ */
+export const getNotificacionesProgramadas = async (residencialID: string): Promise<NotificacionProgramada[]> => {
+  try {
+    const ref = collection(db, `residenciales/${residencialID}/notificacionesProgramadas`);
+    const q = query(ref, orderBy('scheduledAt', 'asc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as NotificacionProgramada));
+  } catch (error) {
+    console.error('Error en getNotificacionesProgramadas:', error);
+    return [];
+  }
+};
+
+/**
+ * Suscribirse a notificaciones programadas en tiempo real
+ */
+export const suscribirseANotificacionesProgramadas = (
+  residencialID: string,
+  callback: (items: NotificacionProgramada[]) => void
+): (() => void) => {
+  try {
+    const ref = collection(db, `residenciales/${residencialID}/notificacionesProgramadas`);
+    const q = query(ref, orderBy('scheduledAt', 'asc'));
+    return onSnapshot(q, (snapshot) => {
+      const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as NotificacionProgramada));
+      callback(items);
+    }, (error) => {
+      console.error('Error en suscripción a notificacionesProgramadas:', error);
+    });
+  } catch (error) {
+    console.error('Error en suscribirseANotificacionesProgramadas:', error);
     return () => {};
   }
+};
+
+/**
+ * Actualizar una notificación programada
+ */
+export const actualizarNotificacionProgramada = async (
+  residencialID: string,
+  notifId: string,
+  data: Partial<NotificacionProgramada>
+): Promise<void> => {
+  const ref = doc(db, `residenciales/${residencialID}/notificacionesProgramadas`, notifId);
+  await updateDoc(ref, data as DocumentData);
+};
+
+/**
+ * Eliminar una notificación programada
+ */
+export const eliminarNotificacionProgramada = async (
+  residencialID: string,
+  notifId: string
+): Promise<void> => {
+  const ref = doc(db, `residenciales/${residencialID}/notificacionesProgramadas`, notifId);
+  await deleteDoc(ref);
 };
 
 // =====================================================
@@ -2533,20 +2759,20 @@ export const suscribirseANotificaciones = (residencialID: string, callback: (not
 export const getPagos = async (residencialID: string): Promise<Pago[]> => {
   try {
     console.log(`🔍 getPagos: Buscando pagos para residencial ID: ${residencialID}`);
-    
+
     const coleccionesPosibles = ['pagos', 'payments'];
-    
+
     for (const nombreColeccion of coleccionesPosibles) {
       console.log(`🔍 Intentando con subcolección: ${nombreColeccion}`);
-      
+
       const colRef = collection(db, `residenciales/${residencialID}/${nombreColeccion}`);
       const q = query(colRef, orderBy('timestamp', 'desc'));
       const snapshot = await getDocs(q);
-      
+
       if (snapshot.docs.length > 0) {
         console.log(`📊 Subcolección '${nombreColeccion}': ${snapshot.docs.length} documentos`);
         console.log(`✅ Se encontraron ${snapshot.docs.length} pagos en la subcolección '${nombreColeccion}'`);
-        
+
         const pagos = snapshot.docs.map(doc => {
           const pagoConvertido = convertirDatosPago(doc.data(), doc.id);
           return {
@@ -2554,14 +2780,14 @@ export const getPagos = async (residencialID: string): Promise<Pago[]> => {
             _residencialDocId: residencialID
           };
         });
-        
+
         console.log(`✅ Total de pagos encontrados: ${pagos.length}`);
         return pagos;
       } else {
         console.log(`❌ Subcolección '${nombreColeccion}': No hay documentos`);
       }
     }
-    
+
     console.log(`⚠️ No se encontraron pagos en ninguna subcolección para el residencial: ${residencialID}`);
     return [];
   } catch (error) {
@@ -2609,13 +2835,13 @@ export const getIngresos = async (residencialDocId: string): Promise<Ingreso[]> 
   }
   try {
     console.log(`🔍 getIngresos: Buscando ingresos para residencial ID: ${residencialDocId}`);
-    
+
     const ingresosRef = collection(db, `residenciales/${residencialDocId}/ingresos`);
     const q = query(ingresosRef, orderBy("timestamp", "desc"));
     const snapshot = await getDocs(q);
-    
+
     console.log(`📊 Se encontraron ${snapshot.docs.length} ingresos para residencial ${residencialDocId}`);
-    
+
     return snapshot.docs.map(doc => clasificarIngreso(doc.data(), doc.id));
   } catch (error) {
     console.error(`Error al obtener ingresos para el residencial ${residencialDocId}:`, error);
@@ -2633,17 +2859,17 @@ export const getIngresos = async (residencialDocId: string): Promise<Ingreso[]> 
 export const suscribirseAIngresos = (residencialDocId: string, callback: (ingresos: Ingreso[]) => void): (() => void) => {
   if (!residencialDocId) {
     console.error("Error: residencialDocId es indefinido en suscribirseAIngresos");
-    return () => {};
+    return () => { };
   }
   try {
     console.log(`🔔 suscribirseAIngresos: Configurando suscripción para residencial ID: ${residencialDocId}`);
-    
+
     const ingresosRef = collection(db, `residenciales/${residencialDocId}/ingresos`);
     const q = query(ingresosRef, orderBy("timestamp", "desc"));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       console.log(`📊 Suscripción ingresos: ${querySnapshot.docs.length} documentos recibidos para ${residencialDocId}`);
-      
+
       const ingresosData: Ingreso[] = [];
       querySnapshot.forEach((doc) => {
         ingresosData.push(clasificarIngreso(doc.data(), doc.id));
@@ -2652,14 +2878,14 @@ export const suscribirseAIngresos = (residencialDocId: string, callback: (ingres
     }, (error) => {
       console.error(`Error al suscribirse a ingresos para el residencial ${residencialDocId}:`, error);
       toast.error(`Error al obtener ingresos en tiempo real para ${residencialDocId}.`);
-      callback([]); 
+      callback([]);
     });
 
     return unsubscribe;
   } catch (error) {
     console.error(`Error al intentar configurar la suscripción a ingresos para ${residencialDocId}:`, error);
     toast.error("Error crítico al configurar la escucha de ingresos.");
-    return () => {};
+    return () => { };
   }
 };
 
@@ -2688,45 +2914,45 @@ const convertFirestoreTimestampToDate = (timestamp: any): Date => {
  * @returns Promise<VehicleHistory | null>
  */
 export const getVehicleHistory = async (
-  residencialDocId: string, 
+  residencialDocId: string,
   placa: string
 ): Promise<VehicleHistory | null> => {
   if (!residencialDocId || !placa) {
     console.error("Error: residencialDocId o placa es indefinido en getVehicleHistory");
     return null;
   }
-  
+
   try {
     console.log(`🔍 getVehicleHistory: Buscando historial para placa ${placa} en residencial ${residencialDocId}`);
-    
+
     const docRef = doc(db, `residenciales/${residencialDocId}/vehicle_history/${placa}`);
     const docSnap = await getDoc(docRef);
-    
+
     if (docSnap.exists()) {
       const data = docSnap.data();
       console.log(`✅ Historial pre-calculado encontrado para placa ${placa}`);
-      
+
       // Calcular estadísticas
       const personas = data.personas || [];
       const totalPersonas = personas.length;
       const totalIngresos = personas.reduce((sum: number, persona: any) => sum + (persona.totalEntries || 0), 0);
-      
+
       // Encontrar primera y última entrada global
       let firstGlobalEntry = null;
       let lastGlobalEntry = null;
-      
+
       if (personas.length > 0) {
         const allEntries = personas.flatMap((persona: any) => [persona.firstEntry, persona.lastEntry])
           .filter(Boolean)
           .map((entry: string) => new Date(entry))
           .sort((a: Date, b: Date) => a.getTime() - b.getTime());
-        
+
         if (allEntries.length > 0) {
           firstGlobalEntry = allEntries[0].toISOString();
           lastGlobalEntry = allEntries[allEntries.length - 1].toISOString();
         }
       }
-      
+
       const vehicleHistory: VehicleHistory = {
         id: docSnap.id,
         created: data.created,
@@ -2745,30 +2971,30 @@ export const getVehicleHistory = async (
         _firstGlobalEntry: firstGlobalEntry,
         _lastGlobalEntry: lastGlobalEntry
       };
-      
+
       return vehicleHistory;
     } else {
       console.log(`⚠️ No se encontró historial pre-calculado para la placa ${placa}. Construyendo sobre la marcha...`);
-      
+
       const ingresosRef = collection(db, `residenciales/${residencialDocId}/ingresos`);
       const q = query(
-        ingresosRef, 
+        ingresosRef,
         where("vehicleInfo.placa", "==", placa),
         orderBy("timestamp", "desc")
       );
-      
+
       const ingresosSnap = await getDocs(q);
-      
+
       if (ingresosSnap.empty) {
         console.log(`🚫 No se encontraron ingresos para la placa ${placa}.`);
         return null;
       }
 
       const ingresos = ingresosSnap.docs.map(doc => clasificarIngreso(doc.data(), doc.id));
-      
+
       const firstEntry = ingresos[ingresos.length - 1];
       const lastEntry = ingresos[0];
-      
+
       const vehicleHistory: VehicleHistory = {
         id: placa,
         placa: placa,
@@ -2783,13 +3009,13 @@ export const getVehicleHistory = async (
         _isLive: true, // Flag para indicar que es una respuesta construida en vivo
         _rawIngresos: ingresos, // Devolvemos los ingresos crudos para el detalle
       };
-      
+
       console.log(`✅ Historial construido en vivo para placa ${placa} con ${ingresos.length} ingresos.`);
       return vehicleHistory;
     }
   } catch (error: any) {
     console.error(`❌ Error al obtener historial del vehículo ${placa}:`, error);
-    
+
     // Si el error es por índice faltante, proveer el link para crearlo
     if (error.code === 'failed-precondition' && error.message.includes('index')) {
       const url = `https://console.firebase.google.com/project/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}/firestore/indexes?create_composite=ClJwcm9qZWN0cy96ZW50cnktY2VudHJhbC9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvaW5ncmVzb3MvaW5kZXhlcy9fEAEaFgoSdmVoaWNsZUluZm8ucGxhY2EQARoNCgl0aW1lc3RhbXAQAg`;
@@ -2800,7 +3026,7 @@ export const getVehicleHistory = async (
     } else {
       toast.error(`Error al cargar el historial del vehículo ${placa}`);
     }
-    
+
     return null;
   }
 };
@@ -2815,40 +3041,40 @@ export const getAllVehicleHistories = async (residencialDocId: string): Promise<
     console.error("Error: residencialDocId es indefinido en getAllVehicleHistories");
     return [];
   }
-  
+
   try {
     console.log(`🔍 getAllVehicleHistories: Buscando todos los historiales para residencial ${residencialDocId}`);
-    
+
     const vehicleHistoriesRef = collection(db, `residenciales/${residencialDocId}/vehicle_history`);
     const q = query(vehicleHistoriesRef, orderBy("lastUpdated", "desc"));
     const snapshot = await getDocs(q);
-    
+
     console.log(`📊 Se encontraron ${snapshot.docs.length} historiales de vehículos para residencial ${residencialDocId}`);
-    
+
     const vehicleHistories: VehicleHistory[] = [];
-    
+
     snapshot.docs.forEach(doc => {
       const data = doc.data();
       const personas = data.personas || [];
       const totalPersonas = personas.length;
       const totalIngresos = personas.reduce((sum: number, persona: any) => sum + (persona.totalEntries || 0), 0);
-      
+
       // Encontrar primera y última entrada global
       let firstGlobalEntry = null;
       let lastGlobalEntry = null;
-      
+
       if (personas.length > 0) {
         const allEntries = personas.flatMap((persona: any) => [persona.firstEntry, persona.lastEntry])
           .filter(Boolean)
           .map((entry: string) => new Date(entry))
           .sort((a: Date, b: Date) => a.getTime() - b.getTime());
-        
+
         if (allEntries.length > 0) {
           firstGlobalEntry = allEntries[0].toISOString();
           lastGlobalEntry = allEntries[allEntries.length - 1].toISOString();
         }
       }
-      
+
       vehicleHistories.push({
         id: doc.id,
         created: data.created,
@@ -2868,7 +3094,7 @@ export const getAllVehicleHistories = async (residencialDocId: string): Promise<
         _lastGlobalEntry: lastGlobalEntry
       });
     });
-    
+
     return vehicleHistories;
   } catch (error) {
     console.error(`❌ Error al obtener historiales de vehículos para residencial ${residencialDocId}:`, error);
@@ -2895,7 +3121,7 @@ export const registrarPagoEfectivo = async (data: EfectivoPaymentData): Promise<
 
   try {
     const pagosRef = collection(db, `residenciales/${residencialId}/pagos`);
-    
+
     const newPaymentDoc = {
       amount: amount * 100, // Guardar en centavos
       currency: 'mxn',
@@ -2929,38 +3155,38 @@ export const getAllUsuarios = async (opciones?: {
   try {
     const debug = opciones?.debug || false;
     if (debug) console.log('🔍 Obteniendo TODOS los usuarios con paginación automática...');
-    
+
     const usuariosRef = collection(db, 'usuarios');
     const batchSize = opciones?.batchSize || 1000; // Tamaño del lote por defecto
     const orderByField = opciones?.orderBy || 'createdAt';
     const orderDirection = opciones?.orderDirection || 'desc';
-    
+
     let allUsuarios: Usuario[] = [];
     let lastDoc: any = null;
     let totalBatches = 0;
     let totalUsuarios = 0;
-    
+
     // Primero, intentar obtener todos los usuarios de una vez (más eficiente)
     try {
       if (debug) console.log('🔄 Intentando obtener todos los usuarios de una vez...');
       const snapshot = await getDocs(usuariosRef);
       totalUsuarios = snapshot.size;
-      
+
       if (debug) console.log(`✅ Obtenidos ${totalUsuarios} usuarios de una vez`);
-      
+
       return snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Usuario[];
-      
+
     } catch (error) {
       if (debug) console.log('⚠️ No se pudieron obtener todos los usuarios de una vez, usando paginación...');
-      
+
       // Si falla, usar paginación
       while (true) {
         totalBatches++;
         if (debug) console.log(`📦 Obteniendo lote ${totalBatches}...`);
-        
+
         let q;
         if (lastDoc) {
           q = query(
@@ -2976,34 +3202,34 @@ export const getAllUsuarios = async (opciones?: {
             limit(batchSize)
           );
         }
-        
+
         const snapshot = await getDocs(q);
-        
+
         if (snapshot.empty) {
           if (debug) console.log('✅ No hay más usuarios para obtener');
           break;
         }
-        
+
         const batchUsuarios = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         })) as Usuario[];
-        
+
         allUsuarios.push(...batchUsuarios);
         lastDoc = snapshot.docs[snapshot.docs.length - 1];
-        
+
         if (debug) console.log(`📦 Lote ${totalBatches} obtenido: ${batchUsuarios.length} usuarios`);
-        
+
         // Si obtenimos menos usuarios que el tamaño del lote, hemos llegado al final
         if (snapshot.docs.length < batchSize) {
           break;
         }
       }
-      
+
       if (debug) console.log(`✅ Total de usuarios obtenidos: ${allUsuarios.length} en ${totalBatches} lotes`);
       return allUsuarios;
     }
-    
+
   } catch (error) {
     console.error("❌ Error al obtener todos los usuarios:", error);
     return [];
@@ -3017,7 +3243,7 @@ export const getUsuariosSimple = async () => {
     const usuariosRef = collection(db, 'usuarios');
     const snapshot = await getDocs(usuariosRef);
     console.log(`✅ Usuarios obtenidos con método simple: ${snapshot.size}`);
-    
+
     return snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()

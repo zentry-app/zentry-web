@@ -5,16 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Upload, 
-  FileText, 
-  CheckCircle, 
-  AlertCircle, 
-  X, 
+import {
+  Upload,
+  FileText,
+  CheckCircle,
+  AlertCircle,
+  X,
   Eye,
   Download,
   RotateCcw,
-  Camera 
+  Camera
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DocumentsData, RegistrationData } from '../MultiStepRegisterForm';
@@ -34,11 +34,11 @@ interface UploadProgress {
   proof: number;
 }
 
-export function DocumentsStep({ 
-  data, 
-  onDataChange, 
-  onValidationChange, 
-  isLoading 
+export function DocumentsStep({
+  data,
+  onDataChange,
+  onValidationChange,
+  isLoading
 }: DocumentsStepProps) {
   const [uploadProgress, setUploadProgress] = useState<UploadProgress>({
     identification: 0,
@@ -52,9 +52,9 @@ export function DocumentsStep({
   const { toast } = useToast();
   const { isMobile, hasCamera } = useMobile();
 
-  const { 
-    identification, 
-    proofOfAddress, 
+  const {
+    identification,
+    proofOfAddress,
     identificationPreview,
     proofPreview,
     identificationUploaded,
@@ -64,18 +64,18 @@ export function DocumentsStep({
   // Validar documentos
   useEffect(() => {
     console.log(`[DocumentsStep] useEffect ejecutado - identificationUploaded: ${identificationUploaded}, proofUploaded: ${proofUploaded}`);
-    
+
     const isValid = identificationUploaded && proofUploaded;
     onValidationChange(isValid);
-    
+
     console.log(`[DocumentsStep] Validación: ${isValid}`);
-    
+
     // Detectar si se perdieron archivos al recargar pero las previews están disponibles
     const hasLostFiles = (
       (identificationPreview && !identification && !identificationUploaded) ||
       (proofPreview && !proofOfAddress && !proofUploaded)
     );
-    
+
     if (hasLostFiles) {
       console.log(`[DocumentsStep] Archivos perdidos detectados al recargar página`);
       toast({
@@ -85,7 +85,7 @@ export function DocumentsStep({
         duration: 5000
       });
     }
-    
+
     // Mostrar mensaje de éxito cuando ambos documentos estén subidos (solo una vez)
     if (isValid && !hasShownSuccessToast) {
       console.log(`[DocumentsStep] Ambos documentos subidos exitosamente`);
@@ -96,7 +96,7 @@ export function DocumentsStep({
         variant: "default"
       });
     }
-    
+
     // Resetear el toast si se quitan documentos
     if (!isValid && hasShownSuccessToast) {
       setHasShownSuccessToast(false);
@@ -129,7 +129,7 @@ export function DocumentsStep({
 
   // Manejar selección de archivo
   const handleFileSelect = async (
-    file: File, 
+    file: File,
     type: 'identification' | 'proof'
   ) => {
     if (!validateFile(file)) return;
@@ -137,7 +137,7 @@ export function DocumentsStep({
     try {
       console.log(`[DocumentsStep] Archivo seleccionado: ${file.name}, tipo: ${type}`);
       const preview = await generatePreview(file);
-      
+
       if (type === 'identification') {
         onDataChange({
           identification: file,
@@ -212,7 +212,7 @@ export function DocumentsStep({
   const handleDrop = (e: React.DragEvent, type: 'identification' | 'proof') => {
     e.preventDefault();
     setDragOver(null);
-    
+
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
       handleFileSelect(files[0], type);
@@ -223,7 +223,7 @@ export function DocumentsStep({
   const uploadDocument = async (type: 'identification' | 'proof', fileToUpload?: File) => {
     // Usar el archivo pasado como parámetro o el del estado
     const file = fileToUpload || (type === 'identification' ? identification : proofOfAddress);
-    
+
     if (!file || !data.residential.residentialId) {
       console.error(`[DocumentsStep] ❌ Faltan datos para subir documento ${type}:`, {
         hasFile: !!file,
@@ -252,7 +252,7 @@ export function DocumentsStep({
       }
 
       console.log(`[DocumentsStep] 📝 Preparando datos para StorageService...`);
-      
+
       const uploadData = {
         file,
         documentType: type,
@@ -285,13 +285,13 @@ export function DocumentsStep({
       // Marcar como subido y guardar la URL
       if (type === 'identification') {
         console.log(`[DocumentsStep] 🔄 Marcando identificación como subida y guardando URL...`);
-        onDataChange({ 
+        onDataChange({
           identificationUploaded: true,
           identificationUrl: result.downloadUrl
         });
       } else {
         console.log(`[DocumentsStep] 🔄 Marcando comprobante como subido y guardando URL...`);
-        onDataChange({ 
+        onDataChange({
           proofUploaded: true,
           proofUrl: result.downloadUrl
         });
@@ -309,7 +309,7 @@ export function DocumentsStep({
         residentialId: data.residential.residentialId,
         timestamp: new Date().toISOString()
       });
-      
+
       // Verificar si es un error específico de Firebase
       if (error instanceof Error) {
         if (error.message.includes('storage/unauthorized')) {
@@ -320,13 +320,13 @@ export function DocumentsStep({
           console.error(`[DocumentsStep] 🌐 Error de red`);
         }
       }
-      
+
       // En caso de error, mostrar mensaje al usuario
       // pero no bloquear el proceso de registro
       console.log(`[DocumentsStep] 🔄 Implementando fallback para permitir continuar...`);
-      
+
       alert(`Error al subir ${type === 'identification' ? 'identificación' : 'comprobante'}. El registro continuará y podrás subir los documentos más tarde.`);
-      
+
       // Marcar como "subido" para permitir continuar
       if (type === 'identification') {
         console.log(`[DocumentsStep] 🔄 Marcando identificación como subida (fallback)...`);
@@ -347,7 +347,7 @@ export function DocumentsStep({
     } else {
       onDataChange({ proofUploaded: true });
     }
-    
+
     toast({
       title: "Marcado como subido",
       description: `${type === 'identification' ? 'Identificación' : 'Comprobante de domicilio'} marcado manualmente como subido`,
@@ -384,9 +384,8 @@ export function DocumentsStep({
     const progress = uploadProgress[type];
 
     return (
-      <Card className={`relative transition-all duration-200 ${
-        dragOver === type ? 'border-blue-500 bg-blue-50' : ''
-      }`}>
+      <Card className={`relative transition-all duration-200 ${dragOver === type ? 'border-blue-500 bg-blue-50' : ''
+        }`}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <FileText className="w-5 h-5" />
@@ -398,11 +397,10 @@ export function DocumentsStep({
           {!file ? (
             // Zona de subida
             <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                dragOver === type 
-                  ? 'border-blue-500 bg-blue-50' 
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragOver === type
+                  ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-300 hover:border-gray-400'
-              }`}
+                }`}
               onDragOver={(e) => handleDragOver(e, type)}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, type)}
@@ -419,7 +417,7 @@ export function DocumentsStep({
                 className="hidden"
                 id={`file-${type}`}
                 disabled={isLoading || isUploading}
-                              />
+              />
               <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <Button
@@ -432,7 +430,7 @@ export function DocumentsStep({
                     <Upload className="w-4 h-4" />
                     Seleccionar archivo
                   </Button>
-                  
+
                   {isMobile && hasCamera && (
                     <Button
                       type="button"
@@ -446,7 +444,7 @@ export function DocumentsStep({
                     </Button>
                   )}
                 </div>
-                
+
                 <p className="text-sm text-gray-500">
                   Formatos: JPG, PNG, WebP • Máximo 10MB
                   {isMobile && hasCamera && (
@@ -480,7 +478,7 @@ export function DocumentsStep({
                   </Button>
                 </div>
               )}
-              
+
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium text-gray-900">{file.name}</p>
@@ -631,47 +629,47 @@ export function DocumentsStep({
       </div>
 
       {/* Botones de desarrollo (solo visible en desarrollo) */}
-      {(process.env.NODE_ENV === 'development' || window.location.hostname === 'localhost') && 
-       (identification || proofOfAddress) && 
-       (!identificationUploaded || !proofUploaded) && (
-        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
-              <h4 className="font-medium text-blue-900 mb-2">
-                Herramientas de Desarrollo
-              </h4>
-              <p className="text-sm text-blue-800 mb-3">
-                Si la subida automática falla, puedes usar estos botones para continuar con el testing:
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {identification && !identificationUploaded && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => markAsUploaded('identification')}
-                    className="border-blue-300 text-blue-700 hover:bg-blue-100"
-                  >
-                    ✓ Marcar Identificación como Subida
-                  </Button>
-                )}
-                {proofOfAddress && !proofUploaded && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => markAsUploaded('proof')}
-                    className="border-blue-300 text-blue-700 hover:bg-blue-100"
-                  >
-                    ✓ Marcar Comprobante como Subido
-                  </Button>
-                )}
+      {(process.env.NODE_ENV === 'development' || window.location.hostname === 'localhost') &&
+        (identification || proofOfAddress) &&
+        (!identificationUploaded || !proofUploaded) && (
+          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <h4 className="font-medium text-blue-900 mb-2">
+                  Herramientas de Desarrollo
+                </h4>
+                <p className="text-sm text-blue-800 mb-3">
+                  Si la subida automática falla, puedes usar estos botones para continuar con el testing:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {identification && !identificationUploaded && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => markAsUploaded('identification')}
+                      className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                    >
+                      ✓ Marcar Identificación como Subida
+                    </Button>
+                  )}
+                  {proofOfAddress && !proofUploaded && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => markAsUploaded('proof')}
+                      className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                    >
+                      ✓ Marcar Comprobante como Subido
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Modal de captura de cámara */}
       <CameraCapture
@@ -679,8 +677,8 @@ export function DocumentsStep({
         onClose={closeCameraModal}
         onCapture={handleCameraCapture}
         title={
-          currentCaptureType === 'identification' 
-            ? 'Identificación Oficial' 
+          currentCaptureType === 'identification'
+            ? 'Identificación Oficial'
             : 'Comprobante de Domicilio'
         }
       />

@@ -34,12 +34,12 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { 
-  DollarSign, 
-  TrendingUp, 
-  TrendingDown, 
-  Home, 
-  Calendar, 
+import {
+  DollarSign,
+  TrendingUp,
+  TrendingDown,
+  Home,
+  Calendar,
   Download,
   Plus,
   Search,
@@ -49,11 +49,11 @@ import {
   PieChart,
   FileText
 } from 'lucide-react';
-import { 
-  AccountingRecord, 
-  AccountingSummary, 
+import {
+  AccountingRecord,
+  AccountingSummary,
   MonthlyReport,
-  AccountingService 
+  AccountingService
 } from '@/lib/services/accounting-service';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -80,6 +80,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
     monto: '',
     metodoPago: 'transferencia' as 'transferencia' | 'efectivo' | 'tarjeta',
     referencia: '',
+    mesReferencia: format(new Date(), 'yyyy-MM'),
     observaciones: '',
   });
 
@@ -90,16 +91,16 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
   const loadAccountingData = async () => {
     try {
       setLoading(true);
-      
+
       const fechaInicio = getFechaInicio();
       const fechaFin = new Date();
-      
+
       const [summaryData, recordsData, reportsData] = await Promise.all([
         AccountingService.getAccountingSummary(residencialId, fechaInicio, fechaFin),
         AccountingService.getAccountingRecords(residencialId, fechaInicio, fechaFin),
         AccountingService.getMonthlyReports(residencialId)
       ]);
-      
+
       setSummary(summaryData);
       setRecords(recordsData);
       setReports(reportsData);
@@ -142,6 +143,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
         currency: 'MXN',
         metodoPago: newRecord.metodoPago,
         referencia: newRecord.referencia || undefined,
+        mesReferencia: newRecord.mesReferencia,
         observaciones: newRecord.observaciones || undefined,
       });
 
@@ -154,6 +156,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
         monto: '',
         metodoPago: 'transferencia',
         referencia: '',
+        mesReferencia: format(new Date(), 'yyyy-MM'),
         observaciones: '',
       });
       await loadAccountingData();
@@ -171,7 +174,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
         ahora.getFullYear(),
         ahora.getMonth() + 1
       );
-      
+
       toast.success('Reporte mensual generado exitosamente');
       await loadAccountingData();
     } catch (error) {
@@ -185,7 +188,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
       const fechaInicio = getFechaInicio();
       const fechaFin = new Date();
       const csvContent = await AccountingService.exportAccountingData(residencialId, fechaInicio, fechaFin);
-      
+
       // Crear y descargar archivo
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
@@ -196,7 +199,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+
       toast.success('Datos exportados exitosamente');
     } catch (error) {
       console.error('Error al exportar:', error);
@@ -206,7 +209,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
 
   const formatDate = (timestamp: any) => {
     if (!timestamp) return 'Sin fecha';
-    
+
     try {
       const date = timestamp instanceof Date ? timestamp : timestamp.toDate();
       return format(date, 'dd/MM/yyyy', { locale: es });
@@ -240,13 +243,13 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
 
   const filteredRecords = records.filter(record => {
     const matchesTipo = tipoFilter === 'todos' || record.tipo === tipoFilter;
-    const matchesSearch = 
+    const matchesSearch =
       searchTerm === '' ||
       record.concepto.toLowerCase().includes(searchTerm.toLowerCase()) ||
       record.categoria.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (record.userName && record.userName.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (record.referencia && record.referencia.toLowerCase().includes(searchTerm.toLowerCase()));
-    
+
     return matchesTipo && matchesSearch;
   });
 
@@ -268,7 +271,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center space-x-2">
@@ -282,7 +285,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center space-x-2">
@@ -296,7 +299,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center space-x-2">
@@ -329,7 +332,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center space-x-2">
@@ -343,7 +346,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center space-x-2">
@@ -453,6 +456,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
                     <TableHead>Tipo</TableHead>
                     <TableHead>Categoría</TableHead>
                     <TableHead>Concepto</TableHead>
+                    <TableHead>Mes Ref.</TableHead>
                     <TableHead>Monto</TableHead>
                     <TableHead>Método</TableHead>
                     <TableHead>Casa</TableHead>
@@ -478,15 +482,13 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="max-w-xs">
-                          <div className="text-sm truncate" title={record.concepto}>
-                            {record.concepto}
-                          </div>
-                          {record.observaciones && (
-                            <div className="text-xs text-muted-foreground truncate">
-                              {record.observaciones}
-                            </div>
-                          )}
+                        <div className="max-w-xs truncate" title={record.concepto}>
+                          {record.concepto}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          {record.mesReferencia || 'N/A'}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -527,12 +529,12 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
               Registra un nuevo movimiento contable en el sistema
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="tipo">Tipo *</Label>
-                <Select value={newRecord.tipo} onValueChange={(value: any) => setNewRecord({...newRecord, tipo: value})}>
+                <Select value={newRecord.tipo} onValueChange={(value: any) => setNewRecord({ ...newRecord, tipo: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona el tipo" />
                   </SelectTrigger>
@@ -547,22 +549,22 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
                 <Input
                   id="categoria"
                   value={newRecord.categoria}
-                  onChange={(e) => setNewRecord({...newRecord, categoria: e.target.value})}
+                  onChange={(e) => setNewRecord({ ...newRecord, categoria: e.target.value })}
                   placeholder="Ej: Mantenimiento, Servicios"
                 />
               </div>
             </div>
-            
+
             <div>
               <Label htmlFor="concepto">Concepto *</Label>
               <Input
                 id="concepto"
                 value={newRecord.concepto}
-                onChange={(e) => setNewRecord({...newRecord, concepto: e.target.value})}
+                onChange={(e) => setNewRecord({ ...newRecord, concepto: e.target.value })}
                 placeholder="Descripción del movimiento"
               />
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="monto">Monto *</Label>
@@ -572,7 +574,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
                     id="monto"
                     type="number"
                     value={newRecord.monto}
-                    onChange={(e) => setNewRecord({...newRecord, monto: e.target.value})}
+                    onChange={(e) => setNewRecord({ ...newRecord, monto: e.target.value })}
                     placeholder="0.00"
                     className="pl-8"
                   />
@@ -580,7 +582,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
               </div>
               <div>
                 <Label htmlFor="metodoPago">Método de Pago</Label>
-                <Select value={newRecord.metodoPago} onValueChange={(value: any) => setNewRecord({...newRecord, metodoPago: value})}>
+                <Select value={newRecord.metodoPago} onValueChange={(value: any) => setNewRecord({ ...newRecord, metodoPago: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona el método" />
                   </SelectTrigger>
@@ -592,23 +594,33 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
                 </Select>
               </div>
             </div>
-            
+
             <div>
               <Label htmlFor="referencia">Referencia</Label>
               <Input
                 id="referencia"
                 value={newRecord.referencia}
-                onChange={(e) => setNewRecord({...newRecord, referencia: e.target.value})}
+                onChange={(e) => setNewRecord({ ...newRecord, referencia: e.target.value })}
                 placeholder="Número de movimiento, referencia, etc."
               />
             </div>
-            
+
+            <div>
+              <Label htmlFor="mesReferencia">Mes de Referencia *</Label>
+              <Input
+                id="mesReferencia"
+                type="month"
+                value={newRecord.mesReferencia}
+                onChange={(e) => setNewRecord({ ...newRecord, mesReferencia: e.target.value })}
+              />
+            </div>
+
             <div>
               <Label htmlFor="observaciones">Observaciones</Label>
               <Input
                 id="observaciones"
                 value={newRecord.observaciones}
-                onChange={(e) => setNewRecord({...newRecord, observaciones: e.target.value})}
+                onChange={(e) => setNewRecord({ ...newRecord, observaciones: e.target.value })}
                 placeholder="Observaciones adicionales"
               />
             </div>

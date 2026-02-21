@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase/admin';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Obtener el token de autorización
@@ -42,9 +44,9 @@ export async function GET(request: NextRequest) {
     // Obtener tags del residencial
     const residencialDocId = 'mCTs294LGLkGvL9TTvaQ'; // Residencial S9G7TL actual
     const tagsRef = adminDb!.collection('residenciales').doc(residencialDocId).collection('tags');
-    
+
     let query = tagsRef.orderBy('createdAt', 'desc').limit(limit);
-    
+
     if (status) {
       query = query.where('status', '==', status);
     }
@@ -75,7 +77,7 @@ export async function GET(request: NextRequest) {
     const enrichedTags = tags.map((tag: any) => {
       const casaInfo = casasMap.get(tag.ownerRef);
       const panelesInfo = tag.panels.map((panelId: any) => panelesMap.get(panelId)).filter(Boolean);
-      
+
       return {
         ...tag,
         casaInfo: casaInfo ? {
@@ -103,7 +105,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Error en /api/tags/list:', error);
-    
+
     if (error instanceof Error) {
       return NextResponse.json(
         { error: error.message },

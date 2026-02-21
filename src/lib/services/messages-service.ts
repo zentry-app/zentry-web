@@ -18,6 +18,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
+import { MessageNotificationsService } from './message-notifications-service';
 
 export interface Message {
   id: string;
@@ -119,13 +120,52 @@ export class MessagesService {
   }
 
   /**
+   * Obtiene el nombre completo de un usuario
+   */
+  private static async getUserName(userId: string, residencialId: string): Promise<string> {
+    try {
+      // Intentar obtener de la colección global de usuarios
+      const userDoc = await getDoc(doc(db, 'usuarios', userId));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        if (data.fullName) return data.fullName;
+        if (data.nombre) {
+          const nombre = data.nombre || '';
+          const apellidoPaterno = data.apellidoPaterno || '';
+          const apellidoMaterno = data.apellidoMaterno || '';
+          return `${nombre} ${apellidoPaterno} ${apellidoMaterno}`.trim();
+        }
+      }
+
+      // Intentar obtener de usuarios del residencial
+      const residencialUserDoc = await getDoc(doc(db, 'residenciales', residencialId, 'usuarios', userId));
+      if (residencialUserDoc.exists()) {
+        const data = residencialUserDoc.data();
+        if (data.fullName) return data.fullName;
+        if (data.nombre) {
+          const nombre = data.nombre || '';
+          const apellidoPaterno = data.apellidoPaterno || '';
+          const apellidoMaterno = data.apellidoMaterno || '';
+          return `${nombre} ${apellidoPaterno} ${apellidoMaterno}`.trim();
+        }
+      }
+
+      return 'Usuario';
+    } catch (error) {
+      console.error('Error obteniendo nombre de usuario:', error);
+      return 'Usuario';
+    }
+  }
+
+  /**
    * Envía un mensaje a un chat
    */
   static async sendMessage(
     residencialId: string, 
     chatId: string, 
     text: string, 
-    senderId: string
+    senderId: string,
+    senderName?: string
   ): Promise<void> {
     try {
       const chatRef = doc(db, 'residenciales', residencialId, 'chats', chatId);
@@ -145,6 +185,33 @@ export class MessagesService {
         lastMessageSender: senderId,
         updatedAt: serverTimestamp(),
       });
+
+      // SIEMPRE crear notificación para el otro participante
+      try {
+        const chatDoc = await getDoc(chatRef);
+        if (chatDoc.exists()) {
+          const chatData = chatDoc.data();
+          const participants = chatData.participants || [];
+          const recipientId = participants.find((p: string) => p !== senderId);
+          
+          if (recipientId) {
+            // Obtener el nombre del remitente si no se proporcionó
+            const finalSenderName = senderName || await this.getUserName(senderId, residencialId);
+            
+            await MessageNotificationsService.createNotification(
+              residencialId,
+              chatId,
+              recipientId,
+              senderId,
+              finalSenderName,
+              text
+            );
+          }
+        }
+      } catch (notifError) {
+        console.error('Error creando notificación:', notifError);
+        // No lanzamos error aquí para que el mensaje se envíe aunque falle la notificación
+      }
     } catch (error) {
       console.error('Error enviando mensaje:', error);
       throw error;

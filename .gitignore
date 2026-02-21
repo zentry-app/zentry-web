@@ -15,3 +15,10 @@ out/
 .firebase/
 firebase-debug.log
 firebase-debug.*.log
+service_account*.json
+service_account_one_line.json
+
+# Backup files
+.env.local.backup*
+*.json.backup
+node_modules

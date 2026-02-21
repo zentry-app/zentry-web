@@ -1,4 +1,6 @@
-import React from 'react';
+"use client";
+
+import React, { useState, useEffect } from 'react';
 import {
   DialogHeader,
   DialogTitle,
@@ -6,228 +8,305 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Car, Clock, User, Calendar, Home, AlertTriangle, ShieldCheck, ShieldAlert } from "lucide-react";
+import {
+  Car,
+  Clock,
+  User,
+  Calendar,
+  Home,
+  AlertTriangle,
+  ShieldCheck,
+  ShieldAlert,
+  UserCircle,
+  Mail,
+  Shield,
+  MapPin,
+  ArrowRight,
+  UserCheck,
+  Zap,
+  CheckCircle2,
+  AlertCircle
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Ingreso, Timestamp as IngresoTimestamp } from "@/types/ingresos";
+import { getUsuario, Usuario } from "@/lib/firebase/firestore";
+import { Skeleton } from "@/components/ui/skeleton";
+import { motion } from "framer-motion";
 
 interface DetallesIngresoDialogContentProps {
   selectedIngreso: Ingreso | null;
   formatDateToFull: (timestamp: IngresoTimestamp | Date | string) => string;
 }
 
-// Helper para capitalizar nombres
 const capitalizeName = (name: string): string => {
   if (!name) return '';
   return name.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-};
-
-// Helper para obtener la etiqueta de categoría
-const getCategoryLabel = (category: string): string => {
-  switch (category) {
-    case 'temporal': return 'Acceso Temporal';
-    case 'evento': return 'Invitado de Evento';
-    default: return category;
-  }
 };
 
 const DetallesIngresoDialogContent: React.FC<DetallesIngresoDialogContentProps> = ({
   selectedIngreso,
   formatDateToFull,
 }) => {
+  const [usuarioGenerador, setUsuarioGenerador] = useState<Usuario | null>(null);
+  const [loadingUsuario, setLoadingUsuario] = useState<boolean>(false);
+
+  useEffect(() => {
+    const cargarUsuarioGenerador = async () => {
+      const userIdAnfitrion = selectedIngreso?.userId;
+      if (!userIdAnfitrion) {
+        setUsuarioGenerador(null);
+        return;
+      }
+
+      setLoadingUsuario(true);
+      try {
+        const usuario = await getUsuario(userIdAnfitrion);
+        setUsuarioGenerador(usuario);
+      } catch (error) {
+        console.error('Error al cargar usuario anfitrión:', error);
+        setUsuarioGenerador(null);
+      } finally {
+        setLoadingUsuario(false);
+      }
+    };
+
+    cargarUsuarioGenerador();
+  }, [selectedIngreso?.userId]);
+
   if (!selectedIngreso) return null;
 
-  const { visitData, vehicleInfo, exitDetails, status } = selectedIngreso;
-
-  // =================================================================
-  // Componente de Alertas de Seguridad
-  // =================================================================
-  const SecurityAlerts = () => {
-    const alerts: React.ReactNode[] = [];
-
-    if (exitDetails?.suspiciousCargo) {
-      alerts.push(<li key="cargo">Carga sospechosa reportada en la salida.</li>);
-    }
-    if (exitDetails?.passReturned === false) {
-      alerts.push(<li key="pass">Pase físico de visitante no fue devuelto.</li>);
-    }
-    if (exitDetails?.samePersonExit === false) {
-      alerts.push(<li key="person">La persona que salió es DIFERENTE a la que ingresó.</li>);
-    }
-    if (exitDetails?.exitInSameVehicle === false) {
-      alerts.push(<li key="vehicle">El vehículo de salida es DIFERENTE al de entrada.</li>);
-    }
-
-    if (alerts.length === 0) {
-      return (
-        <Card className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
-          <CardHeader className="flex-row items-center gap-3 space-y-0 pb-3">
-            <ShieldCheck className="h-6 w-6 text-green-600" />
-            <CardTitle className="text-green-800 dark:text-green-300">Sin Alertas de Seguridad</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-green-700 dark:text-green-400">
-              El ciclo de ingreso y salida se completó sin discrepancias de seguridad reportadas.
-            </p>
-          </CardContent>
-        </Card>
-      );
-    }
-
-    return (
-      <Card className="bg-red-50 dark:bg-red-950 border-red-300 dark:border-red-700">
-        <CardHeader className="flex-row items-center gap-3 space-y-0 pb-3">
-          <ShieldAlert className="h-6 w-6 text-red-600" />
-          <CardTitle className="text-red-800 dark:text-red-300">¡Alertas de Seguridad Detectadas!</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="list-disc space-y-1 pl-5 text-sm font-medium text-red-700 dark:text-red-400">
-            {alerts}
-          </ul>
-        </CardContent>
-      </Card>
-    );
-  };
-
-  // =================================================================
-  // Componente de Comparativa Entrada vs Salida
-  // =================================================================
-  const ComparisonCard = ({ title, entryData, exitData, isMismatch }: {
-    title: string;
-    entryData: React.ReactNode;
-    exitData: React.ReactNode;
-    isMismatch?: boolean;
-  }) => (
-    <div>
-      <h3 className="text-lg font-semibold mb-2">{title}</h3>
-      <div className={`grid grid-cols-2 gap-4 rounded-lg border p-4 ${isMismatch ? 'border-red-500 bg-red-50 dark:bg-red-950/50' : ''}`}>
-        <div>
-          <p className="text-sm font-medium text-muted-foreground mb-1">Entrada</p>
-          <div className="text-sm">{entryData}</div>
-        </div>
-        <div>
-          <p className="text-sm font-medium text-muted-foreground mb-1">Salida</p>
-          <div className="text-sm font-semibold">{exitData}</div>
-        </div>
-      </div>
-    </div>
-  );
+  const { visitData, vehicleInfo, exitDetails, status, physicalPass } = selectedIngreso;
 
   return (
-    <div className="max-h-[85vh] overflow-y-auto pr-4 -mr-4">
-      <DialogHeader className="mb-4">
-        <DialogTitle className="text-2xl font-bold">
-          Detalles de Acceso: {capitalizeName(visitData.name)}
-        </DialogTitle>
-        <DialogDescription>
-          Auditoría completa del ciclo de visita. ID: <span className="font-mono">{selectedIngreso.id}</span>
-        </DialogDescription>
-      </DialogHeader>
+    <div className="flex flex-col h-full max-h-[90vh]">
+      {/* Header Premium con Gradiente */}
+      <div className="relative p-10 pb-12 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/10 blur-[80px] rounded-full translate-y-1/2 -translate-x-1/2" />
 
-      <div className="space-y-6">
-        {/* SECCIÓN DE ALERTAS (SOLO SI EL INGRESO ESTÁ COMPLETO) */}
-        {status === 'completed' && <SecurityAlerts />}
-        
-        {/* SECCIÓN COMPARATIVA */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Auditoría de Ingreso y Salida</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <ComparisonCard
-              title="Persona"
-              isMismatch={exitDetails?.samePersonExit === false}
-              entryData={<p className="font-bold text-base">{capitalizeName(visitData.name)}</p>}
-              exitData={
-                status === 'completed' ?
-                  exitDetails?.samePersonExit === false ?
-                    <p className="font-bold text-base text-red-600">{capitalizeName(exitDetails.differentPersonName || 'Desconocido')}</p>
-                    : <p>La misma persona</p>
-                  : <p className="text-muted-foreground">Salida pendiente</p>
-              }
-            />
+        <div className="relative z-10 space-y-4">
+          <div className="flex items-center justify-between">
+            <Badge className="bg-primary hover:bg-primary text-white border-none font-black px-4 py-1.5 rounded-full text-[10px] tracking-[0.2em] shadow-lg shadow-primary/20 uppercase">
+              Auditoría de Acceso
+            </Badge>
+            {physicalPass?.number && (
+              <div className="bg-white/10 backdrop-blur-md border border-white/10 px-4 py-1.5 rounded-2xl flex items-center gap-2">
+                <Zap className="h-3 w-3 text-yellow-400" />
+                <span className="font-mono text-xs font-black">PASE #{physicalPass.number}</span>
+              </div>
+            )}
+          </div>
 
-            <Separator />
-            
-            <ComparisonCard
-              title="Vehículo"
-              isMismatch={exitDetails?.exitInSameVehicle === false}
-              entryData={
-                vehicleInfo?.placa ?
-                  <div>
-                    <p className="font-bold text-base">{vehicleInfo.placa.toUpperCase()}</p>
-                    <p className="text-xs text-muted-foreground">{capitalizeName(vehicleInfo.marca)} {vehicleInfo.modelo} ({capitalizeName(vehicleInfo.color)})</p>
-                  </div>
-                  : <p className="text-muted-foreground">Ingreso peatonal</p>
-              }
-              exitData={
-                status === 'completed' ?
-                  exitDetails?.exitInSameVehicle === false ?
-                    <div className="text-red-600">
-                      <p className="font-bold text-base">{(exitDetails.exitVehicleInfo?.placa || 'Placa no registrada').toUpperCase()}</p>
-                      {exitDetails.exitVehicleInfo && <p className="text-xs">{capitalizeName(exitDetails.exitVehicleInfo.marca)} {exitDetails.exitVehicleInfo.modelo}</p>}
-                    </div>
-                    : <p>Mismo vehículo / Salida peatonal</p>
-                  : <p className="text-muted-foreground">Salida pendiente</p>
-              }
-            />
-          </CardContent>
-        </Card>
+          <div className="space-y-1">
+            <h2 className="text-4xl font-extrabold tracking-tighter">
+              {capitalizeName(visitData.name)}
+            </h2>
+            <div className="flex items-center gap-4 text-slate-300">
+              <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest">
+                <Clock className="h-3.5 w-3.5 text-primary" />
+                ID: {selectedIngreso.id.substring(0, 8)}...
+              </div>
+              <div className="h-1 w-1 bg-slate-600 rounded-full" />
+              <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest">
+                <Shield className="h-3.5 w-3.5 text-primary" />
+                {selectedIngreso.entryMethod || 'REGISTRADO'}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-        {/* LÍNEA DE TIEMPO Y DATOS DEL ANFITRIÓN */}
+      <div className="flex-1 overflow-y-auto p-10 space-y-8 bg-slate-50/50 backdrop-blur-xl">
+
+        {/* Alertas de Seguridad - Diseño Premium */}
+        {status === 'completed' && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            {(!exitDetails?.suspiciousCargo && exitDetails?.passReturned !== false && exitDetails?.samePersonExit !== false && exitDetails?.exitInSameVehicle !== false) ? (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 p-6 rounded-[2rem] flex items-start gap-4 ring-1 ring-emerald-500/5">
+                <div className="h-12 w-12 rounded-2xl bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                  <ShieldCheck className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="text-emerald-800 font-black text-sm uppercase tracking-widest">Acceso Seguro</p>
+                  <p className="text-emerald-600/80 text-sm font-bold mt-0.5">El ciclo de visita se completó exitosamente sin incidencias detectadas.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-[2rem] flex items-start gap-4 ring-1 ring-red-500/5">
+                <div className="h-12 w-12 rounded-2xl bg-red-500 flex items-center justify-center text-white shadow-lg shadow-red-500/20 animate-pulse">
+                  <ShieldAlert className="h-6 w-6" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-red-800 font-black text-sm uppercase tracking-widest">Alerta de Seguridad</p>
+                  <ul className="mt-2 space-y-1">
+                    {exitDetails?.suspiciousCargo && <li className="text-red-600 text-xs font-bold flex items-center gap-2"><div className="h-1 w-1 bg-red-400 rounded-full" /> Carga sospechosa reportada</li>}
+                    {exitDetails?.passReturned === false && <li className="text-red-600 text-xs font-bold flex items-center gap-2"><div className="h-1 w-1 bg-red-400 rounded-full" /> Pase no devuelto</li>}
+                    {exitDetails?.samePersonExit === false && <li className="text-red-600 text-xs font-bold flex items-center gap-2"><div className="h-1 w-1 bg-red-400 rounded-full" /> Discrepancia de identidad en salida</li>}
+                    {exitDetails?.exitInSameVehicle === false && <li className="text-red-600 text-xs font-bold flex items-center gap-2"><div className="h-1 w-1 bg-red-400 rounded-full" /> Cambio de vehículo detectado</li>}
+                  </ul>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {/* Auditoría de Entrada y Salida */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Timeline */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center text-lg"><Clock className="h-5 w-5 mr-2" />Línea de Tiempo</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-4">
-                <li className="flex items-start">
-                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white mr-3 mt-1">
-                    <Car className="h-3 w-3" />
-                  </div>
-                  <div>
-                    <p className="font-semibold">Ingreso Registrado</p>
-                    <p className="text-sm text-muted-foreground">{formatDateToFull(selectedIngreso.timestamp)}</p>
-                  </div>
-                </li>
-                {status === 'completed' && selectedIngreso.exitTimestamp && (
-                  <li className="flex items-start">
-                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white mr-3 mt-1">
-                      <Car className="h-3 w-3" style={{ transform: 'scaleX(-1)' }}/>
-                    </div>
-                    <div>
-                      <p className="font-semibold">Salida Registrada</p>
-                      <p className="text-sm text-muted-foreground">{formatDateToFull(selectedIngreso.exitTimestamp)}</p>
-                    </div>
-                  </li>
-                )}
-              </ul>
-            </CardContent>
+          <ComparisonCard
+            title="Sujeto de Acceso"
+            icon={<UserCircle className="text-blue-500" />}
+            entryData={capitalizeName(visitData.name)}
+            exitData={status === 'completed' ? (exitDetails?.samePersonExit === false ? capitalizeName(exitDetails.differentPersonName || 'Otro') : 'Cerrado') : 'Pendiente'}
+            isMismatch={exitDetails?.samePersonExit === false}
+          />
+          <ComparisonCard
+            title="Unidad Vehicular"
+            icon={<Car className="text-purple-500" />}
+            entryData={vehicleInfo?.placa ? vehicleInfo.placa.toUpperCase() : 'Peatonal'}
+            subEntry={vehicleInfo?.placa ? `${vehicleInfo.marca} ${vehicleInfo.modelo}` : undefined}
+            exitData={status === 'completed' ? (exitDetails?.exitInSameVehicle === false ? (exitDetails.exitVehicleInfo?.placa || 'Desconocido') : 'Cerrado') : 'Pendiente'}
+            isMismatch={exitDetails?.exitInSameVehicle === false}
+          />
+        </div>
+
+        {/* Detalles Técnicos y Ubicación */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card className="border-none shadow-zentry bg-white rounded-[2rem] p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                <Clock className="h-5 w-5" />
+              </div>
+              <p className="font-black text-sm uppercase tracking-widest text-slate-800">Cronología</p>
+            </div>
+            <div className="space-y-4">
+              <TimelineItem
+                label="Ingreso de Visitante"
+                time={formatDateToFull(selectedIngreso.timestamp)}
+                icon={<CheckCircle2 className="text-emerald-500" />}
+                active
+              />
+              {status === 'completed' && (
+                <TimelineItem
+                  label="Salida de Visitante"
+                  time={formatDateToFull(selectedIngreso.exitTimestamp || '')}
+                  icon={<ArrowRight className="text-blue-500" />}
+                  active
+                />
+              )}
+            </div>
           </Card>
-          
-          {/* Host Info */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center text-lg"><Home className="h-5 w-5 mr-2" />Anfitrión</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
+
+          <Card className="border-none shadow-zentry bg-white rounded-[2rem] p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600">
+                <MapPin className="h-5 w-5" />
+              </div>
+              <p className="font-black text-sm uppercase tracking-widest text-slate-800">Ubicación Destino</p>
+            </div>
+            <div className="space-y-4">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Residencial</p>
-                <p className="font-semibold">{selectedIngreso._residencialNombre}</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Residencial</p>
+                <p className="font-extrabold text-slate-800">{selectedIngreso._residencialNombre}</p>
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Domicilio</p>
-                <p className="font-semibold">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Domicilio</p>
+                <p className="font-extrabold text-slate-800 flex items-center gap-2">
+                  <Home className="h-4 w-4 text-primary" />
                   {capitalizeName(selectedIngreso.domicilio.calle)} #{selectedIngreso.domicilio.houseNumber}
                 </p>
               </div>
-            </CardContent>
+            </div>
           </Card>
         </div>
+
+        {/* Card de Anfitrión Premium */}
+        {selectedIngreso.userId && (
+          <Card className="border-none shadow-zentry bg-white rounded-[2.5rem] overflow-hidden">
+            <div className="bg-slate-900 p-6 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <UserCheck className="h-6 w-6 text-primary" />
+                <p className="text-white font-black text-sm uppercase tracking-widest">Anfitrión Responsable</p>
+              </div>
+              <Badge variant="outline" className="border-white/20 text-white font-black px-4 py-1 rounded-full text-[9px]">
+                GENERÓ CÓDIGO QR
+              </Badge>
+            </div>
+            <CardContent className="p-8">
+              {loadingUsuario ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-6 w-1/2" />
+                  <Skeleton className="h-4 w-1/3" />
+                </div>
+              ) : usuarioGenerador ? (
+                <div className="flex flex-col md:flex-row gap-8">
+                  <div className="flex-1 space-y-4">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nombre del Residente</p>
+                      <p className="text-xl font-extrabold text-slate-900">
+                        {capitalizeName(usuarioGenerador.fullName || '')} {capitalizeName(usuarioGenerador.paternalLastName || '')}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-4">
+                      <div className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-100 flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-slate-400" />
+                        <span className="text-xs font-bold text-slate-600">{usuarioGenerador.email}</span>
+                      </div>
+                      <div className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-100 flex items-center gap-2">
+                        <Shield className="h-4 w-4 text-slate-400" />
+                        <span className="text-xs font-bold text-slate-600 capitalize">{usuarioGenerador.role === 'resident' ? 'Residente' : usuarioGenerador.role}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4 flex flex-col items-center gap-2">
+                  <AlertCircle className="text-slate-200 h-10 w-10" />
+                  <p className="text-slate-400 font-bold text-sm">El usuario generador ya no se encuentra en el sistema.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
 };
 
-export default DetallesIngresoDialogContent; 
+// Helper Components
+function ComparisonCard({ title, icon, entryData, subEntry, exitData, isMismatch }: any) {
+  return (
+    <Card className={`border-none shadow-zentry bg-white rounded-[2rem] overflow-hidden ring-1 ${isMismatch ? 'ring-red-500/30' : 'ring-slate-100'}`}>
+      <div className={`p-4 flex items-center gap-2 ${isMismatch ? 'bg-red-50' : 'bg-slate-50'}`}>
+        {icon}
+        <p className={`text-[10px] font-black uppercase tracking-widest ${isMismatch ? 'text-red-700' : 'text-slate-500'}`}>{title}</p>
+      </div>
+      <div className="p-6 grid grid-cols-2 gap-4 divide-x divide-slate-100">
+        <div className="space-y-1">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Entrada</p>
+          <p className="font-extrabold text-slate-900 leading-tight">{entryData}</p>
+          {subEntry && <p className="text-[9px] font-bold text-slate-400 uppercase">{subEntry}</p>}
+        </div>
+        <div className="pl-4 space-y-1">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Salida</p>
+          <p className={`font-extrabold leading-tight ${isMismatch ? 'text-red-600' : 'text-slate-900 opacity-60'}`}>{exitData}</p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function TimelineItem({ label, time, icon, active }: any) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className={`mt-1 h-5 w-5 shrink-0 flex items-center justify-center`}>
+        {icon}
+      </div>
+      <div>
+        <p className="text-xs font-black text-slate-800">{label}</p>
+        <p className="text-[11px] font-bold text-slate-400 uppercase">{time}</p>
+      </div>
+    </div>
+  );
+}
+
+export default DetallesIngresoDialogContent;

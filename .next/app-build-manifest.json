@@ -1,9 +1,9 @@
 {
   "pages": {
-    "/dashboard/page": [
+    "/dashboard/areas-comunes/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/page.js"
+      "static/chunks/app/dashboard/areas-comunes/page.js"
     ],
     "/dashboard/layout": [
       "static/chunks/webpack.js",
@@ -21,50 +21,15 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/dashboard/reservas/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/reservas/page.js"
-    ],
-    "/login/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/login/page.js"
-    ],
-    "/dashboard/comunicados/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/comunicados/page.js"
-    ],
     "/dashboard/usuarios/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/dashboard/usuarios/page.js"
     ],
-    "/dashboard/encuestas/page": [
+    "/dashboard/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/encuestas/page.js"
-    ],
-    "/dashboard/mensajes/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/mensajes/page.js"
-    ],
-    "/dashboard/ingresos/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/ingresos/page.js"
-    ],
-    "/dashboard/pagos/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/pagos/page.js"
-    ],
-    "/dashboard/tags/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/dashboard/tags/page.js"
+      "static/chunks/app/dashboard/page.js"
     ],
     "/page": [
       "static/chunks/webpack.js",

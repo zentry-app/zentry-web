@@ -52,12 +52,12 @@ export class AllPaymentsService {
   ): Promise<AllPayment[]> {
     try {
       console.log(`🔍 Obteniendo TODOS los pagos para residencial: ${residencialId}`);
-      
+
       const pagosRef = collection(db, 'residenciales', residencialId, 'pagos');
-      
+
       // Obtener TODOS los pagos sin filtros de paymentMethod
       let q = query(pagosRef, orderBy('fechaPago', 'desc'));
-      
+
       // Si se especifican fechas, filtrar por ellas
       if (fechaInicio && fechaFin) {
         q = query(
@@ -67,12 +67,12 @@ export class AllPaymentsService {
           orderBy('fechaPago', 'desc')
         );
       }
-      
+
       const querySnapshot = await getDocs(q);
       const pagos: AllPayment[] = [];
-      
+
       console.log(`🔍 [ALL] Query ejecutado. Documentos encontrados: ${querySnapshot.docs.length}`);
-      
+
       querySnapshot.forEach((docSnapshot) => {
         const data = docSnapshot.data();
         console.log(`🔍 [ALL] Procesando documento ${docSnapshot.id}:`, {
@@ -82,7 +82,7 @@ export class AllPaymentsService {
           userName: data.userName,
           fechaPago: data.fechaPago
         });
-        
+
         const pago: AllPayment = {
           id: docSnapshot.id,
           residencialId: data.residencialId || '',
@@ -114,10 +114,10 @@ export class AllPaymentsService {
           fechaValidacion: data.fechaValidacion || null,
           validadoPor: data.validadoPor || '',
         };
-        
+
         pagos.push(pago);
       });
-      
+
       console.log(`✅ ${pagos.length} pagos obtenidos (todos los tipos)`);
       return pagos;
     } catch (error) {
@@ -143,13 +143,13 @@ export class AllPaymentsService {
   }> {
     try {
       const pagos = await this.getAllPayments(residencialId, fechaInicio, fechaFin);
-      
+
       const pagosEfectivo = pagos.filter(p => p.paymentMethod === 'cash');
       const pagosTransferencia = pagos.filter(p => p.paymentMethod === 'transfer');
-      
+
       const totalEfectivo = pagosEfectivo.reduce((sum, p) => sum + p.amount, 0);
       const totalTransferencia = pagosTransferencia.reduce((sum, p) => sum + p.amount, 0);
-      
+
       return {
         totalPagos: pagos.length,
         pagosEfectivo: pagosEfectivo.length,

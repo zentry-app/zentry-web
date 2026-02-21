@@ -6,19 +6,25 @@ import { getFunctions } from 'firebase/functions';
 // Importaciones opcionales para servicios de cliente
 let getMessaging: any;
 let getAnalytics: any;
+let isSupportedMessaging: any;
+let isSupportedAnalytics: any;
 
-try {
-  const messagingModule = require('firebase/messaging');
-  getMessaging = messagingModule.getMessaging;
-} catch (e) {
-  console.warn('Firebase Messaging no disponible');
-}
+if (typeof window !== 'undefined') {
+  try {
+    const messagingModule = require('firebase/messaging');
+    getMessaging = messagingModule.getMessaging;
+    isSupportedMessaging = messagingModule.isSupported;
+  } catch (e) {
+    // Messaging module not found or failed to load
+  }
 
-try {
-  const analyticsModule = require('firebase/analytics');
-  getAnalytics = analyticsModule.getAnalytics;
-} catch (e) {
-  console.warn('Firebase Analytics no disponible');
+  try {
+    const analyticsModule = require('firebase/analytics');
+    getAnalytics = analyticsModule.getAnalytics;
+    isSupportedAnalytics = analyticsModule.isSupported;
+  } catch (e) {
+    // Analytics module not found
+  }
 }
 
 // Configuración de Firebase
@@ -39,10 +45,26 @@ console.log('Auth Domain:', firebaseConfig.authDomain);
 
 // Inicializar Firebase
 let app: any;
-if (!getApps().length) {
-      app = initializeApp(firebaseConfig);
-} else {
-  app = getApp();
+
+// Verificar configuración crítica
+if (!firebaseConfig.apiKey) {
+  console.error('[Firebase Config] CRITICAL: Missing API Key. Check your environment variables (NEXT_PUBLIC_FIREBASE_API_KEY).');
+  // En producción, esto debería fallar para evitar comportamiento indefinido
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[Firebase Config] Running in production without API Key. App will likely crash.');
+  }
+}
+
+try {
+  if (!getApps().length) {
+    app = initializeApp(firebaseConfig);
+  } else {
+    app = getApp();
+  }
+} catch (error) {
+  console.error('[Firebase Config] Error initializing app:', error);
+  // Re-lanzar para que Next.js capture el error 500 si es crítico
+  throw error;
 }
 
 // Inicializar servicios principales
@@ -50,28 +72,48 @@ const db = getFirestore(app);
 const functions = getFunctions(app);
 const storage = (typeof window !== 'undefined') ? getStorage(app) : null;
 
-// Inicializar Analytics con delay
+// Inicializar Analytics con delay y chequeo de soporte
 let analytics: any = null;
-if (getAnalytics) {
-  setTimeout(() => {
-    try {
-      analytics = getAnalytics(app);
-    } catch (e) {
-      console.warn('[Firebase Config] Analytics no disponible:', e);
+if (typeof window !== 'undefined' && getAnalytics && isSupportedAnalytics) {
+  isSupportedAnalytics().then((supported: boolean) => {
+    if (supported) {
+      setTimeout(() => {
+        try {
+          analytics = getAnalytics(app);
+        } catch (e: any) {
+          // "Component analytics has not been registered yet" es común al cargar; no loguear
+          if (!e?.message?.includes('not been registered')) {
+            console.warn('[Firebase Config] Error al inicializar Analytics:', e);
+          }
+        }
+      }, 2000);
     }
-  }, 2000);
-    }
+  }).catch(() => {
+    // Silently fail if check fails
+  });
+}
 
-// Inicializar Messaging con delay
+// Inicializar Messaging con delay y chequeo de soporte
 let messaging: any = null;
-if (getMessaging) {
-          setTimeout(() => {
-            try {
-      messaging = getMessaging(app);
-    } catch (e) {
-      console.warn('[Firebase Config] Messaging no disponible:', e);
+if (typeof window !== 'undefined' && getMessaging && isSupportedMessaging) {
+  isSupportedMessaging().then((supported: boolean) => {
+    if (supported) {
+      setTimeout(() => {
+        try {
+          messaging = getMessaging(app);
+        } catch (e: any) {
+          // No loguear si es navegador no soportado o servicio no disponible (común en dev)
+          const msg = e?.message ?? '';
+          const code = e?.code ?? '';
+          if (code !== 'messaging/unsupported-browser' && !msg.includes('not available')) {
+            console.warn('[Firebase Config] Messaging no disponible:', e);
+          }
+        }
+      }, 3000);
     }
-  }, 3000);
+  }).catch(() => {
+    // Silently fail if check fails (common in Brave/Firefox privacy mode)
+  });
 }
 
 console.log('[Firebase Config] Inicialización completada');
@@ -108,19 +150,19 @@ export async function signInWithEmailAndPasswordSafe(email: string, password: st
     const auth = await getAuthSafe();
     if (!auth) throw new Error('Firebase Auth no disponible');
     return await mod.signInWithEmailAndPassword(auth, email, password);
-            } catch (e) {
+  } catch (e) {
     throw e;
-            }
-        }
-        
+  }
+}
+
 export async function createUserWithEmailAndPasswordSafe(email: string, password: string) {
   if (typeof window === 'undefined') throw new Error('Auth solo disponible en el cliente');
-            try {
+  try {
     const mod = await import('firebase/auth') as any;
     const auth = await getAuthSafe();
     if (!auth) throw new Error('Firebase Auth no disponible');
     return await mod.createUserWithEmailAndPassword(auth, email, password);
-            } catch (e) {
+  } catch (e) {
     throw e;
   }
 }
@@ -145,7 +187,7 @@ export async function sendPasswordResetEmailSafe(email: string) {
     const auth = await getAuthSafe();
     if (!auth) throw new Error('Firebase Auth no disponible');
     return await mod.sendPasswordResetEmail(auth, email);
-      } catch (e) {
+  } catch (e) {
     throw e;
   }
 }
@@ -159,8 +201,8 @@ export async function signInWithPopupSafe(provider: any) {
     return await mod.signInWithPopup(auth, provider);
   } catch (e) {
     throw e;
-        }
-      }
+  }
+}
 
 export async function createGoogleProvider() {
   if (typeof window === 'undefined') throw new Error('Auth solo disponible en el cliente');
@@ -185,18 +227,18 @@ export async function createAppleProvider() {
     return provider;
   } catch (e) {
     throw e;
-}
+  }
 }
 
 export async function onAuthStateChangedSafe(callback: (user: any) => void) {
-  if (typeof window === 'undefined') return () => {};
+  if (typeof window === 'undefined') return () => { };
   try {
     const mod = await import('firebase/auth') as any;
     const auth = await getAuthSafe();
-    if (!auth) return () => {};
+    if (!auth) return () => { };
     return mod.onAuthStateChanged(auth, callback);
   } catch (e) {
-    return () => {};
+    return () => { };
   }
 }
 

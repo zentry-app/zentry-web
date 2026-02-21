@@ -1,31 +1,18 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
+import React, { useState, useEffect, useMemo, useCallback, Suspense } from "react";
 import { useRouter } from 'next/navigation';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -34,33 +21,36 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { 
-  getResidenciales, 
-  getAreasComunes, 
-  crearAreaComun, 
-  actualizarAreaComun, 
+import {
+  getResidenciales,
+  getAreasComunes,
+  crearAreaComun,
+  actualizarAreaComun,
   eliminarAreaComun,
   suscribirseAAreasComunes,
   Residencial,
   AreaComun as FirebaseAreaComun
 } from "@/lib/firebase/firestore";
-import { 
-  Search, 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Calendar, 
-  MapPin, 
-  Users, 
-  Clock 
+import {
+  Search,
+  Plus,
+  Users,
+  Building,
+  Palmtree,
+  Filter,
+  RefreshCw,
+  Home,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Zap
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useAuth, UserClaims } from "@/contexts/AuthContext";
 import dynamic from 'next/dynamic';
+import { motion, AnimatePresence } from "framer-motion";
+import { Badge } from "@/components/ui/badge";
 
 // Importar dinámicamente AreaComunFormDialogContent
 const AreaComunFormDialogContent = dynamic(() => import('@/components/dashboard/areas-comunes/AreaComunFormDialogContent'), {
@@ -72,7 +62,7 @@ const ConfirmarEliminarAreaComunDialogContent = dynamic(() => import('@/componen
   suspense: true,
 });
 
-// Importar TablaAreasComunes (no dinámico por ahora)
+// Importar TablaAreasComunes
 import TablaAreasComunes from "@/components/dashboard/areas-comunes/TablaAreasComunes";
 
 interface AreaComun extends FirebaseAreaComun {
@@ -96,8 +86,21 @@ interface Reglamento {
   diasSemanaDeshabilitados: string[]; // Días de la semana deshabilitados permanentemente
   diasDesactivadosEspecificos: string[]; // Nuevos días desactivados específicos
   // 🆕 NUEVAS PROPIEDADES PARA CONTROL DE RESERVAS
-  tipoReservas: 'bloques' | 'traslapes' | 'horarios_fijos'; // Tipo de reservas: por bloques fijos o con traslapes
+  tipoReservas: 'bloques' | 'traslapes' | 'horarios_fijos' | 'hibrida'; // Tipo de reservas: por bloques fijos o con traslapes
   permiteTraslapes: boolean; // Permite que las reservas se superpongan en tiempo
+  // 🆕 PROPIEDADES PARA RESERVAS HÍBRIDAS (Gratuita + Pago)
+  maxHorasGratuitas?: number; // Máximo horas para reservas gratuitas (default: 3)
+  maxHorasPago?: number; // Máximo horas para reservas de pago (default: 5)
+  maxPersonasGratuitas?: number; // Máximo personas para reservas gratuitas (default: 6)
+  maxPersonasPago?: number; // Máximo personas para reservas de pago (default: 50)
+  antelacionMinimaPago?: number; // Antelación mínima en días para reservas de pago (default: 7)
+  antelacionMinimaGratuita?: number; // Antelación mínima en días para reservas gratuitas (default: 0)
+  permiteReservasPagoSimultaneas?: boolean; // Permite múltiples reservas de pago por día
+  maxReservasPagoPorDia?: number; // Máximo reservas de pago por día (default: 1)
+  ventanaHorarioPago?: {
+    inicio: string; // formato "HH:MM"
+    fin: string;   // formato "HH:MM"
+  };
   // 🆕 NUEVA PROPIEDAD PARA HORARIOS FIJOS POR DÍA
   ventanasHorariosFijos?: {
     dia: string; // día de la semana
@@ -210,7 +213,7 @@ export default function AreasComunesPage() {
       }
     }
   });
-  const [mapeoResidenciales, setMapeoResidenciales] = useState<{[key: string]: string}>({});
+  const [mapeoResidenciales, setMapeoResidenciales] = useState<{ [key: string]: string }>({});
 
   const esAdminDeResidencial = useMemo(() => (
     !!userClaims && userClaims.role === 'admin' && !userClaims.isGlobalAdmin &&
@@ -234,7 +237,7 @@ export default function AreasComunesPage() {
     try {
       const residencialesData = await getResidenciales();
       setResidenciales(residencialesData);
-      const mapeo: {[key: string]: string} = {};
+      const mapeo: { [key: string]: string } = {};
       residencialesData.forEach(r => {
         if (r.id && r.residencialID) {
           mapeo[r.id] = r.residencialID;
@@ -248,7 +251,7 @@ export default function AreasComunesPage() {
       return [];
     }
   }, []);
-  
+
   const cargarAreasDeResidencial = useCallback(async (idDocResidencial: string): Promise<AreaComun[]> => {
     if (!idDocResidencial) return [];
     try {
@@ -272,13 +275,13 @@ export default function AreasComunesPage() {
   useEffect(() => {
     const cargarDatosAreas = async () => {
       if (authLoading || !userClaims) {
-        setAreasComunes([]); 
+        setAreasComunes([]);
         setLoadingData(userClaims === undefined);
         return;
       }
       setLoadingData(true);
 
-      const todosLosResidenciales = await cargarTodosLosResidenciales(); 
+      const todosLosResidenciales = await cargarTodosLosResidenciales();
 
       if (esAdminDeResidencial && residencialCodigoDelAdmin) {
         const idDocResidencialAdmin = Object.keys(mapeoResidenciales).find(
@@ -287,7 +290,7 @@ export default function AreasComunesPage() {
         if (idDocResidencialAdmin) {
           if (residencialFilter !== idDocResidencialAdmin) setResidencialFilter(idDocResidencialAdmin);
           if (selectedResidencialId !== idDocResidencialAdmin) setSelectedResidencialId(idDocResidencialAdmin);
-          
+
           const areas = await cargarAreasDeResidencial(idDocResidencialAdmin);
           setAreasComunes(areas);
         } else {
@@ -312,15 +315,15 @@ export default function AreasComunesPage() {
 
     cargarDatosAreas();
   }, [
-      authLoading, 
-      userClaims, 
-      residencialFilter, 
-      esAdminDeResidencial, 
-      residencialCodigoDelAdmin, 
-      cargarTodosLosResidenciales, 
-      cargarAreasDeResidencial, 
-      cargarAreasDeTodosLosResidenciales,
-      mapeoResidenciales
+    authLoading,
+    userClaims,
+    residencialFilter,
+    esAdminDeResidencial,
+    residencialCodigoDelAdmin,
+    cargarTodosLosResidenciales,
+    cargarAreasDeResidencial,
+    cargarAreasDeTodosLosResidenciales,
+    mapeoResidenciales
   ]);
 
   const currentResIdForSubscriptionMemoized = useMemo(() => {
@@ -359,8 +362,8 @@ export default function AreasComunesPage() {
   const handleOpenDialog = useCallback((area?: AreaComun) => {
     if (area) {
       setCurrentArea(area);
-      setSelectedResidencialId(area._residencialIdDoc || ""); 
-      
+      setSelectedResidencialId(area._residencialIdDoc || "");
+
       // Migrar estructura antigua de ventanas a nueva estructura por día
       let ventanasMigradas: any[] = [];
       if (area.reglamento?.ventanasHorariosFijos) {
@@ -378,13 +381,15 @@ export default function AreasComunesPage() {
           ventanasMigradas = ventanasAntiguas;
         }
       }
-      
+
       setFormData({
         nombre: area.nombre,
         descripcion: area.descripcion,
         capacidad: area.capacidad,
         esDePago: area.esDePago || false,
         precio: area.precio || 0,
+        requiereDeposito: area.requiereDeposito || false,
+        deposito: area.deposito || 0,
         activa: area.activa || true,
         reglamento: {
           // Valores por defecto
@@ -449,7 +454,7 @@ export default function AreasComunesPage() {
           diasDeshabilitados: [],
           diasSemanaDeshabilitados: [],
           diasDesactivadosEspecificos: [],
-                                          // 🆕 NUEVAS PROPIEDADES PARA CONTROL DE RESERVAS
+          // 🆕 NUEVAS PROPIEDADES PARA CONTROL DE RESERVAS
           tipoReservas: 'bloques' as const,
           permiteTraslapes: false,
           ventanasHorariosFijos: [], // Nueva estructura: array vacío por defecto
@@ -474,20 +479,20 @@ export default function AreasComunesPage() {
 
   const handleDeleteConfirm = useCallback((area: AreaComun) => {
     setCurrentArea(area);
-    setSelectedResidencialId(area._residencialIdDoc || ""); 
+    setSelectedResidencialId(area._residencialIdDoc || "");
     setDeleteConfirmOpen(true);
   }, []);
 
   const handleDelete = useCallback(async () => {
     if (!currentArea || !currentArea.id || !selectedResidencialId) {
-        toast.error("No se pudo determinar el área o el residencial para eliminar.");
-        return;
+      toast.error("No se pudo determinar el área o el residencial para eliminar.");
+      return;
     }
     setLoadingDelete(true);
     try {
       await eliminarAreaComun(selectedResidencialId, currentArea.id);
       toast.success("Área común eliminada correctamente");
-      
+
       setDeleteConfirmOpen(false);
       setCurrentArea(null);
 
@@ -502,7 +507,7 @@ export default function AreasComunesPage() {
   }, [currentArea, selectedResidencialId]);
 
   const handleSubmit = useCallback(async () => {
-    if (!selectedResidencialId) { 
+    if (!selectedResidencialId) {
       toast.error("Por favor selecciona un residencial.");
       return;
     }
@@ -517,8 +522,8 @@ export default function AreasComunesPage() {
         await crearAreaComun(selectedResidencialId, areaData);
         toast.success("Área común añadida correctamente");
       }
-      
-      setOpenDialog(false); 
+
+      setOpenDialog(false);
       setCurrentArea(null);
 
       // No recargar manualmente los datos - confiar en la suscripción en tiempo real
@@ -532,11 +537,22 @@ export default function AreasComunesPage() {
   }, [selectedResidencialId, formData, currentArea]);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: name === "capacidad" ? parseInt(value) || 0 : value
-    }));
+    const { name, value, type } = e.target;
+    setFormData(prev => {
+      // 🆕 Manejar campos numéricos
+      if (type === "number") {
+        const numValue = value === '' ? 0 : parseFloat(value) || 0;
+        return {
+          ...prev,
+          [name]: numValue
+        };
+      }
+      // Manejar campos de texto normales
+      return {
+        ...prev,
+        [name]: value
+      };
+    });
   }, []);
 
   const handleSelectChange = useCallback((name: string, value: string) => {
@@ -553,7 +569,7 @@ export default function AreasComunesPage() {
 
   const filteredAreas = useMemo(() => areasComunes.filter(area => {
     if (!area || !area.nombre) return false;
-    const matchesSearch = searchTerm === "" || 
+    const matchesSearch = searchTerm === "" ||
       area.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (area.descripcion && area.descripcion.toLowerCase().includes(searchTerm.toLowerCase()));
     return matchesSearch;
@@ -562,125 +578,186 @@ export default function AreasComunesPage() {
   const getResidencialNombre = useCallback((area: AreaComun) => {
     if (!area._residencialIdDoc) return "Desconocido";
     const residencialEncontrado = residenciales.find(r => r.id === area._residencialIdDoc);
-    return residencialEncontrado ? residencialEncontrado.nombre : `ID: ${area._residencialIdDoc.substring(0,6)}...`;
+    return residencialEncontrado ? residencialEncontrado.nombre : `ID: ${area._residencialIdDoc.substring(0, 6)}...`;
   }, [residenciales]);
 
-  const opcionesHora = useMemo(() => Array.from({ length: 24 }, (_, i) => {
-    const hora24 = i.toString().padStart(2, '0');
-    const hora12 = convertirHora(`${hora24}:00`);
-    return { valor: `${hora24}:00`, etiqueta: hora12 };
-  }), [convertirHora]);
+  // Stats Logic
+  const stats = useMemo(() => ({
+    total: areasComunes.length,
+    activas: areasComunes.filter(a => a.activa).length,
+    mantenimiento: areasComunes.filter(a => !a.activa).length,
+    dePago: areasComunes.filter(a => a.esDePago).length
+  }), [areasComunes]);
+
 
   if (authLoading) {
     return (
-      <div className="space-y-6 p-4 md:p-8">
-        <Skeleton className="h-10 w-1/3" />
-        <Card>
-          <CardHeader><Skeleton className="h-8 w-1/2" /></CardHeader>
-          <CardContent className="space-y-4">
-            <Skeleton className="h-10 w-full" />
-            {Array.from({ length: 3 }).map((_, i) => ( <Skeleton key={i} className="h-12 w-full" /> ))}
-          </CardContent>
-        </Card>
+      <div className="h-screen flex items-center justify-center bg-premium">
+        <div className="text-center">
+          <RefreshCw className="h-10 w-10 animate-spin text-primary mx-auto mb-4" />
+          <p className="font-black text-primary tracking-widest uppercase">Cargando Zentry...</p>
+        </div>
       </div>
     );
   }
 
   if (!userClaims?.isGlobalAdmin && !esAdminDeResidencial) {
     return (
-        <div className="flex flex-col items-center justify-center h-[calc(100vh-var(--navbar-height,4rem))] p-8">
-            <Card className="w-full max-w-md text-center">
-                <CardHeader>
-                    <CardTitle>Acceso Denegado</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-muted-foreground">No tienes los permisos necesarios para acceder a esta sección.</p>
-                    <Button onClick={() => router.push('/dashboard')} className="mt-6">
-                        Volver al Dashboard
-                    </Button>
-                </CardContent>
-            </Card>
-        </div>
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-var(--navbar-height,4rem))] p-8 bg-premium">
+        <Card className="w-full max-w-md text-center bg-white/95 backdrop-blur-2xl rounded-[2.5rem] border-none shadow-2xl">
+          <CardHeader>
+            <CardTitle className="text-2xl font-black text-slate-800">Acceso Denegado</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-slate-500 font-medium">No tienes los permisos necesarios para acceder a esta sección.</p>
+            <Button onClick={() => router.push('/dashboard')} className="mt-8 rounded-2xl h-12 px-8 bg-slate-900 text-white font-bold hover:bg-slate-800">
+              Volver al Dashboard
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Áreas Comunes</h1>
-        <Button 
-          onClick={() => handleOpenDialog()}
-          disabled={(userClaims?.isGlobalAdmin && !esAdminDeResidencial && residencialFilter === "todos")}
-        >
-          <Plus className="mr-2 h-4 w-4" /> Añadir Área Común
-        </Button>
+    <div className="min-h-screen bg-premium p-4 lg:p-10 space-y-8 pb-20">
+      {/* Premium Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="flex flex-col lg:flex-row justify-between gap-6 items-start"
+      >
+        <div className="space-y-2">
+          <Badge className="bg-indigo-100 text-indigo-700 border-none font-black px-4 py-1 rounded-full flex gap-2 w-fit items-center shadow-sm">
+            <span className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+            Gestión de Espacios
+          </Badge>
+          <h1 className="text-5xl font-extrabold tracking-tighter text-slate-900">
+            Áreas <span className="text-gradient-zentry">Comunes</span>
+          </h1>
+          <p className="text-slate-600 font-bold max-w-lg">
+            Administra las amenidades, reglas de reserva y disponibilidad de espacios compartidos.
+          </p>
+        </div>
+
+        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+          <Button
+            onClick={() => handleOpenDialog()}
+            disabled={(userClaims?.isGlobalAdmin && !esAdminDeResidencial && residencialFilter === "todos")}
+            className="rounded-2xl h-14 px-8 font-black shadow-zentry-lg bg-indigo-600 text-white hover:bg-indigo-700 hover-lift transition-all"
+          >
+            <Plus className="mr-2 h-5 w-5" /> NUEVA AMENIDAD
+          </Button>
+        </motion.div>
+      </motion.div>
+
+      {/* Grid de Estadísticas */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatTile
+          icon={<Palmtree />}
+          label="Total Amenidades"
+          value={stats.total}
+          color="blue"
+          description="Espacios registrados"
+        />
+        <StatTile
+          icon={<CheckCircle />}
+          label="Disponibles"
+          value={stats.activas}
+          color="green"
+          description="Listas para reservar"
+        />
+        <StatTile
+          icon={<Home />}
+          label="De Pago"
+          value={stats.dePago}
+          color="purple"
+          description="Generan ingresos"
+        />
+        <StatTile
+          icon={<XCircle />}
+          label="Mantenimiento"
+          value={stats.mantenimiento}
+          color="orange"
+          description="Fuera de servicio"
+        />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Gestión de Áreas Comunes</CardTitle>
-          <CardDescription>
-            {esAdminDeResidencial 
-              ? `Áreas comunes de tu residencial asignado.`
-              : `Administra las áreas comunes de los residenciales.`
-            }
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col space-y-4">
-            <div className="flex items-center gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Buscar áreas comunes..."
-                  className="pl-8"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <Select
-                value={residencialFilter}
-                onValueChange={handleResidencialFilterChange}
-                disabled={esAdminDeResidencial}
-              >
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Filtrar por residencial" />
-                </SelectTrigger>
-                <SelectContent>
-                  {userClaims?.isGlobalAdmin && !esAdminDeResidencial && (
-                    <SelectItem value="todos">Todos los residenciales</SelectItem>
-                  )}
-                  {residenciales
-                    .filter(r => r.id)
-                    .filter(r => !esAdminDeResidencial || r.id === residencialFilter) 
-                    .map((residencial) => (
-                      <SelectItem key={residencial.id!} value={residencial.id!}>
-                        {residencial.nombre}
-                      </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
+      {/* Main Content Card - Smart Filters Style */}
+      <Card className="border-none shadow-zentry-lg bg-white/80 backdrop-blur-2xl rounded-[2.5rem] overflow-hidden">
+        <div className="p-8 pb-4 border-b border-white/10 space-y-6">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <Filter className="h-5 w-5 text-indigo-500" />
+              <h2 className="text-sm font-black uppercase tracking-widest mr-4 text-slate-800">Directorio y Control</h2>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Buscador */}
+            <div className="relative">
+              <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+              <Input
+                type="search"
+                placeholder="Buscar por nombre..."
+                className="pl-12 h-14 bg-white border border-slate-200 shadow-sm rounded-2xl font-bold focus-visible:ring-indigo-500/20 text-slate-900 placeholder:text-slate-400"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
 
-            {/* Sustituir el JSX de la tabla por el componente TablaAreasComunes */}
-            <TablaAreasComunes
-              loading={loadingData}
-              filteredAreas={filteredAreas}
-              esAdminDeResidencial={esAdminDeResidencial}
-              userClaims={userClaims}
-              getResidencialNombre={getResidencialNombre}
-              convertirHora={convertirHora}
-              handleOpenDialog={handleOpenDialog}
-              handleDeleteConfirm={handleDeleteConfirm}
-            />
+            {/* Filtro Residencial (si aplica) */}
+            {!esAdminDeResidencial && (
+              <div className="relative">
+                <Select
+                  value={residencialFilter}
+                  onValueChange={handleResidencialFilterChange}
+                >
+                  <SelectTrigger className="h-14 bg-white border border-slate-200 shadow-sm rounded-2xl font-bold px-6 text-slate-900 focus:ring-indigo-500/20">
+                    <Building className="mr-2 h-5 w-5 text-indigo-500" />
+                    <SelectValue placeholder="Filtrar residencial" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-3xl border-none shadow-2xl bg-white/95 backdrop-blur-3xl">
+                    <div className="p-2">
+                      {userClaims?.isGlobalAdmin && (
+                        <SelectItem value="todos" className="font-bold mb-1 rounded-xl">
+                          Todas las propiedades
+                        </SelectItem>
+                      )}
+                      {residenciales
+                        .filter(r => r.id)
+                        .map((residencial) => (
+                          <SelectItem key={residencial.id!} value={residencial.id!} className="font-bold rounded-xl">
+                            {residencial.nombre}
+                          </SelectItem>
+                        ))}
+                    </div>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
+        </div>
+
+        <CardContent className="p-8 bg-slate-50/30 min-h-[400px]">
+          <TablaAreasComunes
+            loading={loadingData}
+            filteredAreas={filteredAreas}
+            esAdminDeResidencial={esAdminDeResidencial}
+            userClaims={userClaims}
+            getResidencialNombre={getResidencialNombre}
+            convertirHora={convertirHora}
+            handleOpenDialog={handleOpenDialog}
+            handleDeleteConfirm={handleDeleteConfirm}
+          />
         </CardContent>
       </Card>
 
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
         {openDialog && (
-          <Suspense fallback={<div className="p-6 text-center">Cargando formulario...</div>}>
+          <Suspense fallback={<div className="p-12 text-center text-slate-400 font-medium">Cargando formulario...</div>}>
             <AreaComunFormDialogContent
               currentArea={currentArea}
               formData={formData}
@@ -702,7 +779,7 @@ export default function AreasComunesPage() {
 
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         {deleteConfirmOpen && (
-          <Suspense fallback={<div className="p-6 text-center">Cargando confirmación...</div>}>
+          <Suspense fallback={<div className="p-12 text-center text-slate-400 font-medium">Cargando confirmación...</div>}>
             <ConfirmarEliminarAreaComunDialogContent
               currentArea={currentArea}
               handleDelete={handleDelete}
@@ -713,5 +790,31 @@ export default function AreasComunesPage() {
         )}
       </Dialog>
     </div>
+  );
+}
+
+// Sub-componentes Especializados para la UI Premium (alineados con Ingresos)
+function StatTile({ icon, label, value, color, description }: any) {
+  const colors: any = {
+    blue: "bg-blue-50 text-blue-700 border-blue-200",
+    green: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    purple: "bg-purple-50 text-purple-700 border-purple-200",
+    orange: "bg-orange-50 text-orange-700 border-orange-200"
+  };
+  return (
+    <Card className="border-none shadow-zentry-lg bg-white/70 backdrop-blur-2xl rounded-[2.2rem] p-6 group hover:translate-y-[-4px] hover:shadow-2xl transition-all duration-300 ring-1 ring-slate-100">
+      <div className="flex items-start gap-5">
+        <div className={`h-14 w-14 rounded-2xl ${colors[color]} border flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:rotate-3 transition-all shadow-sm`}>
+          {React.cloneElement(icon, { size: 28 })}
+        </div>
+        <div className="space-y-0.5">
+          <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">{label}</p>
+          <div className="flex items-baseline gap-1">
+            <p className="text-3xl font-black text-slate-900 tracking-tighter leading-none">{value}</p>
+          </div>
+          <p className="text-[10px] font-bold text-slate-500 truncate mt-1">{description}</p>
+        </div>
+      </div>
+    </Card>
   );
 }

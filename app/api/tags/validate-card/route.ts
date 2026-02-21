@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase/admin';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Obtener el token de autorización
@@ -65,16 +67,32 @@ export async function GET(request: NextRequest) {
     }
 
     // Buscar si el número DEC ya existe en el residencial
-    const residencialDocId = 'mCTs294LGLkGvL9TTvaQ'; // Residencial S9G7TL actual
-    const tagsRef = adminDb!.collection('residenciales').doc(residencialDocId).collection('tags');
-    
+    if (!adminDb) {
+      return NextResponse.json({ error: 'Firestore admin no disponible' }, { status: 500 });
+    }
+
+    // Buscar el residencial por su código para obtener el ID del documento
+    const residencialSnapshot = await adminDb
+      .collection('residenciales')
+      .where('residencialID', '==', residencialId)
+      .limit(1)
+      .get();
+
+    if (residencialSnapshot.empty) {
+      return NextResponse.json({ error: 'Residencial no encontrado' }, { status: 404 });
+    }
+
+    const targetResidencialDoc = residencialSnapshot.docs[0];
+    const targetResidencialDocId = targetResidencialDoc.id;
+
+    const tagsRef = adminDb.collection('residenciales').doc(targetResidencialDocId).collection('tags');
+
     const existingTagQuery = await tagsRef
       .where('cardNumberDec', '==', cardNumberDec)
-      .where('residencialId', '==', residencialId)
       .get();
 
     const exists = !existingTagQuery.empty;
-    
+
     if (exists) {
       const existingTag = existingTagQuery.docs[0].data();
       return NextResponse.json({
@@ -103,7 +121,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Error en /api/tags/validate-card:', error);
-    
+
     if (error instanceof Error) {
       return NextResponse.json(
         { error: error.message },

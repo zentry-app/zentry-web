@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase/admin';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Obtener el token de autorización
@@ -14,8 +16,8 @@ export async function GET(request: NextRequest) {
 
     const idToken = authorization.split('Bearer ')[1];
 
-    // Verificar que adminAuth esté disponible
-    if (!adminAuth) {
+    // Verificar que adminAuth y adminDb estén disponibles
+    if (!adminAuth || !adminDb) {
       return NextResponse.json(
         { error: 'Firebase Admin no está configurado correctamente' },
         { status: 500 }
@@ -73,7 +75,7 @@ export async function GET(request: NextRequest) {
 
       for (const residencialDoc of residencialesSnapshot.docs) {
         const encuestasSnapshot = await residencialDoc.ref.collection('encuestas').get();
-        
+
         for (const encuestaDoc of encuestasSnapshot.docs) {
           const data = encuestaDoc.data();
           const survey = {
@@ -89,7 +91,7 @@ export async function GET(request: NextRequest) {
             residencialId: data.residencialId || '',
             residencialDocId: residencialDoc.id
           };
-          
+
           surveys.push(survey);
           totalResponses += survey.totalRespuestas;
         }
@@ -118,16 +120,16 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       surveys,
       stats
     });
 
   } catch (error: any) {
     console.error('Error getting surveys:', error);
-    return NextResponse.json({ 
-      error: error.message || 'Error interno del servidor' 
+    return NextResponse.json({
+      error: error.message || 'Error interno del servidor'
     }, { status: 500 });
   }
 }

@@ -2,8 +2,8 @@ import { Variants } from "framer-motion";
 
 export const fadeIn: Variants = {
   initial: { opacity: 0, y: 20 },
-  animate: { 
-    opacity: 1, 
+  animate: {
+    opacity: 1,
     y: 0,
     transition: { duration: 0.5 }
   }
@@ -11,8 +11,8 @@ export const fadeIn: Variants = {
 
 export const slideIn: Variants = {
   initial: { x: -100, opacity: 0 },
-  animate: { 
-    x: 0, 
+  animate: {
+    x: 0,
     opacity: 1,
     transition: { type: "spring", damping: 15, stiffness: 100 }
   }
@@ -30,8 +30,8 @@ export const staggerContainer: Variants = {
 
 export const scaleIn: Variants = {
   initial: { scale: 0.8, opacity: 0 },
-  animate: { 
-    scale: 1, 
+  animate: {
+    scale: 1,
     opacity: 1,
     transition: { type: "spring", damping: 15, stiffness: 100 }
   }
@@ -39,8 +39,8 @@ export const scaleIn: Variants = {
 
 export const rotateIn: Variants = {
   initial: { rotate: -10, opacity: 0 },
-  animate: { 
-    rotate: 0, 
+  animate: {
+    rotate: 0,
     opacity: 1,
     transition: { type: "spring", damping: 15 }
   }
@@ -48,8 +48,8 @@ export const rotateIn: Variants = {
 
 export const bounceIn: Variants = {
   initial: { scale: 0.3, opacity: 0 },
-  animate: { 
-    scale: 1, 
+  animate: {
+    scale: 1,
     opacity: 1,
     transition: {
       type: "spring",

@@ -26,12 +26,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { 
-  Eye, 
-  CheckCircle, 
-  XCircle, 
-  Edit, 
-  Trash2, 
+import {
+  Eye,
+  CheckCircle,
+  XCircle,
+  Edit,
+  Trash2,
   MoreHorizontal,
   Banknote,
   CreditCard,
@@ -349,7 +349,7 @@ const UnifiedPaymentsTable: React.FC<UnifiedPaymentsTableProps> = ({
                     <Home className="h-4 w-4 text-gray-400" />
                     <div>
                       <div className="text-sm font-medium">
-                        {payment.houseAddress && payment.houseNumber 
+                        {payment.houseAddress && payment.houseNumber
                           ? `${payment.houseAddress} ${payment.houseNumber}`
                           : 'N/A'
                         }
@@ -391,13 +391,13 @@ const UnifiedPaymentsTable: React.FC<UnifiedPaymentsTableProps> = ({
 
                       {/* Validar pago (solo para transferencias pendientes) */}
                       {payment.type === 'transfer' && (payment.status === 'pending_validation' || payment.status === 'pendingValidation') && (
-                          <DropdownMenuItem 
-                            onClick={() => handleValidation(payment, 'approved')}
+                        <DropdownMenuItem
+                          onClick={() => handleValidation(payment, 'approved')}
                           className="text-blue-600"
                         >
                           <Eye className="mr-2 h-4 w-4" />
                           Validar Pago
-                          </DropdownMenuItem>
+                        </DropdownMenuItem>
                       )}
 
                       {/* Editar pago (solo para efectivo) */}
@@ -409,7 +409,7 @@ const UnifiedPaymentsTable: React.FC<UnifiedPaymentsTableProps> = ({
                       )}
 
                       {/* Eliminar pago */}
-                      <DropdownMenuItem 
+                      <DropdownMenuItem
                         onClick={() => handleDelete(payment)}
                         className="text-red-600"
                       >
@@ -426,7 +426,7 @@ const UnifiedPaymentsTable: React.FC<UnifiedPaymentsTableProps> = ({
       </div>
 
       {/* Diálogo de eliminación */}
-      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => 
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) =>
         setDeleteDialog({ open, payment: deleteDialog.payment })
       }>
         <AlertDialogContent>
@@ -448,7 +448,7 @@ const UnifiedPaymentsTable: React.FC<UnifiedPaymentsTableProps> = ({
       </AlertDialog>
 
       {/* Modal de validación mejorado */}
-      <AlertDialog open={validationDialog.open} onOpenChange={(open) => 
+      <AlertDialog open={validationDialog.open} onOpenChange={(open) =>
         setValidationDialog({ open, payment: validationDialog.payment, action: validationDialog.action })
       }>
         <AlertDialogContent className="max-w-4xl">
@@ -461,7 +461,7 @@ const UnifiedPaymentsTable: React.FC<UnifiedPaymentsTableProps> = ({
               Revisa los detalles del pago y toma una decisión
             </AlertDialogDescription>
           </AlertDialogHeader>
-          
+
           {validationDialog.payment && (
             <div className="space-y-6">
               {/* Layout principal: Info a la izquierda, Comprobante a la derecha */}
@@ -486,7 +486,7 @@ const UnifiedPaymentsTable: React.FC<UnifiedPaymentsTableProps> = ({
                       <div className="flex justify-between">
                         <span className="text-gray-600">Casa:</span>
                         <span className="font-medium">
-                          {validationDialog.payment.houseAddress && validationDialog.payment.houseNumber 
+                          {validationDialog.payment.houseAddress && validationDialog.payment.houseNumber
                             ? `${validationDialog.payment.houseAddress} ${validationDialog.payment.houseNumber}`
                             : 'N/A'
                           }
@@ -538,14 +538,14 @@ const UnifiedPaymentsTable: React.FC<UnifiedPaymentsTableProps> = ({
 
                   {/* Campo de motivo para rechazo */}
                   <div className="space-y-2">
-              <label className="text-sm font-medium">Motivo del rechazo (opcional)</label>
-              <textarea
+                    <label className="text-sm font-medium">Motivo del rechazo (opcional)</label>
+                    <textarea
                       className="w-full p-3 border rounded-md resize-none"
                       placeholder="Ej: Comprobante no válido, monto incorrecto, información faltante..."
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                rows={3}
-              />
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      rows={3}
+                    />
                   </div>
                 </div>
 
@@ -558,13 +558,13 @@ const UnifiedPaymentsTable: React.FC<UnifiedPaymentsTableProps> = ({
                     </h3>
                     <div className="border rounded-lg p-4 bg-gray-50">
                       <div className="relative">
-                        <img 
-                          src={validationDialog.payment.imageUrl} 
+                        <img
+                          src={validationDialog.payment.imageUrl}
                           alt="Comprobante de pago"
                           className="w-full h-auto max-h-[500px] rounded-lg shadow-sm cursor-zoom-in hover:opacity-90 transition-opacity"
-                          onClick={() => setZoomModal({ 
-                            open: true, 
-                            imageUrl: validationDialog.payment?.imageUrl || '' 
+                          onClick={() => setZoomModal({
+                            open: true,
+                            imageUrl: validationDialog.payment?.imageUrl || ''
                           })}
                           onError={(e) => {
                             e.currentTarget.style.display = 'none';
@@ -585,10 +585,10 @@ const UnifiedPaymentsTable: React.FC<UnifiedPaymentsTableProps> = ({
               </div>
             </div>
           )}
-          
+
           <AlertDialogFooter className="flex space-x-2">
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={() => {
                 if (validationDialog.payment && onValidatePayment) {
                   onValidatePayment(
@@ -605,7 +605,7 @@ const UnifiedPaymentsTable: React.FC<UnifiedPaymentsTableProps> = ({
               <XCircle className="mr-2 h-4 w-4" />
               Rechazar
             </AlertDialogAction>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={confirmValidation}
               className="bg-green-600 hover:bg-green-700"
             >
@@ -617,13 +617,13 @@ const UnifiedPaymentsTable: React.FC<UnifiedPaymentsTableProps> = ({
       </AlertDialog>
 
       {/* Modal de zoom para imagen */}
-      <AlertDialog open={zoomModal.open} onOpenChange={(open) => 
+      <AlertDialog open={zoomModal.open} onOpenChange={(open) =>
         setZoomModal({ open, imageUrl: zoomModal.imageUrl })
       }>
         <AlertDialogContent className="max-w-6xl max-h-[90vh] p-0">
           <div className="relative">
-            <img 
-              src={zoomModal.imageUrl} 
+            <img
+              src={zoomModal.imageUrl}
               alt="Comprobante ampliado"
               className="w-full h-auto max-h-[85vh] rounded-lg"
             />

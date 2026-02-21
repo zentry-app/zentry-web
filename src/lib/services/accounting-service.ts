@@ -1,10 +1,10 @@
-import { 
-  collection, 
-  doc, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy, 
+import {
+  collection,
+  doc,
+  getDocs,
+  query,
+  where,
+  orderBy,
   onSnapshot,
   Timestamp,
   getDoc,
@@ -26,6 +26,7 @@ export interface AccountingRecord {
   userId?: string; // Usuario que realizó el pago
   userName?: string;
   referencia?: string; // Número de movimiento, referencia, etc.
+  mesReferencia?: string; // Formato: "2024-01"
   observaciones?: string;
   registradoPor: string; // Admin que registró
   fechaRegistro: Timestamp | Date;
@@ -35,25 +36,25 @@ export interface MonthlyReport {
   mes: string; // Formato: "2024-01"
   residencialId: string;
   fechaGeneracion: Timestamp | Date;
-  
+
   // Ingresos
   totalIngresos: number;
   ingresosTransferencia: number;
   ingresosEfectivo: number;
   ingresosTarjeta: number;
-  
+
   // Egresos (si se implementan)
   totalEgresos: number;
-  
+
   // Balance
   balanceMensual: number;
-  
+
   // Estadísticas de casas
   totalCasas: number;
   casasPagadas: number;
   casasMorosas: number;
   porcentajeCobranza: number;
-  
+
   // Detalles por casa
   detallePorCasa: {
     houseId: string;
@@ -83,7 +84,7 @@ export interface AccountingSummary {
  * Servicio para manejar la contabilidad del residencial
  */
 export class AccountingService {
-  
+
   /**
    * Registrar un movimiento contable
    */
@@ -93,18 +94,18 @@ export class AccountingService {
   ): Promise<string> {
     try {
       console.log(`📊 Registrando movimiento contable: ${entry.concepto}`);
-      
+
       const accountingRef = collection(db, 'residenciales', residencialId, 'contabilidad');
-      
+
       const newEntry: Omit<AccountingRecord, 'id'> = {
         ...entry,
         fechaRegistro: Timestamp.now(),
         registradoPor: 'admin', // TODO: Obtener UID del admin actual
         currency: entry.currency || 'MXN',
       };
-      
+
       const docRef = await addDoc(accountingRef, newEntry);
-      
+
       console.log(`✅ Movimiento contable registrado con ID: ${docRef.id}`);
       return docRef.id;
     } catch (error) {
@@ -124,7 +125,7 @@ export class AccountingService {
   ): Promise<AccountingRecord[]> {
     try {
       console.log(`📊 Obteniendo movimientos contables para período: ${fechaInicio.toISOString()} - ${fechaFin.toISOString()}`);
-      
+
       const accountingRef = collection(db, 'residenciales', residencialId, 'contabilidad');
       let q = query(
         accountingRef,
@@ -132,7 +133,7 @@ export class AccountingService {
         where('fecha', '<=', Timestamp.fromDate(fechaFin)),
         orderBy('fecha', 'desc')
       );
-      
+
       if (tipo) {
         q = query(
           accountingRef,
@@ -142,10 +143,10 @@ export class AccountingService {
           orderBy('fecha', 'desc')
         );
       }
-      
+
       const querySnapshot = await getDocs(q);
       const records: AccountingRecord[] = [];
-      
+
       querySnapshot.forEach((docSnapshot) => {
         const data = docSnapshot.data();
         const record: AccountingRecord = {
@@ -166,10 +167,10 @@ export class AccountingService {
           registradoPor: data.registradoPor || '',
           fechaRegistro: data.fechaRegistro || new Date(),
         };
-        
+
         records.push(record);
       });
-      
+
       console.log(`✅ ${records.length} movimientos contables obtenidos`);
       return records;
     } catch (error) {
@@ -188,10 +189,10 @@ export class AccountingService {
   ): Promise<MonthlyReport> {
     try {
       console.log(`📊 Generando reporte mensual para ${año}-${mes.toString().padStart(2, '0')}`);
-      
+
       const fechaInicio = new Date(año, mes - 1, 1);
       const fechaFin = new Date(año, mes, 0, 23, 59, 59);
-      
+
       // Obtener todos los pagos del mes
       const pagosRef = collection(db, 'residenciales', residencialId, 'pagos');
       const pagosQuery = query(
@@ -200,14 +201,14 @@ export class AccountingService {
         where('fechaSubida', '<=', Timestamp.fromDate(fechaFin)),
         where('status', 'in', ['validated', 'completed'])
       );
-      
+
       const pagosSnapshot = await getDocs(pagosQuery);
       const pagos: any[] = [];
-      
+
       pagosSnapshot.forEach((doc) => {
         pagos.push({ id: doc.id, ...doc.data() });
       });
-      
+
       // Calcular estadísticas
       const totalIngresos = pagos.reduce((sum, pago) => sum + (pago.amount || 0), 0);
       const ingresosTransferencia = pagos
@@ -219,40 +220,50 @@ export class AccountingService {
       const ingresosTarjeta = pagos
         .filter(p => p.paymentMethod === 'card')
         .reduce((sum, pago) => sum + (pago.amount || 0), 0);
-      
+
       // Obtener información de casas
       const casasRef = collection(db, 'residenciales', residencialId, 'housePaymentStatus');
       const casasSnapshot = await getDocs(casasRef);
       const totalCasas = casasSnapshot.size;
-      
+
       // Calcular casas pagadas y morosas
-      const casasPagadas = pagos.filter((pago, index, self) => 
+      const casasPagadas = pagos.filter((pago, index, self) =>
         self.findIndex(p => p.houseId === pago.houseId) === index
       ).length;
       const casasMorosas = totalCasas - casasPagadas;
       const porcentajeCobranza = totalCasas > 0 ? (casasPagadas / totalCasas) * 100 : 0;
-      
+
       // Crear detalle por casa
       const detallePorCasa = casasSnapshot.docs.map(doc => {
         const casaData = doc.data();
         const pagosCasa = pagos.filter(p => p.houseId === casaData.houseId);
         const montoPagado = pagosCasa.reduce((sum, p) => sum + (p.amount || 0), 0);
-        
+
         return {
           houseId: casaData.houseId || doc.id,
           calle: casaData.calle || '',
           houseNumber: casaData.houseNumber || '',
           montoEsperado: casaData.montoEsperado || 0,
           montoPagado,
-          estado: montoPagado >= (casaData.montoEsperado || 0) ? 'pagado' : 
-                  montoPagado > 0 ? 'parcial' : 'moroso',
-          fechaPago: pagosCasa.length > 0 ? 
-            (pagosCasa[0].fechaSubida instanceof Timestamp ? 
-              pagosCasa[0].fechaSubida.toDate() : 
+          estado: montoPagado >= (casaData.montoEsperado || 0) ? 'pagado' :
+            montoPagado > 0 ? 'parcial' : 'moroso',
+          fechaPago: pagosCasa.length > 0 ?
+            (pagosCasa[0].fechaSubida instanceof Timestamp ?
+              pagosCasa[0].fechaSubida.toDate() :
               new Date(pagosCasa[0].fechaSubida)) : undefined,
         };
       });
-      
+
+      const egresosQuery = query(
+        collection(db, 'residenciales', residencialId, 'contabilidad'),
+        where('fecha', '>=', Timestamp.fromDate(fechaInicio)),
+        where('fecha', '<=', Timestamp.fromDate(fechaFin)),
+        where('tipo', '==', 'egreso')
+      );
+
+      const egresosSnapshot = await getDocs(egresosQuery);
+      const totalEgresos = egresosSnapshot.docs.reduce((sum, doc) => sum + (doc.data().monto || 0), 0);
+
       const reporte: MonthlyReport = {
         mes: `${año}-${mes.toString().padStart(2, '0')}`,
         residencialId,
@@ -261,19 +272,19 @@ export class AccountingService {
         ingresosTransferencia,
         ingresosEfectivo,
         ingresosTarjeta,
-        totalEgresos: 0, // TODO: Implementar egresos
-        balanceMensual: totalIngresos,
+        totalEgresos,
+        balanceMensual: totalIngresos - totalEgresos,
         totalCasas,
         casasPagadas,
         casasMorosas,
         porcentajeCobranza,
         detallePorCasa,
       };
-      
+
       // Guardar reporte
       const reporteRef = collection(db, 'residenciales', residencialId, 'reportesMensuales');
       await addDoc(reporteRef, reporte);
-      
+
       console.log(`✅ Reporte mensual generado y guardado`);
       return reporte;
     } catch (error) {
@@ -292,38 +303,38 @@ export class AccountingService {
   ): Promise<AccountingSummary> {
     try {
       console.log(`📊 Obteniendo resumen contable para período`);
-      
+
       const records = await this.getAccountingRecords(residencialId, fechaInicio, fechaFin);
-      
+
       const totalIngresos = records
         .filter(r => r.tipo === 'ingreso')
         .reduce((sum, r) => sum + r.monto, 0);
-      
+
       const totalEgresos = records
         .filter(r => r.tipo === 'egreso')
         .reduce((sum, r) => sum + r.monto, 0);
-      
+
       const balance = totalIngresos - totalEgresos;
-      
+
       // Calcular estadísticas de casas
       const casasRef = collection(db, 'residenciales', residencialId, 'housePaymentStatus');
       const casasSnapshot = await getDocs(casasRef);
       const totalCasas = casasSnapshot.size;
-      
+
       const casasPagadas = records
         .filter(r => r.tipo === 'ingreso' && r.houseId)
         .reduce((set, r) => set.add(r.houseId!), new Set()).size;
-      
+
       const casasMorosas = totalCasas - casasPagadas;
       const porcentajeCobranza = totalCasas > 0 ? (casasPagadas / totalCasas) * 100 : 0;
-      
+
       // Calcular promedio mensual
       const diasPeriodo = Math.ceil((fechaFin.getTime() - fechaInicio.getTime()) / (1000 * 60 * 60 * 24));
       const promedioMensual = diasPeriodo > 0 ? (totalIngresos / diasPeriodo) * 30 : 0;
-      
+
       // Determinar tendencia (simplificado)
       const tendencia: 'creciente' | 'decreciente' | 'estable' = 'estable';
-      
+
       const summary: AccountingSummary = {
         periodo: `${fechaInicio.toLocaleDateString()} - ${fechaFin.toLocaleDateString()}`,
         totalIngresos,
@@ -336,7 +347,7 @@ export class AccountingService {
         promedioMensual,
         tendencia,
       };
-      
+
       console.log('📊 Resumen contable calculado:', summary);
       return summary;
     } catch (error) {
@@ -351,13 +362,13 @@ export class AccountingService {
   static async getMonthlyReports(residencialId: string): Promise<MonthlyReport[]> {
     try {
       console.log(`📊 Obteniendo reportes mensuales para residencial: ${residencialId}`);
-      
+
       const reportesRef = collection(db, 'residenciales', residencialId, 'reportesMensuales');
       const q = query(reportesRef, orderBy('mes', 'desc'));
-      
+
       const querySnapshot = await getDocs(q);
       const reportes: MonthlyReport[] = [];
-      
+
       querySnapshot.forEach((docSnapshot) => {
         const data = docSnapshot.data();
         const reporte: MonthlyReport = {
@@ -376,10 +387,10 @@ export class AccountingService {
           porcentajeCobranza: data.porcentajeCobranza || 0,
           detallePorCasa: data.detallePorCasa || [],
         };
-        
+
         reportes.push(reporte);
       });
-      
+
       console.log(`✅ ${reportes.length} reportes mensuales obtenidos`);
       return reportes;
     } catch (error) {
@@ -398,9 +409,9 @@ export class AccountingService {
   ): Promise<string> {
     try {
       console.log(`📊 Exportando datos contables a CSV`);
-      
+
       const records = await this.getAccountingRecords(residencialId, fechaInicio, fechaFin);
-      
+
       // Crear CSV
       const headers = [
         'Fecha',
@@ -414,14 +425,14 @@ export class AccountingService {
         'Referencia',
         'Observaciones'
       ];
-      
+
       const csvRows = [headers.join(',')];
-      
+
       records.forEach(record => {
-        const fecha = record.fecha instanceof Date ? 
-          record.fecha.toLocaleDateString() : 
+        const fecha = record.fecha instanceof Date ?
+          record.fecha.toLocaleDateString() :
           record.fecha.toDate().toLocaleDateString();
-        
+
         const row = [
           fecha,
           record.tipo,
@@ -434,10 +445,10 @@ export class AccountingService {
           record.referencia || '',
           `"${record.observaciones || ''}"`
         ];
-        
+
         csvRows.push(row.join(','));
       });
-      
+
       const csvContent = csvRows.join('\n');
       console.log(`✅ CSV generado con ${records.length} registros`);
       return csvContent;
@@ -455,13 +466,13 @@ export class AccountingService {
     callback: (records: AccountingRecord[]) => void
   ): () => void {
     console.log(`🔔 Suscribiéndose a movimientos contables para residencial: ${residencialId}`);
-    
+
     const accountingRef = collection(db, 'residenciales', residencialId, 'contabilidad');
     const q = query(accountingRef, orderBy('fecha', 'desc'));
-    
+
     return onSnapshot(q, (querySnapshot) => {
       const records: AccountingRecord[] = [];
-      
+
       querySnapshot.forEach((docSnapshot) => {
         const data = docSnapshot.data();
         const record: AccountingRecord = {
@@ -482,12 +493,68 @@ export class AccountingService {
           registradoPor: data.registradoPor || '',
           fechaRegistro: data.fechaRegistro || new Date(),
         };
-        
+
         records.push(record);
       });
-      
+
       console.log(`📣 Actualización en tiempo real: ${records.length} movimientos contables`);
       callback(records);
     });
+  }
+
+  /**
+   * Obtener estado de cuenta de una casa específica
+   */
+  static async getHouseStatement(
+    residencialId: string,
+    houseId: string,
+    mes?: string
+  ): Promise<{
+    saldoAnterior: number;
+    cuotaMes: number;
+    pagosRealizados: any[];
+    totalPagado: number;
+    saldoActual: number;
+  }> {
+    try {
+      console.log(`📊 Generando estado de cuenta para casa ${houseId}`);
+
+      // Obtener todos los pagos validados de esta casa
+      const pagosRef = collection(db, 'residenciales', residencialId, 'pagos');
+      let pagosQuery = query(
+        pagosRef,
+        where('houseId', '==', houseId),
+        where('status', 'in', ['validated', 'completed'])
+      );
+
+      if (mes) {
+        pagosQuery = query(
+          pagosRef,
+          where('houseId', '==', houseId),
+          where('mes', '==', mes),
+          where('status', 'in', ['validated', 'completed'])
+        );
+      }
+
+      const querySnapshot = await getDocs(pagosQuery);
+      const pagosRealizados: any[] = [];
+      querySnapshot.forEach(doc => pagosRealizados.push({ id: doc.id, ...doc.data() }));
+
+      const totalPagado = pagosRealizados.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+      // TODO: Obtener cuota configurada del residencial
+      const cuotaMes = 1500; // Valor por defecto para desarrollo
+
+      return {
+        saldoAnterior: 0, // Por ahora no calculamos arrastre
+        cuotaMes,
+        pagosRealizados,
+        totalPagado,
+        saldoActual: cuotaMes - totalPagado
+      };
+    } catch (error) {
+      console.error('❌ Error al obtener estado de cuenta de casa:', error);
+      throw error;
+    }
   }
 }

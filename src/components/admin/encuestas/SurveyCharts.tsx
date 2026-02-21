@@ -81,15 +81,15 @@ export function SurveyCharts({ questionResults }: SurveyChartsProps) {
           percentage: results.total > 0 ? ((results.distribution[value] || 0) / results.total) * 100 : 0,
           color: COLORS[index % COLORS.length]
         }));
-
-      case 'escalaNumero':
-        return Object.entries(results.distribution || {}).map(([value, count], index) => ({
-          name: value,
-          value: count as number,
-          count: count as number,
-          percentage: results.total > 0 ? ((count as number) / results.total) * 100 : 0,
+      case 'escalaFrecuencia':
+        return [4, 3, 2, 1, 0].map((value, index) => ({
+          name: ['Muy frecuente', 'Frecuente', 'Moderado', 'Poco frecuente', 'Nunca'][index],
+          value: results.distribution[value] || 0,
+          count: results.distribution[value] || 0,
+          percentage: results.total > 0 ? ((results.distribution[value] || 0) / results.total) * 100 : 0,
           color: COLORS[index % COLORS.length]
         }));
+
 
       default:
         return [];
@@ -231,8 +231,6 @@ export function SurveyCharts({ questionResults }: SurveyChartsProps) {
       case 'opcionMultiple':
       case 'escalaLikert':
         return 'bar';
-      case 'escalaNumero':
-        return 'line';
       default:
         return 'bar';
     }

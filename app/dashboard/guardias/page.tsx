@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
 import { useRouter } from 'next/navigation';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,24 +36,24 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { 
-  getGuardias, 
-  getResidenciales, 
+import {
+  getGuardias,
+  getResidenciales,
   getUsuariosPorResidencial,
-  crearGuardia, 
-  actualizarGuardia, 
+  crearGuardia,
+  actualizarGuardia,
   eliminarGuardia,
   suscribirseAGuardias,
   Guardia,
   Residencial,
   Usuario
 } from "@/lib/firebase/firestore";
-import { 
-  Search, 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Shield, 
+import {
+  Search,
+  Plus,
+  Edit,
+  Trash2,
+  Shield,
   Clock,
   Calendar,
   User
@@ -64,6 +64,8 @@ import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth, UserClaims } from "@/contexts/AuthContext";
 import dynamic from "next/dynamic";
+import { motion } from "framer-motion";
+
 
 // Importar dinámicamente GuardiaFormDialogContent
 const GuardiaFormDialogContent = dynamic(() => import('@/components/dashboard/guardias/GuardiaFormDialogContent'), {
@@ -133,11 +135,11 @@ export default function GuardiasPage() {
     },
     estado: "activo"
   });
-  const [mapeoResidenciales, setMapeoResidenciales] = useState<{[key: string]: string}>({});
+  const [mapeoResidenciales, setMapeoResidenciales] = useState<{ [key: string]: string }>({});
 
   const esAdminDeResidencial = useMemo(() => !!(userClaims?.isResidencialAdmin && !userClaims?.isGlobalAdmin), [userClaims]);
   const residencialCodigoDelAdmin = useMemo(() => esAdminDeResidencial ? userClaims?.managedResidencialId : null, [esAdminDeResidencial, userClaims]);
-  
+
   const residencialIdDocDelAdmin = useMemo(() => {
     if (!esAdminDeResidencial || !residencialCodigoDelAdmin || Object.keys(mapeoResidenciales).length === 0) return null;
     return Object.keys(mapeoResidenciales).find(
@@ -186,8 +188,8 @@ export default function GuardiasPage() {
       try {
         const residencialesData = await getResidenciales();
         setResidenciales(residencialesData);
-        
-        const mapeo = residencialesData.reduce<{[key: string]: string}>((acc, r) => {
+
+        const mapeo = residencialesData.reduce<{ [key: string]: string }>((acc, r) => {
           if (r.id && r.residencialID) acc[r.id] = r.residencialID;
           return acc;
         }, {});
@@ -201,10 +203,10 @@ export default function GuardiasPage() {
           if (idDocAdmin) {
             const usuariosResidencialAdmin = await getUsuariosPorResidencial(idDocAdmin);
             usuariosAGuardar = usuariosResidencialAdmin.filter(u => u.role === 'security');
-            
+
             const guardiasResidencialAdmin = await getGuardias(idDocAdmin);
             guardiasACargar = guardiasResidencialAdmin.map(g => ({ ...g, _residencialId: idDocAdmin }));
-            
+
             setResidencialFilter(idDocAdmin);
             setSelectedResidencialId(idDocAdmin);
           } else {
@@ -221,7 +223,7 @@ export default function GuardiasPage() {
           // Cargar todos los guardias
           guardiasACargar = await fetchAllGuardias(residencialesData);
           setResidencialFilter("todos");
-          setSelectedResidencialId(""); 
+          setSelectedResidencialId("");
         }
 
         setUsuarios(usuariosAGuardar);
@@ -305,9 +307,9 @@ export default function GuardiasPage() {
     if (guardia) {
       setCurrentGuardia(guardia);
       setSelectedResidencialId(guardia._residencialId || "");
-      
+
       const usuario = usuarios.find(u => u.id === guardia.usuarioId);
-      
+
       setFormData({
         usuarioId: guardia.usuarioId,
         nombreGuardia: guardia.nombreGuardia || (usuario ? usuario.fullName : ""),
@@ -353,10 +355,10 @@ export default function GuardiasPage() {
       toast.error("No se puede eliminar el guardia: faltan datos");
       return;
     }
-    
+
     try {
       await eliminarGuardia(currentGuardia._residencialId, currentGuardia.id);
-      
+
       // Si no estamos usando suscripción en tiempo real (cuando es "todos"),
       // o si estamos viendo un residencial diferente del que estamos eliminando,
       // actualizamos manualmente la lista
@@ -364,7 +366,7 @@ export default function GuardiasPage() {
         setGuardias(guardias.filter(g => !(g.id === currentGuardia.id && g._residencialId === currentGuardia._residencialId)));
       }
       // Si es el mismo residencial, la suscripción se encargará de actualizar
-      
+
       toast.success("Guardia eliminado correctamente");
       setDeleteConfirmOpen(false);
     } catch (error) {
@@ -379,39 +381,39 @@ export default function GuardiasPage() {
         toast.error("Debes seleccionar un residencial");
         return;
       }
-      
+
       if (!formData.nombreGuardia.trim()) {
         toast.error("El nombre del guardia es obligatorio");
         return;
       }
-      
+
       if (formData.horario.dias.length === 0) {
         toast.error("Debes seleccionar al menos un día");
         return;
       }
-      
+
       setLoading(true);
-      
+
       // Crear un ID de usuario temporal si no existe
       const guardiaData = {
         ...formData,
         usuarioId: formData.usuarioId || `guardia-${Date.now()}`,
       };
-      
+
       if (currentGuardia && currentGuardia.id) {
         // Actualizar guardia existente
         await actualizarGuardia(
-          currentGuardia._residencialId || selectedResidencialId, 
-          currentGuardia.id, 
+          currentGuardia._residencialId || selectedResidencialId,
+          currentGuardia.id,
           guardiaData
         );
-        
+
         toast.success("Guardia actualizado correctamente");
       } else {
         // Añadir nuevo guardia
         await crearGuardia(selectedResidencialId, guardiaData);
         toast.success("Guardia añadido correctamente");
-        
+
         // Si no estamos usando suscripción en tiempo real (cuando es "todos"),
         // recargamos manualmente los guardias
         if (residencialFilter === "todos") {
@@ -430,7 +432,7 @@ export default function GuardiasPage() {
           });
         }
       }
-      
+
       setOpenDialog(false);
       setFormData({
         usuarioId: "",
@@ -453,7 +455,7 @@ export default function GuardiasPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    
+
     if (name === "horaEntrada" || name === "horaSalida") {
       setFormData(prev => ({
         ...prev,
@@ -537,7 +539,7 @@ export default function GuardiasPage() {
 
   const getUsuarioNombre = (id: string | undefined | null) => {
     if (!id) return "Desconocido";
-    
+
     // Si es un ID generado para un guardia (comienza con "guardia-")
     if (id.startsWith("guardia-")) {
       // Buscar el guardia en la lista de guardias
@@ -546,7 +548,7 @@ export default function GuardiasPage() {
         return `${guardia.nombreGuardia || ''} ${guardia.apellidoGuardia || ''}`.trim() || "Guardia";
       }
     }
-    
+
     // Buscar en la lista de usuarios normales
     const usuario = usuarios.find(u => u.id === id);
     return usuario ? `${usuario.fullName} ${usuario.paternalLastName || ''}` : "Guardia";
@@ -554,7 +556,7 @@ export default function GuardiasPage() {
 
   const getUsuarioInitials = (id: string | undefined | null) => {
     if (!id) return "??";
-    
+
     // Si es un ID generado para un guardia
     if (id.startsWith("guardia-")) {
       const guardia = guardias.find(g => g.usuarioId === id);
@@ -564,7 +566,7 @@ export default function GuardiasPage() {
         return `${nombre.charAt(0) || '?'}${apellido.charAt(0) || '?'}`;
       }
     }
-    
+
     // Buscar en la lista de usuarios normales
     const usuario = usuarios.find(u => u.id === id);
     if (!usuario) return "GD";
@@ -585,16 +587,16 @@ export default function GuardiasPage() {
   // Función para convertir formato de 24 horas a 12 horas
   const formatHora = (hora24: string | undefined | null) => {
     if (!hora24) return "N/A";
-    
+
     // Dividir la hora en horas y minutos
     const [horas, minutos] = hora24.split(':').map(Number);
-    
+
     // Determinar si es AM o PM
     const periodo = horas >= 12 ? 'PM' : 'AM';
-    
+
     // Convertir a formato de 12 horas
     const horas12 = horas % 12 || 12;
-    
+
     // Formatear la hora con dos dígitos para los minutos
     return `${horas12}:${minutos.toString().padStart(2, '0')} ${periodo}`;
   };
@@ -602,34 +604,42 @@ export default function GuardiasPage() {
   // Filtrado de guardias
   const filteredGuardias = guardias.filter((guardia) => {
     if (!guardia) return false;
-    
+
     const matchesResidencial = residencialFilter === "todos" || guardia._residencialId === residencialFilter;
-    
+
     const usuarioNombre = getUsuarioNombre(guardia.usuarioId).toLowerCase();
     const matchesSearch = searchTerm === "" || usuarioNombre.includes(searchTerm.toLowerCase());
-    
+
     const matchesEstado = estadoFilter === "todos" || guardia.estado === estadoFilter;
-    
+
     return matchesResidencial && matchesSearch && matchesEstado;
   });
 
-  if (authLoading) { // Mostrar Skeletons mientras carga la autenticación
+  if (authLoading) {
     return (
-      <div className="space-y-6 p-4 md:p-8">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-10 w-1/3" />
-          <Skeleton className="h-10 w-1/4" />
+      <div className="min-h-screen bg-premium p-4 lg:p-10 space-y-8 pb-20">
+        <div className="flex flex-col lg:flex-row justify-between gap-6 items-start">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-32 rounded-full" />
+            <Skeleton className="h-14 w-64" />
+            <Skeleton className="h-6 w-96" />
+          </div>
+          <Skeleton className="h-14 w-48 rounded-2xl" />
         </div>
-        <Card>
-          <CardHeader><Skeleton className="h-8 w-1/2" /></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
-              <Skeleton className="h-10 flex-1" />
-              <Skeleton className="h-10 w-48" />
-              <Skeleton className="h-10 flex-1" />
+        <Card className="border-none shadow-zentry-lg bg-white/80 backdrop-blur-2xl rounded-[2.5rem] overflow-hidden">
+          <div className="p-8 space-y-6">
+            <Skeleton className="h-8 w-48" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Skeleton className="h-14 rounded-2xl" />
+              <Skeleton className="h-14 rounded-2xl" />
+              <Skeleton className="h-14 rounded-2xl" />
             </div>
-            {Array.from({ length: 3 }).map((_, i) => ( <Skeleton key={i} className="h-16 w-full" /> ))}
-          </CardContent>
+            <div className="space-y-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+              ))}
+            </div>
+          </div>
         </Card>
       </div>
     );
@@ -640,88 +650,120 @@ export default function GuardiasPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Guardias de Seguridad</h1>
-        <Button 
-          onClick={() => handleOpenDialog()}
-          disabled={esAdminDeResidencial && !residencialIdDocDelAdmin} // Deshabilitar si es admin de res y no se ha cargado su ID
-        >
-          <Plus className="mr-2 h-4 w-4" /> Añadir Guardia
-        </Button>
-      </div>
+    <div className="min-h-screen bg-premium p-4 lg:p-10 space-y-8 pb-20">
+      {/* Premium Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="flex flex-col lg:flex-row justify-between gap-6 items-start"
+      >
+        <div className="space-y-2">
+          <Badge className="bg-indigo-100 text-indigo-700 border-none font-black px-4 py-1 rounded-full flex gap-2 w-fit items-center shadow-sm">
+            <span className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+            Seguridad
+          </Badge>
+          <h1 className="text-5xl font-extrabold tracking-tighter text-slate-900">
+            <span className="text-gradient-zentry">Guardias</span>
+          </h1>
+          <p className="text-slate-600 font-bold max-w-lg">
+            Gestiona los guardias de seguridad y sus horarios
+          </p>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Gestión de Guardias</CardTitle>
-          <CardDescription>
-            Administra los guardias de seguridad y sus horarios para cada residencial.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col space-y-4">
-            {/* Filtros */}
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
-              <div className="flex-1">
-                <Select 
-                  value={residencialFilter} 
-                  onValueChange={setResidencialFilter}
-                  disabled={esAdminDeResidencial} // Deshabilitar para admin de residencial
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Filtrar por residencial" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {userClaims?.isGlobalAdmin && !esAdminDeResidencial && (
-                       <SelectItem value="todos">Todos los residenciales</SelectItem>
-                    )}
-                    {residenciales
-                      .filter(r => r.id && (!esAdminDeResidencial || r.id === residencialIdDocDelAdmin)) // Mostrar solo su residencial si es admin de res
-                      .map((residencial) => (
-                      <SelectItem key={residencial.id} value={residencial.id!}>
+        {/* Botón de añadir guardia */}
+        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+          <Button
+            onClick={() => handleOpenDialog()}
+            disabled={esAdminDeResidencial && !residencialIdDocDelAdmin}
+            className="rounded-2xl h-14 px-8 font-black shadow-zentry-lg bg-indigo-600 text-white hover:bg-indigo-700 hover-lift transition-all"
+          >
+            <Plus className="mr-2 h-5 w-5" />
+            Añadir Guardia
+          </Button>
+        </motion.div>
+      </motion.div>
+
+      {/* Card principal con diseño premium */}
+      <Card className="border-none shadow-zentry-lg bg-white/80 backdrop-blur-2xl rounded-[2.5rem] overflow-hidden">
+        <div className="p-8 pb-4 border-b border-white/10 space-y-6">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <Shield className="h-5 w-5 text-indigo-500" />
+              <h2 className="text-sm font-black uppercase tracking-widest mr-4 text-slate-800">Filtros y Búsqueda</h2>
+            </div>
+          </div>
+
+          {/* Filtros renovados */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Filtro por Residencial */}
+            <Select
+              value={residencialFilter}
+              onValueChange={setResidencialFilter}
+              disabled={esAdminDeResidencial}
+            >
+              <SelectTrigger className="h-14 bg-white border border-slate-200 shadow-sm rounded-2xl font-bold px-6 text-slate-900 focus:ring-indigo-500/20">
+                <SelectValue placeholder="Filtrar por residencial" />
+              </SelectTrigger>
+              <SelectContent className="rounded-3xl border-none shadow-2xl bg-white/95 backdrop-blur-3xl">
+                <div className="p-2">
+                  {userClaims?.isGlobalAdmin && !esAdminDeResidencial && (
+                    <SelectItem value="todos" className="font-bold mb-1 rounded-xl">Todos los residenciales</SelectItem>
+                  )}
+                  {residenciales
+                    .filter(r => r.id && (!esAdminDeResidencial || r.id === residencialIdDocDelAdmin))
+                    .map((residencial) => (
+                      <SelectItem key={residencial.id} value={residencial.id!} className="font-bold mb-1 rounded-xl">
                         {residencial.nombre}
                       </SelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="w-48">
-                <Select value={estadoFilter} onValueChange={setEstadoFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Filtrar por estado" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos los estados</SelectItem>
-                    <SelectItem value="activo">Activo</SelectItem>
-                    <SelectItem value="inactivo">Inactivo</SelectItem>
-                    <SelectItem value="vacaciones">Vacaciones</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="flex-1">
-                <Input
-                  placeholder="Buscar guardia..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-            </div>
+                </div>
+              </SelectContent>
+            </Select>
 
-            <TablaGuardias
-              loading={loading}
-              filteredGuardias={filteredGuardias}
-              getUsuarioPhoto={getUsuarioPhoto}
-              getUsuarioInitials={getUsuarioInitials}
-              getUsuarioNombre={getUsuarioNombre}
-              getResidencialNombre={getResidencialNombre}
-              formatDias={formatDias}
-              formatHora={formatHora}
-              handleOpenDialog={handleOpenDialog}
-              handleDeleteConfirm={handleDeleteConfirm}
-            />
+            {/* Filtro por Estado */}
+            <Select value={estadoFilter} onValueChange={setEstadoFilter}>
+              <SelectTrigger className="h-14 bg-white border border-slate-200 shadow-sm rounded-2xl font-bold px-6 text-slate-900 focus:ring-indigo-500/20">
+                <SelectValue placeholder="Filtrar por estado" />
+              </SelectTrigger>
+              <SelectContent className="rounded-3xl border-none shadow-2xl bg-white/95 backdrop-blur-3xl">
+                <div className="p-2">
+                  <SelectItem value="todos" className="font-bold mb-1 rounded-xl">Todos los estados</SelectItem>
+                  <SelectItem value="activo" className="font-bold mb-1 rounded-xl">Activo</SelectItem>
+                  <SelectItem value="inactivo" className="font-bold mb-1 rounded-xl">Inactivo</SelectItem>
+                  <SelectItem value="vacaciones" className="font-bold rounded-xl">Vacaciones</SelectItem>
+                </div>
+              </SelectContent>
+            </Select>
+
+            {/* Búsqueda */}
+            <div className="relative">
+              <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+              <Input
+                type="search"
+                placeholder="Buscar guardia..."
+                className="pl-12 h-14 bg-white border border-slate-200 shadow-sm rounded-2xl font-bold focus-visible:ring-indigo-500/20 text-slate-900 placeholder:text-slate-400"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
           </div>
+        </div>
+
+        {/* Tabla de guardias */}
+        <CardContent className="p-8">
+          <TablaGuardias
+            loading={loading}
+            filteredGuardias={filteredGuardias}
+            getUsuarioPhoto={getUsuarioPhoto}
+            getUsuarioInitials={getUsuarioInitials}
+            getUsuarioNombre={getUsuarioNombre}
+            getResidencialNombre={getResidencialNombre}
+            formatDias={formatDias}
+            formatHora={formatHora}
+            handleOpenDialog={handleOpenDialog}
+            handleDeleteConfirm={handleDeleteConfirm}
+          />
         </CardContent>
       </Card>
 
@@ -743,7 +785,7 @@ export default function GuardiasPage() {
               setSelectedResidencialId={setSelectedResidencialId}
               esAdminDeResidencial={esAdminDeResidencial}
               residencialIdDocDelAdmin={residencialIdDocDelAdmin}
-              // diasSemana y estadosGuardia ya no se pasan como props
+            // diasSemana y estadosGuardia ya no se pasan como props
             />
           </Suspense>
         )}

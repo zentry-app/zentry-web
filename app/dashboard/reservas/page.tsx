@@ -8,13 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
 import {
   DropdownMenu,
@@ -23,10 +23,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/components/ui/use-toast';
-import { 
-  CalendarIcon, 
-  Search, 
-  Filter, 
+import {
+  CalendarIcon,
+  Search,
+  Filter,
   MoreHorizontal,
   CheckCircle,
   XCircle,
@@ -37,12 +37,12 @@ import {
   DollarSign,
   Eye,
   Download,
-    RefreshCw,
-    ChevronDown,
-    ChevronRight,
-    Key,
-    Trash,
-    History
+  RefreshCw,
+  ChevronDown,
+  ChevronRight,
+  Key,
+  Trash,
+  History
 } from 'lucide-react';
 import { ReservationAuditHistory } from '@/components/dashboard/ReservationAuditHistory';
 import { format, addDays, isWithinInterval, startOfDay, endOfDay, isSameDay } from 'date-fns';
@@ -50,13 +50,13 @@ import { es } from 'date-fns/locale';
 import { db } from '@/lib/firebase/config';
 import { useAuth } from '@/contexts/AuthContext';
 import type { DateRange } from 'react-day-picker';
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
+import {
+  collection,
+  query,
+  where,
+  getDocs,
   getDoc,
-  orderBy, 
+  orderBy,
   limit,
   Timestamp,
   writeBatch,
@@ -64,12 +64,15 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-  import { Checkbox } from '@/components/ui/checkbox';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { motion } from 'framer-motion';
+
 
 interface Reservation {
   id: string;
   areaName: string;
+  areaId?: string; // 🆕 ID del área común
   fecha: Date;
   horaInicio: string;
   horaFin: string;
@@ -88,7 +91,7 @@ interface Reservation {
   canceladaEn?: Date;
   motivoCancelacion?: string;
   isMoroso?: boolean;
-  
+
   // 🗝️ NUEVO: Campos para sistema de llaves
   estadoLlaves?: 'pendiente' | 'entregadas' | 'recibidas' | 'retraso';
   fechaEntregaLlaves?: Date;
@@ -96,6 +99,9 @@ interface Reservation {
   fechaRecepcionLlaves?: Date;
   recibidoPor?: string;
   fechaLimiteDevolucion?: Date;
+  // 🆕 NUEVO: Campos para reservas híbridas
+  tipoReserva?: 'gratuita' | 'pago';
+  canceladaPorReservaPago?: boolean;
 }
 
 
@@ -207,7 +213,7 @@ const getKeysStatusDescription = (reservation: Reservation): string => {
   if (!reservation.estadoLlaves) {
     return 'Sin estado de llaves';
   }
-  
+
   switch (reservation.estadoLlaves) {
     case 'pendiente':
       return 'Pendiente de entrega';
@@ -228,7 +234,7 @@ const getKeysStatusDescription = (reservation: Reservation): string => {
 export default function ReservasPage() {
   const { user, userClaims } = useAuth();
   const { toast } = useToast();
-  
+
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -236,7 +242,7 @@ export default function ReservasPage() {
   const [areaFilter, setAreaFilter] = useState<string>('all');
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [areas, setAreas] = useState<string[]>([]);
-  const [residenciales, setResidenciales] = useState<{id: string, nombre: string}[]>([]);
+  const [residenciales, setResidenciales] = useState<{ id: string, nombre: string }[]>([]);
   const [residencialFilter, setResidencialFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
@@ -251,7 +257,7 @@ export default function ReservasPage() {
   const [modalAreaFilter, setModalAreaFilter] = useState<string | null>(null);
   const [modalAreas, setModalAreas] = useState<string[]>([]);
   const [collapsedBlocks, setCollapsedBlocks] = useState<Set<string>>(new Set());
-  const [modalStatusFilter, setModalStatusFilter] = useState<'all'|'pendiente'|'aprobada'|'rechazada'|'cancelada'>('all');
+  const [modalStatusFilter, setModalStatusFilter] = useState<'all' | 'pendiente' | 'aprobada' | 'rechazada' | 'cancelada'>('all');
   const [modalSearch, setModalSearch] = useState('');
   const [hideEmptyBlocks, setHideEmptyBlocks] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -263,16 +269,16 @@ export default function ReservasPage() {
   const [updatingReservationIds, setUpdatingReservationIds] = useState<Set<string>>(new Set());
 
   // 🆕 NUEVO: Estado para las pestañas
-  const [activeTab, setActiveTab] = useState<'hoy' | 'proximas' | 'completadas'>('hoy');
+  const [activeTab, setActiveTab] = useState<'hoy' | 'proximas' | 'completadas' | 'todas'>('hoy');
 
   // 🗑️ Diálogo y objetivo de eliminación
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
-    // 🔍 DEBUG: Log después de que todas las variables estén declaradas
-  console.log('🔍 [DEBUG] ReservasPage renderizando...', { 
-    dayDialogOpen, 
-    modalAreaFilter, 
+  // 🔍 DEBUG: Log después de que todas las variables estén declaradas
+  console.log('🔍 [DEBUG] ReservasPage renderizando...', {
+    dayDialogOpen,
+    modalAreaFilter,
     modalStatusFilter,
     modalAreas: modalAreas.length,
     reservationsCount: reservations.length,
@@ -380,21 +386,21 @@ export default function ReservasPage() {
   // Función para procesar datos de reservas (usada por el listener en tiempo real)
   const processReservationsData = async (rawReservations: any[]) => {
     console.log('🔄 [ReservasPage] Procesando datos de reservas optimizado:', rawReservations.length);
-    console.log('🔍 [DEBUG] processReservationsData - Estado actual:', { 
+    console.log('🔍 [DEBUG] processReservationsData - Estado actual:', {
       dayDialogOpen,
       reservationsCount: reservations.length,
-      loading 
+      loading
     });
-    
+
     try {
       setLoading(true);
-      
+
       // 🚀 OPTIMIZACIÓN: Extraer IDs únicos para consultas en lote
       const userIds = Array.from(new Set(rawReservations.map(r => r.userId).filter(Boolean)));
       const residencialIds = Array.from(new Set(rawReservations.map(r => r.residencialId || userClaims?.residencialId).filter(Boolean)));
-      
+
       console.log('📊 [ReservasPage] IDs únicos:', { userIds: userIds.length, residencialIds: residencialIds.length });
-      
+
       // 🚀 CONSULTAS EN LOTE: Cargar todos los usuarios y residenciales de una vez
       const [usersData, residencialesData] = await Promise.all([
         // Cargar usuarios en lotes de 10 (límite de Firestore para 'in')
@@ -409,14 +415,14 @@ export default function ReservasPage() {
             return usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           })
         ).then(results => results.flat()),
-        
+
         // Cargar residenciales
         Promise.all(
           residencialIds.map(async (id) => {
             try {
               const residencialRef = doc(db, 'residenciales', id);
               const residencialSnapshot = await getDoc(residencialRef);
-              return residencialSnapshot.exists() 
+              return residencialSnapshot.exists()
                 ? { id: residencialSnapshot.id, ...residencialSnapshot.data() }
                 : null;
             } catch (error) {
@@ -426,101 +432,101 @@ export default function ReservasPage() {
           })
         ).then(results => results.filter(Boolean))
       ]);
-      
+
       // 🔍 Crear mapas para acceso rápido
       const usersMap = new Map(usersData.map((user: any) => [user.id, user]));
       const residencialesMap = new Map(residencialesData.filter((res): res is any => res !== null).map((res: any) => [res.id, res]));
-      
+
       console.log('✅ [ReservasPage] Datos cargados:', { usuarios: usersMap.size, residenciales: residencialesMap.size });
-      
+
       const reservationsData: Reservation[] = [];
-      
+
       for (const data of rawReservations) {
-        console.log('🔍 [ReservasPage] Procesando reserva en tiempo real:', { 
-          id: data.id, 
+        console.log('🔍 [ReservasPage] Procesando reserva en tiempo real:', {
+          id: data.id,
           data: {
             ...data,
             fecha: data.fecha?.toDate(),
             createdAt: data.createdAt?.toDate()
           }
         });
-        
+
         // 🚀 OPTIMIZACIÓN: Obtener información del usuario desde el mapa precargado
         let userName = 'Usuario sin nombre';
         let userEmail = data.userEmail || 'Sin email';
         let userDomicilio = 'Sin domicilio';
         let userIsMoroso = false;
-        
+
         const userData = usersMap.get(data.userId) as any;
-        
-          if (userData) {
-            // Construir nombre completo con fullName + apellidos
-            let nombreCompleto = '';
-            if (userData.fullName) {
-              if (userData.paternalLastName && userData.maternalLastName) {
-                nombreCompleto = `${userData.fullName} ${userData.paternalLastName} ${userData.maternalLastName}`;
-              } else if (userData.paternalLastName) {
-                nombreCompleto = `${userData.fullName} ${userData.paternalLastName}`;
-              } else if (userData.maternalLastName) {
-                nombreCompleto = `${userData.fullName} ${userData.maternalLastName}`;
-              } else {
-                nombreCompleto = userData.fullName;
-              }
+
+        if (userData) {
+          // Construir nombre completo con fullName + apellidos
+          let nombreCompleto = '';
+          if (userData.fullName) {
+            if (userData.paternalLastName && userData.maternalLastName) {
+              nombreCompleto = `${userData.fullName} ${userData.paternalLastName} ${userData.maternalLastName}`;
+            } else if (userData.paternalLastName) {
+              nombreCompleto = `${userData.fullName} ${userData.paternalLastName}`;
+            } else if (userData.maternalLastName) {
+              nombreCompleto = `${userData.fullName} ${userData.maternalLastName}`;
+            } else {
+              nombreCompleto = userData.fullName;
             }
-            
-            // Intentar obtener el nombre de múltiples campos
-            const possibleNames = [
-              nombreCompleto,
-              userData.fullName,
-              userData.nombre,
-              userData.displayName,
-              userData.firstName,
-              userData.lastName,
-              userData.name,
-              userData.paternalLastName && userData.maternalLastName 
-                ? `${userData.paternalLastName} ${userData.maternalLastName}`
-                : userData.paternalLastName || userData.maternalLastName,
-              userData.email?.split('@')[0],
-              data.userEmail?.split('@')[0]
-            ].filter(name => name && name.trim() !== '');
-            
-            // Si encontramos un nombre real (no del email), usarlo
-            const realName = possibleNames.find(name => 
-              name && 
-              name !== data.userEmail?.split('@')[0] && 
-              name !== userData.email?.split('@')[0]
-            );
-            
-            userName = realName || possibleNames[0] || 'Usuario sin nombre';
-            userEmail = userData.email || data.userEmail || 'Sin email';
-            userIsMoroso = Boolean((userData as any)?.isMoroso);
-            
-            // Obtener domicilio del usuario
-            if (userData.calle && userData.houseNumber) {
-              userDomicilio = `${userData.calle} ${userData.houseNumber}`;
-            } else if (userData.calle) {
-              userDomicilio = userData.calle;
-            } else if (userData.houseNumber) {
-              userDomicilio = `Casa ${userData.houseNumber}`;
-            } else if (userData.houseID) {
-              userDomicilio = `Casa ${userData.houseID}`;
-            }
-          } else {
+          }
+
+          // Intentar obtener el nombre de múltiples campos
+          const possibleNames = [
+            nombreCompleto,
+            userData.fullName,
+            userData.nombre,
+            userData.displayName,
+            userData.firstName,
+            userData.lastName,
+            userData.name,
+            userData.paternalLastName && userData.maternalLastName
+              ? `${userData.paternalLastName} ${userData.maternalLastName}`
+              : userData.paternalLastName || userData.maternalLastName,
+            userData.email?.split('@')[0],
+            data.userEmail?.split('@')[0]
+          ].filter(name => name && name.trim() !== '');
+
+          // Si encontramos un nombre real (no del email), usarlo
+          const realName = possibleNames.find(name =>
+            name &&
+            name !== data.userEmail?.split('@')[0] &&
+            name !== userData.email?.split('@')[0]
+          );
+
+          userName = realName || possibleNames[0] || 'Usuario sin nombre';
+          userEmail = userData.email || data.userEmail || 'Sin email';
+          userIsMoroso = Boolean((userData as any)?.isMoroso);
+
+          // Obtener domicilio del usuario
+          if (userData.calle && userData.houseNumber) {
+            userDomicilio = `${userData.calle} ${userData.houseNumber}`;
+          } else if (userData.calle) {
+            userDomicilio = userData.calle;
+          } else if (userData.houseNumber) {
+            userDomicilio = `Casa ${userData.houseNumber}`;
+          } else if (userData.houseID) {
+            userDomicilio = `Casa ${userData.houseID}`;
+          }
+        } else {
           userName = data.userEmail?.split('@')[0] || 'Usuario sin nombre';
         }
-        
+
         // 🚀 OPTIMIZACIÓN: Obtener información del residencial desde el mapa precargado
         let residencialNombre = 'Residencial sin nombre';
         const residencialData = residencialesMap.get(data.residencialId || userClaims?.residencialId) as any;
-          
-          if (residencialData) {
-            residencialNombre = residencialData.nombre || residencialData.displayName || 'Residencial sin nombre';
+
+        if (residencialData) {
+          residencialNombre = residencialData.nombre || residencialData.displayName || 'Residencial sin nombre';
         }
-        
+
         // Procesar el horario
         let horaInicio = '';
         let horaFin = '';
-        
+
         if (data.horario) {
           const horarioStr = data.horario;
           if (horarioStr.includes(' - ')) {
@@ -530,14 +536,14 @@ export default function ReservasPage() {
           } else {
             horaInicio = horarioStr;
             const duracion = data.duracion || 2;
-            
+
             const horaInicioDate = new Date(`2000-01-01 ${horarioStr}`);
             if (!isNaN(horaInicioDate.getTime())) {
               const horaFinDate = new Date(horaInicioDate.getTime() + (duracion * 60 * 60 * 1000));
-              horaFin = horaFinDate.toLocaleTimeString('es-ES', { 
-                hour: 'numeric', 
+              horaFin = horaFinDate.toLocaleTimeString('es-ES', {
+                hour: 'numeric',
                 minute: '2-digit',
-                hour12: true 
+                hour12: true
               });
             } else {
               horaFin = `${duracion}h después`;
@@ -547,10 +553,11 @@ export default function ReservasPage() {
           horaInicio = data.horaInicio || '';
           horaFin = data.horaFin || '';
         }
-        
+
         const reservationData: Reservation = {
           id: data.id,
           areaName: data.areaName || 'Área sin nombre',
+          areaId: data.areaId, // 🆕 ID del área común
           fecha: data.fecha?.toDate() || new Date(),
           horaInicio: horaInicio,
           horaFin: horaFin,
@@ -569,7 +576,7 @@ export default function ReservasPage() {
           canceladaEn: data.canceladaEn?.toDate(),
           motivoCancelacion: data.motivoCancelacion,
           isMoroso: typeof (userIsMoroso) === 'boolean' ? userIsMoroso : false,
-          
+
           // 🗝️ NUEVO: Campos para sistema de llaves
           estadoLlaves: data.estadoLlaves,
           fechaEntregaLlaves: data.fechaEntregaLlaves?.toDate(),
@@ -577,16 +584,19 @@ export default function ReservasPage() {
           fechaRecepcionLlaves: data.fechaRecepcionLlaves?.toDate(),
           recibidoPor: data.recibidoPor,
           fechaLimiteDevolucion: data.fechaLimiteDevolucion?.toDate(),
+          // 🆕 NUEVO: Campos para reservas híbridas
+          tipoReserva: data.tipoReserva,
+          canceladaPorReservaPago: data.canceladaPorReservaPago,
         };
-        
+
         reservationsData.push(reservationData);
       }
-      
+
       console.log('✅ [ReservasPage] Reservas procesadas en tiempo real:', reservationsData.length);
       console.log('🔍 [DEBUG] processReservationsData completado exitosamente');
       setReservations(reservationsData);
       setDebugInfo(`Actualizadas ${reservationsData.length} reservas en tiempo real`);
-      
+
     } catch (error) {
       console.error('❌ [ReservasPage] Error procesando reservas en tiempo real:', error);
       toast({
@@ -619,33 +629,33 @@ export default function ReservasPage() {
     if (!user) return;
 
     console.log('🔴 [ReservasPage] Configurando listener en tiempo real');
-    
+
     const residencialId = userClaims?.residencialId || 'global';
     let unsubscribe: (() => void) | undefined;
 
     if (residencialId === 'global') {
       // Para admin global, escuchar cambios en todos los residenciales
       console.log('🌍 [ReservasPage] Configurando listener global para todos los residenciales');
-      
+
       // Crear un listener compuesto para todos los residenciales
       const unsubscribeFunctions: (() => void)[] = [];
-      
+
       // Listener principal para detectar cambios en la colección de residenciales
       const residencialesRef = collection(db, 'residenciales');
       const residencialesUnsubscribe = onSnapshot(residencialesRef, async (residencialesSnapshot) => {
         console.log('🔄 [ReservasPage] Cambio detectado en residenciales, reconfigurando listeners...');
         console.log(`🏢 [ReservasPage] Residenciales encontrados: ${residencialesSnapshot.docs.length}`);
-        
+
         // Limpiar listeners anteriores
         unsubscribeFunctions.forEach(unsub => unsub());
         unsubscribeFunctions.length = 0;
-        
+
         // Configurar nuevos listeners para cada residencial
         for (const residencialDoc of residencialesSnapshot.docs) {
           console.log(`🔴 [ReservasPage] Configurando listener para residencial: ${residencialDoc.id}`);
           const reservationsRef = collection(db, 'residenciales', residencialDoc.id, 'reservaciones');
           const reservationsQuery = query(reservationsRef, orderBy('fecha', 'desc'));
-          
+
           const unsubscribe = onSnapshot(reservationsQuery, (snapshot) => {
             console.log(`🔄 [ReservasPage] Cambio detectado en reservas del residencial: ${residencialDoc.id}`);
             console.log(`📊 [ReservasPage] Nuevas reservas: ${snapshot.docs.length}`);
@@ -654,7 +664,7 @@ export default function ReservasPage() {
             if (!dayDialogOpen) {
               setIsRealtimeActive(true);
               loadReservations(); // Recargar todas las reservas cuando hay cambios
-              
+
               // Resetear el indicador después de un tiempo
               setTimeout(() => setIsRealtimeActive(false), 2000);
             } else {
@@ -663,20 +673,20 @@ export default function ReservasPage() {
           }, (error) => {
             console.error(`❌ [ReservasPage] Error en listener del residencial ${residencialDoc.id}:`, error);
           });
-          
+
           unsubscribeFunctions.push(unsubscribe);
         }
-        
+
         console.log(`✅ [ReservasPage] Listeners configurados para ${unsubscribeFunctions.length} residenciales`);
       }, (error) => {
         console.error('❌ [ReservasPage] Error en listener de residenciales:', error);
       });
-      
+
       unsubscribe = () => {
         residencialesUnsubscribe();
         unsubscribeFunctions.forEach(unsub => unsub());
       };
-      
+
     } else {
       // Para admin de residencial específico, escuchar solo ese residencial
       console.log(`🏢 [ReservasPage] Configurando listener para residencial: ${residencialId}`);
@@ -723,38 +733,38 @@ export default function ReservasPage() {
 
   const loadReservations = async () => {
     console.log('🔍 [ReservasPage] loadReservations iniciado (carga manual)');
-    console.log('🔍 [DEBUG] loadReservations - Estado actual:', { 
-      user: !!user, 
-      userClaims: !!userClaims, 
+    console.log('🔍 [DEBUG] loadReservations - Estado actual:', {
+      user: !!user,
+      userClaims: !!userClaims,
       residencialId: userClaims?.residencialId,
       dayDialogOpen,
-      reservationsCount: reservations.length 
+      reservationsCount: reservations.length
     });
-    
+
     if (!user) {
       console.log('❌ [ReservasPage] No hay user');
       return;
     }
-    
+
     const residencialIdRaw = userClaims?.residencialId || 'global';
     console.log('🏢 [ReservasPage] Usando residencialId (raw):', residencialIdRaw);
-    
+
     try {
       setLoading(true);
-      
+
       let rawReservations: any[] = [];
-      
+
       if (residencialIdRaw === 'global') {
         console.log('🌍 [ReservasPage] Admin global - cargando todas las reservas');
         const residencialesRef = collection(db, 'residenciales');
         const residencialesSnapshot = await getDocs(residencialesRef);
-        
+
         for (const residencialDoc of residencialesSnapshot.docs) {
           const reservationsRef = collection(db, 'residenciales', residencialDoc.id, 'reservaciones');
           // 🚀 OPTIMIZACIÓN: Limitar la carga inicial a las 100 reservas más recientes por residencial
           const reservationsQuery = query(reservationsRef, orderBy('fecha', 'desc'), limit(100));
           const residencialSnapshot = await getDocs(reservationsQuery);
-          
+
           residencialSnapshot.docs.forEach(doc => {
             rawReservations.push({
               ...doc.data(),
@@ -764,13 +774,13 @@ export default function ReservasPage() {
             });
           });
         }
-        
+
         rawReservations.sort((a, b) => {
           const dateA = a.fecha?.toDate?.() || new Date(a.fecha);
           const dateB = b.fecha?.toDate?.() || new Date(b.fecha);
           return dateB.getTime() - dateA.getTime();
         });
-        
+
       } else {
         const targetDocId = await resolveResidencialDocId(residencialIdRaw);
         console.log('🏢 [ReservasPage] Resolvido residencialDocId:', { raw: residencialIdRaw, docId: targetDocId });
@@ -778,16 +788,16 @@ export default function ReservasPage() {
         // 🚀 OPTIMIZACIÓN: Cargar solo las 200 reservas más recientes inicialmente
         const reservationsQuery = query(reservationsRef, orderBy('fecha', 'desc'), limit(200));
         const snapshot = await getDocs(reservationsQuery);
-        
+
         rawReservations = snapshot.docs.map(doc => ({
           ...doc.data(),
           id: doc.id,
           residencialId: targetDocId
         }));
       }
-      
+
       await processReservationsData(rawReservations);
-      
+
     } catch (error) {
       console.error('❌ [ReservasPage] Error loading reservations:', error);
       toast({
@@ -835,7 +845,7 @@ export default function ReservasPage() {
       }
       return;
     }
-    
+
     try {
       const targetResidencialRaw = isGlobalAdmin ? residencialId : (userClaims!.residencialId as string);
       const targetResidencial = (targetResidencialRaw && targetResidencialRaw !== 'global' && targetResidencialRaw !== 'all')
@@ -859,7 +869,7 @@ export default function ReservasPage() {
 
   const loadResidenciales = async () => {
     console.log('🏢 [ReservasPage] loadResidenciales iniciado');
-    
+
     try {
       const residencialesRef = collection(db, 'residenciales');
       const residencialesSnapshot = await getDocs(residencialesRef);
@@ -867,7 +877,7 @@ export default function ReservasPage() {
         id: doc.id,
         nombre: doc.data().nombre || doc.data().displayName || doc.id
       }));
-      
+
       setResidenciales(residencialesData);
       console.log('✅ [ReservasPage] Residenciales cargados:', residencialesData.length);
     } catch (error) {
@@ -888,7 +898,7 @@ export default function ReservasPage() {
   const filteredReservations = useMemo(() => {
     let filtered = reservations.filter(reservation => {
       // Filtro por búsqueda
-      const searchMatch = 
+      const searchMatch =
         reservation.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         reservation.userEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
         reservation.areaName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -926,6 +936,9 @@ export default function ReservasPage() {
         break;
       case 'completadas':
         filtered = filtered.filter(r => isCompleted(r.fecha, parseInt(r.duracion)) || r.status === 'finalizada');
+        break;
+      case 'todas':
+        // No aplicamos filtros adicionales por fecha/estado
         break;
     }
 
@@ -1075,12 +1088,12 @@ export default function ReservasPage() {
         return;
       }
 
-      console.log('✅ [DEBUG] Reserva encontrada:', { 
-        id: reservation.id, 
-        currentStatus: reservation.status, 
+      console.log('✅ [DEBUG] Reserva encontrada:', {
+        id: reservation.id,
+        currentStatus: reservation.status,
         newStatus,
         residencialId: reservation.residencialId,
-        userId: reservation.userId 
+        userId: reservation.userId
       });
 
       // Actualizar en ambos lugares
@@ -1106,6 +1119,187 @@ export default function ReservasPage() {
       batch.update(residentialRef, updateData);
       batch.update(userRef, updateData);
 
+      // 🆕 Si se está aprobando una reserva de pago, cancelar automáticamente las reservas gratuitas del mismo día
+      console.log('🔍 [CANCELACION] Verificando condiciones:', {
+        newStatus,
+        tipoReserva: reservation.tipoReserva,
+        tipoReservaTipo: typeof reservation.tipoReserva,
+        areaId: reservation.areaId,
+        esAprobada: newStatus === 'aprobada',
+        esPago: reservation.tipoReserva === 'pago',
+        tieneAreaId: !!reservation.areaId,
+        reservaCompleta: {
+          id: reservation.id,
+          areaName: reservation.areaName,
+          areaId: reservation.areaId,
+          tipoReserva: reservation.tipoReserva,
+          status: reservation.status,
+          fecha: reservation.fecha?.toString()
+        }
+      });
+
+      if (newStatus === 'aprobada' && reservation.tipoReserva === 'pago' && reservation.areaId) {
+        console.log('🔄 [CANCELACION] ✅ Condiciones cumplidas - Aprobando reserva de pago, buscando reservas gratuitas del mismo día para cancelar...');
+        console.log('🔄 [CANCELACION] Datos de la reserva:', {
+          areaId: reservation.areaId,
+          residencialId: reservation.residencialId,
+          fecha: reservation.fecha,
+          tipoReserva: reservation.tipoReserva
+        });
+
+        try {
+          // Obtener el inicio y fin del día de la reserva
+          const reservationDate = reservation.fecha instanceof Date ? reservation.fecha : new Date(reservation.fecha);
+          const startOfReservationDay = startOfDay(reservationDate);
+          const endOfReservationDay = endOfDay(reservationDate);
+
+          console.log('📅 [CANCELACION] Fechas calculadas:', {
+            reservationDate: reservationDate.toISOString(),
+            startOfReservationDay: startOfReservationDay.toISOString(),
+            endOfReservationDay: endOfReservationDay.toISOString()
+          });
+
+          // Buscar todas las reservas del mismo día para el mismo área
+          const sameDayReservationsRef = collection(db, 'residenciales', reservation.residencialId, 'reservaciones');
+          const sameDayQuery = query(
+            sameDayReservationsRef,
+            where('areaId', '==', reservation.areaId),
+            where('fecha', '>=', Timestamp.fromDate(startOfReservationDay)),
+            where('fecha', '<=', Timestamp.fromDate(endOfReservationDay)),
+            where('status', 'in', ['pendiente', 'aprobada'])
+          );
+
+          console.log('🔍 [CANCELACION] Consulta Firestore:', {
+            residencialId: reservation.residencialId,
+            areaId: reservation.areaId,
+            fechaInicio: startOfReservationDay.toISOString(),
+            fechaFin: endOfReservationDay.toISOString(),
+            statuses: ['pendiente', 'aprobada']
+          });
+
+          const sameDaySnapshot = await getDocs(sameDayQuery);
+          const freeReservationsToCancel: string[] = [];
+
+          console.log(`🔄 [CANCELACION] Total de reservas encontradas del mismo día: ${sameDaySnapshot.docs.length}`);
+
+          sameDaySnapshot.forEach((doc) => {
+            const data = doc.data();
+            console.log(`🔍 [CANCELACION] Revisando reserva ${doc.id}:`, {
+              id: doc.id,
+              tipoReserva: data.tipoReserva,
+              status: data.status,
+              fecha: data.fecha?.toDate?.() || data.fecha,
+              areaId: data.areaId,
+              esGratuita: data.tipoReserva === 'gratuita',
+              noEsLaActual: doc.id !== reservationId
+            });
+
+            // Cancelar solo las reservas gratuitas (no la que se está aprobando)
+            if (data.tipoReserva === 'gratuita' && doc.id !== reservationId) {
+              freeReservationsToCancel.push(doc.id);
+              console.log(`✅ [CANCELACION] Reserva gratuita ${doc.id} agregada a la lista de cancelación`);
+            }
+          });
+
+          console.log(`🔄 [CANCELACION] Encontradas ${freeReservationsToCancel.length} reservas gratuitas para cancelar`);
+
+          // Cancelar las reservas gratuitas encontradas
+          for (const freeReservationId of freeReservationsToCancel) {
+            const freeReservationDoc = sameDaySnapshot.docs.find(d => d.id === freeReservationId);
+            if (!freeReservationDoc) continue;
+
+            const freeReservationData = freeReservationDoc.data();
+
+            // Actualizar en el residencial
+            const freeResidentialRef = doc(db, 'residenciales', reservation.residencialId, 'reservaciones', freeReservationId);
+            const freeUserRef = doc(db, 'usuarios', freeReservationData.userId, 'reservaciones', freeReservationId);
+
+            batch.update(freeResidentialRef, {
+              status: 'cancelada',
+              canceladaPor: 'Sistema',
+              canceladaEn: new Date(),
+              motivoCancelacion: 'Cancelada automáticamente porque se aprobó una reserva de pago para el mismo día',
+              canceladaPorReservaPago: true,
+              updatedAt: new Date(),
+              updatedBy: user?.uid,
+            });
+
+            batch.update(freeUserRef, {
+              status: 'cancelada',
+              canceladaPor: 'Sistema',
+              canceladaEn: new Date(),
+              motivoCancelacion: 'Cancelada automáticamente porque se aprobó una reserva de pago para el mismo día',
+              canceladaPorReservaPago: true,
+              updatedAt: new Date(),
+              updatedBy: user?.uid,
+            });
+
+            console.log(`✅ [CANCELACION] Reserva gratuita ${freeReservationId} marcada para cancelación`);
+
+            // Enviar notificación al usuario afectado
+            try {
+              const { httpsCallable } = await import('firebase/functions');
+              const { functions } = await import('@/lib/firebase/config');
+              const sendNotification = httpsCallable(functions, 'sendReservationStatusNotification');
+
+              // Convertir la fecha correctamente (puede ser Timestamp de Firestore o Date)
+              let fechaParaNotificacion: string;
+              if (freeReservationData.fecha?.toDate) {
+                // Es un Timestamp de Firestore
+                fechaParaNotificacion = freeReservationData.fecha.toDate().toISOString();
+              } else if (freeReservationData.fecha instanceof Date) {
+                // Ya es un Date
+                fechaParaNotificacion = freeReservationData.fecha.toISOString();
+              } else if (freeReservationData.fecha) {
+                // Intentar convertir desde Timestamp
+                const { Timestamp } = await import('firebase/firestore');
+                if (freeReservationData.fecha instanceof Timestamp) {
+                  fechaParaNotificacion = freeReservationData.fecha.toDate().toISOString();
+                } else {
+                  fechaParaNotificacion = new Date(freeReservationData.fecha).toISOString();
+                }
+              } else {
+                // Fallback a la fecha de la reserva de pago
+                fechaParaNotificacion = reservation.fecha instanceof Date
+                  ? reservation.fecha.toISOString()
+                  : new Date(reservation.fecha).toISOString();
+              }
+
+              console.log(`📧 [CANCELACION] Enviando notificación a usuario ${freeReservationData.userId}:`, {
+                userId: freeReservationData.userId,
+                areaName: freeReservationData.areaName || reservation.areaName,
+                date: fechaParaNotificacion,
+                status: 'cancelada'
+              });
+
+              const notificationResult = await sendNotification({
+                userId: freeReservationData.userId,
+                areaName: freeReservationData.areaName || reservation.areaName,
+                date: fechaParaNotificacion,
+                status: 'cancelada',
+                reason: 'Tu reserva gratuita fue cancelada automáticamente porque se aprobó una reserva de pago para el mismo día',
+              });
+
+              console.log(`✅ [CANCELACION] Notificación enviada exitosamente:`, notificationResult.data);
+            } catch (notificationError) {
+              console.error(`❌ [CANCELACION] Error enviando notificación a usuario ${freeReservationData.userId}:`, notificationError);
+              console.error(`❌ [CANCELACION] Detalles del error:`, {
+                error: notificationError,
+                message: notificationError instanceof Error ? notificationError.message : String(notificationError),
+                stack: notificationError instanceof Error ? notificationError.stack : undefined
+              });
+            }
+          }
+
+          if (freeReservationsToCancel.length > 0) {
+            console.log(`✅ [CANCELACION] ${freeReservationsToCancel.length} reservas gratuitas canceladas automáticamente`);
+          }
+        } catch (cancelError) {
+          console.error('❌ [CANCELACION] Error cancelando reservas gratuitas:', cancelError);
+          // No fallar la aprobación por error en cancelación
+        }
+      }
+
       console.log('🚀 [DEBUG] Ejecutando batch commit...');
       await batch.commit();
       console.log('✅ [DEBUG] Batch commit completado');
@@ -1116,7 +1310,7 @@ export default function ReservasPage() {
         const { httpsCallable } = await import('firebase/functions');
         const { functions } = await import('@/lib/firebase/config');
         const sendNotification = httpsCallable(functions, 'sendReservationStatusNotification');
-        
+
         await sendNotification({
           userId: reservation.userId,
           areaName: reservation.areaName,
@@ -1124,7 +1318,7 @@ export default function ReservasPage() {
           status: newStatus,
           reason: newStatus === 'rechazada' ? (reason || 'Rechazada desde panel administrativo') : null,
         });
-        
+
         console.log('✅ [DEBUG] Notificación enviada al usuario');
       } catch (notificationError) {
         console.error('❌ [DEBUG] Error enviando notificación:', notificationError);
@@ -1135,11 +1329,45 @@ export default function ReservasPage() {
       console.log('🔄 [DEBUG] Actualizando estado local...');
       setReservations(prev => {
         console.log('📊 [DEBUG] Estado anterior:', prev.length, 'reservas');
-        const updated = prev.map(r => 
-          r.id === reservationId 
-            ? { ...r, status: newStatus as any, ...(newStatus === 'rechazada' && reason ? { motivoCancelacion: reason } : {}) }
-            : r
-        );
+        // 🆕 Si se cancelaron reservas gratuitas, actualizarlas también en el estado local
+        let updated = prev.map(r => {
+          if (r.id === reservationId) {
+            return { ...r, status: newStatus as any, ...(newStatus === 'rechazada' && reason ? { motivoCancelacion: reason } : {}) };
+          }
+          // Si esta reserva fue cancelada automáticamente por la aprobación de una de pago
+          if (newStatus === 'aprobada' && reservation.tipoReserva === 'pago' &&
+            r.areaId === reservation.areaId &&
+            isSameDay(r.fecha, reservation.fecha) &&
+            r.tipoReserva === 'gratuita' &&
+            r.status !== 'cancelada' &&
+            r.id !== reservationId) {
+            console.log(`🔄 [CANCELACION] Actualizando estado local - Cancelando reserva gratuita ${r.id}`);
+            return {
+              ...r,
+              status: 'cancelada' as any,
+              canceladaPor: 'Sistema',
+              canceladaEn: new Date(),
+              motivoCancelacion: 'Cancelada automáticamente porque se aprobó una reserva de pago para el mismo día',
+              canceladaPorReservaPago: true,
+            };
+          } else if (newStatus === 'aprobada' && reservation.tipoReserva === 'pago' && r.id !== reservationId) {
+            // Log para depurar por qué no se está cancelando
+            console.log(`🔍 [CANCELACION] Reserva ${r.id} NO cancelada - Verificando condiciones:`, {
+              tieneAreaId: r.areaId === reservation.areaId,
+              areaIdReserva: r.areaId,
+              areaIdPago: reservation.areaId,
+              mismoDia: isSameDay(r.fecha, reservation.fecha),
+              fechaReserva: r.fecha,
+              fechaPago: reservation.fecha,
+              esGratuita: r.tipoReserva === 'gratuita',
+              tipoReserva: r.tipoReserva,
+              noEstaCancelada: r.status !== 'cancelada',
+              status: r.status,
+              noEsLaActual: r.id !== reservationId
+            });
+          }
+          return r;
+        });
         console.log('📊 [DEBUG] Estado actualizado:', updated.length, 'reservas');
         return updated;
       });
@@ -1196,14 +1424,14 @@ export default function ReservasPage() {
       await batch.commit();
 
       // Actualizar estado local de forma segura
-      setReservations(prev => 
-        prev.map(r => 
-          r.id === reservationId 
-            ? { 
-                ...r, 
-                estadoLlaves: newKeysState as 'pendiente' | 'entregadas' | 'recibidas' | 'retraso', 
-                updatedAt: new Date() 
-              } as Reservation
+      setReservations(prev =>
+        prev.map(r =>
+          r.id === reservationId
+            ? {
+              ...r,
+              estadoLlaves: newKeysState as 'pendiente' | 'entregadas' | 'recibidas' | 'retraso',
+              updatedAt: new Date()
+            } as Reservation
             : r
         )
       );
@@ -1222,7 +1450,7 @@ export default function ReservasPage() {
       if (!reservation) return;
 
       let newStatus = reservation.status;
-      
+
       // Lógica automática de estados según el estado de las llaves
       switch (keysState) {
         case 'entregadas':
@@ -1248,7 +1476,7 @@ export default function ReservasPage() {
       // Solo actualizar si el estado cambió
       if (newStatus !== reservation.status) {
         console.log(`🔄 [KEYS] Actualizando estado de reserva ${reservationId} de "${reservation.status}" a "${newStatus}" por estado de llaves: "${keysState}"`);
-        
+
         // Actualizar en ambos lugares
         const batch = writeBatch(db);
 
@@ -1271,9 +1499,9 @@ export default function ReservasPage() {
         await batch.commit();
 
         // ⚠️ MEJORADO: Actualizar estado local de forma más controlada para evitar bucles
-        setReservations(prev => 
-          prev.map(r => 
-            r.id === reservationId 
+        setReservations(prev =>
+          prev.map(r =>
+            r.id === reservationId
               ? { ...r, status: newStatus as any, updatedAt: new Date() }
               : r
           )
@@ -1335,7 +1563,7 @@ export default function ReservasPage() {
   // Eliminar reserva (residencial y usuario) - VERSIÓN MEJORADA CON DEBUGGING
   const deleteReservation = async (reservationId: string) => {
     console.log('🔍 [DEBUG] Iniciando eliminación de reserva:', reservationId);
-    
+
     try {
       const reservation = reservations.find(r => r.id === reservationId);
       if (!reservation) {
@@ -1362,18 +1590,18 @@ export default function ReservasPage() {
       const batch = writeBatch(db);
       const residentialRef = doc(db, 'residenciales', reservation.residencialId, 'reservaciones', reservationId);
       const userRef = doc(db, 'usuarios', reservation.userId, 'reservaciones', reservationId);
-      
+
       console.log('📝 [DEBUG] Referencias creadas:', {
         residential: residentialRef.path,
         user: userRef.path
       });
-      
+
       batch.delete(residentialRef);
       batch.delete(userRef);
-      
+
       console.log('🔄 [DEBUG] Ejecutando batch de eliminación...');
       await batch.commit();
-      
+
       console.log('✅ [DEBUG] Batch ejecutado exitosamente');
 
       setReservations(prev => {
@@ -1381,13 +1609,13 @@ export default function ReservasPage() {
         console.log('📊 [DEBUG] Reservas actualizadas:', filtered.length);
         return filtered;
       });
-      
+
       toast({ title: 'Eliminada', description: 'La reserva fue eliminada correctamente.' });
       console.log('🎉 [DEBUG] Eliminación completada exitosamente');
-      
+
     } catch (error: any) {
       console.error('❌ [DEBUG] Error eliminando reserva:', error);
-      
+
       // Proporcionar información más detallada del error
       if (error.code) {
         console.error('📋 [DEBUG] Código de error:', error.code);
@@ -1395,11 +1623,11 @@ export default function ReservasPage() {
       if (error.message) {
         console.error('📋 [DEBUG] Mensaje de error:', error.message);
       }
-      
-      toast({ 
-        title: 'Error', 
-        description: `No se pudo eliminar la reserva: ${error.message || 'Error desconocido'}`, 
-        variant: 'destructive' 
+
+      toast({
+        title: 'Error',
+        description: `No se pudo eliminar la reserva: ${error.message || 'Error desconocido'}`,
+        variant: 'destructive'
       });
     }
   };
@@ -1446,7 +1674,7 @@ export default function ReservasPage() {
       // Reutilizar la lógica optimizada de consultas en lote
       const userIds = Array.from(new Set(rawReservations.map(r => r.userId).filter(Boolean)));
       const residencialIds = Array.from(new Set(rawReservations.map(r => r.residencialId || userClaims?.residencialId).filter(Boolean)));
-      
+
       const [usersData, residencialesData] = await Promise.all([
         Promise.all(
           Array.from({ length: Math.ceil(userIds.length / 10) }, (_, i) =>
@@ -1459,13 +1687,13 @@ export default function ReservasPage() {
             return usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           })
         ).then(results => results.flat()),
-        
+
         Promise.all(
           residencialIds.map(async (id) => {
             try {
               const residencialRef = doc(db, 'residenciales', id);
               const residencialSnapshot = await getDoc(residencialRef);
-              return residencialSnapshot.exists() 
+              return residencialSnapshot.exists()
                 ? { id: residencialSnapshot.id, ...residencialSnapshot.data() }
                 : null;
             } catch (error) {
@@ -1475,26 +1703,26 @@ export default function ReservasPage() {
           })
         ).then(results => results.filter(Boolean))
       ]);
-      
+
       const usersMap = new Map(usersData.map((user: any) => [user.id, user]));
       const residencialesMap = new Map(residencialesData.filter((res): res is any => res !== null).map((res: any) => [res.id, res]));
-      
+
       const processedReservations: Reservation[] = rawReservations.map(data => {
         const userData = usersMap.get(data.userId) as any;
         const residencialData = residencialesMap.get(data.residencialId || userClaims?.residencialId) as any;
-        
+
         // Lógica simplificada para construcción de reserva
         let userName = 'Usuario sin nombre';
         let userEmail = data.userEmail || 'Sin email';
         let userDomicilio = 'Sin domicilio';
         let userIsMoroso = false;
-        
+
         if (userData) {
           const nombreCompleto = userData.fullName || userData.nombre || userData.displayName || userData.firstName || '';
           userName = nombreCompleto || userData.email?.split('@')[0] || data.userEmail?.split('@')[0] || 'Usuario sin nombre';
           userEmail = userData.email || data.userEmail || 'Sin email';
           userIsMoroso = Boolean((userData as any)?.isMoroso);
-          
+
           if (userData.calle && userData.houseNumber) {
             userDomicilio = `${userData.calle} ${userData.houseNumber}`;
           } else if (userData.calle) {
@@ -1505,9 +1733,9 @@ export default function ReservasPage() {
             userDomicilio = `Casa ${userData.houseID}`;
           }
         }
-        
+
         const residencialNombre = residencialData?.nombre || residencialData?.displayName || 'Residencial sin nombre';
-        
+
         return {
           id: data.id,
           userId: data.userId,
@@ -1538,11 +1766,11 @@ export default function ReservasPage() {
           fechaFinalizacion: data.fechaFinalizacion?.toDate(),
         } as Reservation;
       });
-      
+
       // Combinar y actualizar las reservas
       const combinedReservations = [...existingReservations, ...processedReservations];
       setReservations(combinedReservations);
-      
+
     } catch (error) {
       console.error('❌ Error procesando reservas adicionales:', error);
       throw error;
@@ -1552,32 +1780,32 @@ export default function ReservasPage() {
   // 🚀 FUNCIÓN PARA CARGAR MÁS RESERVAS
   const loadMoreReservations = async () => {
     if (!user || loadingMore || !hasMoreReservations) return;
-    
+
     console.log('📈 [ReservasPage] Cargando más reservas...');
     setLoadingMore(true);
-    
+
     try {
       const residencialIdRaw = userClaims?.residencialId || 'global';
       let additionalReservations: any[] = [];
-      
+
       // Obtener la fecha de la última reserva cargada para paginación
       const lastReservation = reservations[reservations.length - 1];
       const lastDate = lastReservation?.fecha || new Date();
-      
+
       if (residencialIdRaw === 'global') {
         const residencialesRef = collection(db, 'residenciales');
         const residencialesSnapshot = await getDocs(residencialesRef);
-        
+
         for (const residencialDoc of residencialesSnapshot.docs) {
           const reservationsRef = collection(db, 'residenciales', residencialDoc.id, 'reservaciones');
           const reservationsQuery = query(
-            reservationsRef, 
+            reservationsRef,
             orderBy('fecha', 'desc'),
             where('fecha', '<', lastDate),
             limit(50)
           );
           const residencialSnapshot = await getDocs(reservationsQuery);
-          
+
           residencialSnapshot.docs.forEach(doc => {
             additionalReservations.push({
               ...doc.data(),
@@ -1596,14 +1824,14 @@ export default function ReservasPage() {
           limit(100)
         );
         const snapshot = await getDocs(reservationsQuery);
-        
+
         additionalReservations = snapshot.docs.map(doc => ({
           ...doc.data(),
           id: doc.id,
           residencialId: targetDocId
         }));
       }
-      
+
       if (additionalReservations.length === 0) {
         setHasMoreReservations(false);
         console.log('📈 [ReservasPage] No hay más reservas para cargar');
@@ -1683,57 +1911,67 @@ export default function ReservasPage() {
   );
 
   return (
-    <div className="space-y-4">
-      {/* Header compacto */}
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h1 className="text-2xl font-bold">Gestión de Reservas</h1>
-          <p className="text-sm text-muted-foreground">
-            {filteredReservations.length} de {reservations.length} reservas
+    <div className="min-h-screen bg-premium p-4 lg:p-10 space-y-8 pb-20">
+      {/* Premium Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="flex flex-col lg:flex-row justify-between gap-6 items-start"
+      >
+        <div className="space-y-2">
+          <Badge className="bg-indigo-100 text-indigo-700 border-none font-black px-4 py-1 rounded-full flex gap-2 w-fit items-center shadow-sm">
+            <span className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+            Gestión de Espacios
+          </Badge>
+          <h1 className="text-5xl font-extrabold tracking-tighter text-slate-900">
+            <span className="text-gradient-zentry">Reservas</span>
+          </h1>
+          <p className="text-slate-600 font-bold max-w-lg">
+            {filteredReservations.length} de {reservations.length} reservas activas
           </p>
-          
-          {/* 🆕 NUEVO: Indicadores de estado general */}
-          <div className="flex items-center gap-3 mt-2">
-            <div className="flex items-center gap-1 text-xs">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-muted-foreground">
+
+          {/* Indicadores de estado general */}
+          <div className="flex items-center gap-3 mt-4">
+            <div className="flex items-center gap-1.5 text-xs bg-green-50 px-3 py-1.5 rounded-full">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-green-700 font-bold">
                 {reservations.filter(r => r.status === 'aprobada').length} Aprobadas
               </span>
             </div>
-            <div className="flex items-center gap-1 text-xs">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <span className="text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-xs bg-blue-50 px-3 py-1.5 rounded-full">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+              <span className="text-blue-700 font-bold">
                 {reservations.filter(r => r.status === 'en_curso').length} En Curso
               </span>
-        </div>
-            <div className="flex items-center gap-1 text-xs">
-              <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-              <span className="text-muted-foreground">
+            </div>
+            <div className="flex items-center gap-1.5 text-xs bg-purple-50 px-3 py-1.5 rounded-full">
+              <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
+              <span className="text-purple-700 font-bold">
                 {reservations.filter(r => r.status === 'finalizada').length} Finalizadas
               </span>
-          </div>
-            <div className="flex items-center gap-1 text-xs">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-              <span className="text-muted-foreground">
+            </div>
+            <div className="flex items-center gap-1.5 text-xs bg-yellow-50 px-3 py-1.5 rounded-full">
+              <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+              <span className="text-yellow-700 font-bold">
                 {reservations.filter(r => r.status === 'pendiente').length} Pendientes
               </span>
-      </div>
-
-
+            </div>
           </div>
         </div>
-        
+
         {/* Controles de vista */}
-        <div className="flex items-center gap-2">
+        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex items-center gap-2">
           <Button
             variant="outline"
-            size="sm"
             onClick={() => setViewMode(viewMode === 'table' ? 'month' : 'table')}
+            className="rounded-2xl h-14 px-8 font-black shadow-zentry-lg bg-white text-slate-900 hover:bg-slate-50 hover-lift transition-all border-slate-200"
           >
+            <CalendarIcon2 className="mr-2 h-5 w-5" />
             {viewMode === 'table' ? 'Vista Calendario' : 'Vista Tabla'}
           </Button>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       {/* Banner de estado de tiempo real */}
       {loadingBanner}
@@ -1743,1132 +1981,1218 @@ export default function ReservasPage() {
         <ReservationSkeleton />
       ) : (
         <>
-      {/* 🆕 NUEVO: Sistema de pestañas (similar a Flutter) */}
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="hoy" className="flex items-center gap-2">
-            <CalendarIcon2 className="h-4 w-4" />
-            Hoy
-          </TabsTrigger>
-          <TabsTrigger value="proximas" className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            Próximas
-          </TabsTrigger>
-          <TabsTrigger value="completadas" className="flex items-center gap-2">
-            <CheckCircle className="h-4 w-4" />
-            Completadas
-          </TabsTrigger>
-        </TabsList>
+          {/* Sistema de pestañas con diseño premium */}
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
+            <TabsList className="grid w-full grid-cols-4 bg-white/80 backdrop-blur-xl p-2 rounded-3xl shadow-zentry border-none h-auto">
+              <TabsTrigger
+                value="hoy"
+                className="flex items-center gap-2 rounded-2xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-bold transition-all h-12"
+              >
+                <CalendarIcon2 className="h-4 w-4" />
+                Hoy
+              </TabsTrigger>
+              <TabsTrigger
+                value="proximas"
+                className="flex items-center gap-2 rounded-2xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-bold transition-all h-12"
+              >
+                <Clock className="h-4 w-4" />
+                Próximas
+              </TabsTrigger>
+              <TabsTrigger
+                value="completadas"
+                className="flex items-center gap-2 rounded-2xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-bold transition-all h-12"
+              >
+                <CheckCircle className="h-4 w-4" />
+                Completadas
+              </TabsTrigger>
+              <TabsTrigger
+                value="todas"
+                className="flex items-center gap-2 rounded-2xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-bold transition-all h-12"
+              >
+                <Filter className="h-4 w-4" />
+                Todas
+              </TabsTrigger>
+            </TabsList>
 
-        {/* Pestaña: Hoy */}
-        <TabsContent value="hoy" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Reservaciones de Hoy</h2>
-            <Badge variant="secondary" className="text-xs">
-              {filteredReservations.filter(r => isToday(r.fecha)).length} reservaciones
-            </Badge>
-            </div>
-          
-          {/* 🆕 NUEVO: Resumen estadístico */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card className="p-3">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  {filteredReservations.filter(r => isToday(r.fecha) && r.status === 'aprobada').length}
+            {/* Pestaña: Hoy */}
+            <TabsContent value="hoy" className="space-y-6 mt-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-black text-slate-900">Reservaciones de Hoy</h2>
+                <Badge className="bg-indigo-100 text-indigo-700 border-none font-black px-4 py-2 rounded-full text-sm">
+                  {filteredReservations.filter(r => isToday(r.fecha)).length} reservaciones
+                </Badge>
               </div>
-                <div className="text-xs text-muted-foreground">Aprobadas</div>
+
+              {/* Grid de estadísticas premium */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-zentry border border-blue-100">
+                  <div className="text-center">
+                    <div className="text-4xl font-black text-blue-600 mb-2">
+                      {filteredReservations.filter(r => isToday(r.fecha) && r.status === 'aprobada').length}
+                    </div>
+                    <div className="text-xs font-black uppercase tracking-widest text-slate-500">Aprobadas</div>
+                  </div>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-zentry border border-blue-100">
+                  <div className="text-center">
+                    <div className="text-4xl font-black text-blue-600 mb-2">
+                      {filteredReservations.filter(r => isToday(r.fecha) && r.status === 'en_curso').length}
+                    </div>
+                    <div className="text-xs font-black uppercase tracking-widest text-slate-500">En Curso</div>
+                  </div>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-zentry border border-green-100">
+                  <div className="text-center">
+                    <div className="text-4xl font-black text-green-600 mb-2">
+                      {filteredReservations.filter(r => isToday(r.fecha) && r.estadoLlaves === 'entregadas').length}
+                    </div>
+                    <div className="text-xs font-black uppercase tracking-widest text-slate-500">Llaves Entregadas</div>
+                  </div>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-zentry border border-purple-100">
+                  <div className="text-center">
+                    <div className="text-4xl font-black text-purple-600 mb-2">
+                      {filteredReservations.filter(r => isToday(r.fecha) && r.status === 'finalizada').length}
+                    </div>
+                    <div className="text-xs font-black uppercase tracking-widest text-slate-500">Finalizadas</div>
+                  </div>
+                </motion.div>
               </div>
-            </Card>
-            <Card className="p-3">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  {filteredReservations.filter(r => isToday(r.fecha) && r.status === 'en_curso').length}
+            </TabsContent>
+
+            {/* Pestaña: Próximas */}
+            <TabsContent value="proximas" className="space-y-6 mt-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-black text-slate-900">Reservaciones Próximas</h2>
+                <Badge className="bg-indigo-100 text-indigo-700 border-none font-black px-4 py-2 rounded-full text-sm">
+                  {filteredReservations.filter(r => isUpcoming(r.fecha) || isActive(r.fecha, parseInt(r.duracion))).length} reservaciones
+                </Badge>
+              </div>
+
+              {/* Grid de estadísticas premium */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-zentry border border-green-100">
+                  <div className="text-center">
+                    <div className="text-4xl font-black text-green-600 mb-2">
+                      {filteredReservations.filter(r => (isUpcoming(r.fecha) || isActive(r.fecha, parseInt(r.duracion))) && r.status === 'aprobada').length}
+                    </div>
+                    <div className="text-xs font-black uppercase tracking-widest text-slate-500">Aprobadas</div>
+                  </div>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-zentry border border-yellow-100">
+                  <div className="text-center">
+                    <div className="text-4xl font-black text-yellow-600 mb-2">
+                      {filteredReservations.filter(r => (isUpcoming(r.fecha) || isActive(r.fecha, parseInt(r.duracion))) && r.status === 'pendiente').length}
+                    </div>
+                    <div className="text-xs font-black uppercase tracking-widest text-slate-500">Pendientes</div>
+                  </div>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-zentry border border-blue-100">
+                  <div className="text-center">
+                    <div className="text-4xl font-black text-blue-600 mb-2">
+                      {filteredReservations.filter(r => (isUpcoming(r.fecha) || isActive(r.fecha, parseInt(r.duracion))) && r.status === 'en_curso').length}
+                    </div>
+                    <div className="text-xs font-black uppercase tracking-widest text-slate-500">En Curso</div>
+                  </div>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-zentry border border-slate-100">
+                  <div className="text-center">
+                    <div className="text-4xl font-black text-slate-600 mb-2">
+                      {filteredReservations.filter(r => (isUpcoming(r.fecha) || isActive(r.fecha, parseInt(r.duracion))) && !r.estadoLlaves).length}
+                    </div>
+                    <div className="text-xs font-black uppercase tracking-widest text-slate-500">Sin Llaves</div>
+                  </div>
+                </motion.div>
+              </div>
+            </TabsContent>
+
+            {/* Pestaña: Completadas */}
+            <TabsContent value="completadas" className="space-y-6 mt-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-black text-slate-900">Reservaciones Completadas</h2>
+                <Badge className="bg-indigo-100 text-indigo-700 border-none font-black px-4 py-2 rounded-full text-sm">
+                  {filteredReservations.filter(r => isCompleted(r.fecha, parseInt(r.duracion)) || r.status === 'finalizada').length} reservaciones
+                </Badge>
+              </div>
+            </TabsContent>
+
+            {/* Pestaña: Todas */}
+            <TabsContent value="todas" className="space-y-6 mt-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-black text-slate-900">Todas las Reservaciones</h2>
+                <Badge className="bg-indigo-100 text-indigo-700 border-none font-black px-4 py-2 rounded-full text-sm">
+                  {filteredReservations.length} reservaciones
+                </Badge>
+              </div>
+
+              {/* Grid de estadísticas premium */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-zentry border border-blue-100">
+                  <div className="text-center">
+                    <div className="text-4xl font-black text-blue-600 mb-2">
+                      {filteredReservations.filter(r => r.status === 'aprobada').length}
+                    </div>
+                    <div className="text-xs font-black uppercase tracking-widest text-slate-500">Aprobadas</div>
+                  </div>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-zentry border border-yellow-100">
+                  <div className="text-center">
+                    <div className="text-4xl font-black text-yellow-600 mb-2">
+                      {filteredReservations.filter(r => r.status === 'pendiente').length}
+                    </div>
+                    <div className="text-xs font-black uppercase tracking-widest text-slate-500">Pendientes</div>
+                  </div>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-zentry border border-red-100">
+                  <div className="text-center">
+                    <div className="text-4xl font-black text-red-600 mb-2">
+                      {filteredReservations.filter(r => r.status === 'cancelada' || r.status === 'rechazada').length}
+                    </div>
+                    <div className="text-xs font-black uppercase tracking-widest text-slate-500">Canceladas/Rech.</div>
+                  </div>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-zentry border border-purple-100">
+                  <div className="text-center">
+                    <div className="text-4xl font-black text-purple-600 mb-2">
+                      {filteredReservations.filter(r => r.status === 'finalizada').length}
+                    </div>
+                    <div className="text-xs font-black uppercase tracking-widest text-slate-500">Finalizadas</div>
+                  </div>
+                </motion.div>
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          {/* Filtros principales con diseño premium */}
+          <Card className="border-none shadow-zentry-lg bg-white/80 backdrop-blur-2xl rounded-[2.5rem] overflow-hidden">
+            <div className="p-8 pb-4 border-b border-white/10 space-y-6">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Filter className="h-5 w-5 text-indigo-500" />
+                  <h2 className="text-sm font-black uppercase tracking-widest mr-4 text-slate-800">Filtros y Búsqueda</h2>
                 </div>
-                <div className="text-xs text-muted-foreground">En Curso</div>
-              </div>
-            </Card>
-            <Card className="p-3">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {filteredReservations.filter(r => isToday(r.fecha) && r.estadoLlaves === 'entregadas').length}
-                </div>
-                <div className="text-xs text-muted-foreground">Llaves Entregadas</div>
-              </div>
-            </Card>
-            <Card className="p-3">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">
-                  {filteredReservations.filter(r => isToday(r.fecha) && r.status === 'finalizada').length}
-                </div>
-                <div className="text-xs text-muted-foreground">Finalizadas</div>
-              </div>
-            </Card>
-          </div>
-        </TabsContent>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setStatusFilter('all');
+                      setAreaFilter('all');
+                      setResidencialFilter('all');
+                      setDateRange({ from: undefined, to: undefined });
+                    }}
+                    className="rounded-2xl font-bold"
+                  >
+                    Limpiar filtros
+                  </Button>
 
-        {/* Pestaña: Próximas */}
-        <TabsContent value="proximas" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Reservaciones Próximas</h2>
-            <Badge variant="secondary" className="text-xs">
-              {filteredReservations.filter(r => isUpcoming(r.fecha) || isActive(r.fecha, parseInt(r.duracion))).length} reservaciones
-            </Badge>
-          </div>
-          
-          {/* 🆕 NUEVO: Resumen estadístico */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card className="p-3">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {filteredReservations.filter(r => (isUpcoming(r.fecha) || isActive(r.fecha, parseInt(r.duracion))) && r.status === 'aprobada').length}
-                </div>
-                <div className="text-xs text-muted-foreground">Aprobadas</div>
-              </div>
-            </Card>
-            <Card className="p-3">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-600">
-                  {filteredReservations.filter(r => (isUpcoming(r.fecha) || isActive(r.fecha, parseInt(r.duracion))) && r.status === 'pendiente').length}
-                </div>
-                <div className="text-xs text-muted-foreground">Pendientes</div>
-              </div>
-            </Card>
-            <Card className="p-3">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  {filteredReservations.filter(r => (isUpcoming(r.fecha) || isActive(r.fecha, parseInt(r.duracion))) && r.status === 'en_curso').length}
-                </div>
-                <div className="text-xs text-muted-foreground">En Curso</div>
-              </div>
-            </Card>
-            <Card className="p-3">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-gray-600">
-                  {filteredReservations.filter(r => (isUpcoming(r.fecha) || isActive(r.fecha, parseInt(r.duracion))) && !r.estadoLlaves).length}
-                </div>
-                <div className="text-xs text-muted-foreground">Sin Llaves</div>
-              </div>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Pestaña: Completadas */}
-        <TabsContent value="completadas" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Reservaciones Completadas</h2>
-            <Badge variant="secondary" className="text-xs">
-              {filteredReservations.filter(r => isCompleted(r.fecha, parseInt(r.duracion)) || r.status === 'finalizada').length} reservaciones
-            </Badge>
-          </div>
-          
-
-          
-
-        </TabsContent>
-      </Tabs>
-
-      {/* Filtros principales */}
-      <Card className="p-4">
-        <div className="flex flex-col space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium">Filtros y búsqueda</h3>
-            <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setSearchTerm('');
-                setStatusFilter('all');
-                setAreaFilter('all');
-                setResidencialFilter('all');
-                setDateRange({ from: undefined, to: undefined });
-              }}
-            >
-              Limpiar filtros
-            </Button>
-              
-              {hasMoreReservations && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={loadMoreReservations}
-                  disabled={loadingMore}
-                  className="flex items-center gap-2"
-                >
-                  {loadingMore ? (
-                    <>
-                      <RefreshCw className="h-3 w-3 animate-spin" />
-                      Cargando...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="h-3 w-3" />
-                      Cargar más
-                    </>
-                  )}
-                </Button>
-              )}
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-            {/* Búsqueda */}
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar usuario, email, área..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8"
-              />
-            </div>
-
-            {/* Filtro por Estado */}
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="pendiente">Pendiente</SelectItem>
-                <SelectItem value="aprobada">Aprobada</SelectItem>
-                <SelectItem value="rechazada">Rechazada</SelectItem>
-                <SelectItem value="cancelada">Cancelada</SelectItem>
-                <SelectItem value="en_curso">En Curso</SelectItem>
-                <SelectItem value="finalizada">Finalizada</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Filtro por Área */}
-            <Select value={areaFilter} onValueChange={setAreaFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Área" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas las áreas</SelectItem>
-                {areas.map((area) => (
-                  <SelectItem key={area} value={area}>
-                    {area}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Filtro por Residencial - Solo para admin globales */}
-            {userClaims?.residencialId === 'global' && (
-              <Select value={residencialFilter} onValueChange={setResidencialFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Residencial" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los residenciales</SelectItem>
-                  {residenciales.map((residencial) => (
-                    <SelectItem key={residencial.id} value={residencial.id}>
-                      {residencial.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-
-            {/* Filtro por Fecha */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={`justify-start text-left font-normal ${
-                    !dateRange.from && !dateRange.to ? "text-muted-foreground" : ""
-                  }`}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dateRange.from ? (
-                    dateRange.to ? (
-                      <>
-                        {format(dateRange.from, "dd/MM/yy", { locale: es })} -{" "}
-                        {format(dateRange.to, "dd/MM/yy", { locale: es })}
-                      </>
-                    ) : (
-                      format(dateRange.from, "dd/MM/yy", { locale: es })
-                    )
-                  ) : (
-                    "Rango de fechas"
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  initialFocus
-                  mode="range"
-                  defaultMonth={dateRange.from}
-                  selected={dateRange}
-                  onSelect={(range) => setDateRange(range || { from: undefined, to: undefined })}
-                  numberOfMonths={2}
-                  locale={es}
-                />
-              </PopoverContent>
-            </Popover>
-
-            {/* Botón de exportar */}
-            <Button
-              variant="outline"
-              onClick={exportReservations}
-              disabled={filteredReservations.length === 0}
-              className="flex items-center gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Exportar
-            </Button>
-          </div>
-
-          {/* Resumen de filtros activos */}
-          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <span>Mostrando {filteredReservations.length} de {reservations.length} reservas</span>
-            {searchTerm && (
-              <Badge variant="secondary" className="text-xs">
-                Búsqueda: "{searchTerm}"
-              </Badge>
-            )}
-            {statusFilter !== 'all' && (
-              <Badge variant="secondary" className="text-xs">
-                Estado: {statusFilter}
-              </Badge>
-            )}
-            {areaFilter !== 'all' && (
-              <Badge variant="secondary" className="text-xs">
-                Área: {areaFilter}
-              </Badge>
-            )}
-            {userClaims?.residencialId === 'global' && residencialFilter !== 'all' && (
-              <Badge variant="secondary" className="text-xs">
-                Residencial: {residenciales.find(r => r.id === residencialFilter)?.nombre || residencialFilter}
-              </Badge>
-            )}
-            {(dateRange.from || dateRange.to) && (
-              <Badge variant="secondary" className="text-xs">
-                Fechas: {dateRange.from ? format(dateRange.from, "dd/MM/yy", { locale: es }) : "..."} - {dateRange.to ? format(dateRange.to, "dd/MM/yy", { locale: es }) : "..."}
-              </Badge>
-            )}
-          </div>
-        </div>
-      </Card>
-
-      {viewMode === 'table' && (
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[200px]">Usuario</TableHead>
-              <TableHead className="w-[150px]">Área</TableHead>
-              <TableHead className="w-[100px]">Fecha</TableHead>
-              <TableHead className="w-[150px]">Horario</TableHead>
-              <TableHead className="w-[120px]">Creada</TableHead>
-              <TableHead className="w-[80px]">Personas</TableHead>
-              <TableHead className="w-[80px]">Precio</TableHead>
-              <TableHead className="w-[100px]">Estado</TableHead>
-              <TableHead className="w-[120px]">Estado Llaves</TableHead>
-              <TableHead className="w-[60px] text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {paginatedReservations.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-8">
-                  No se encontraron reservas
-                </TableCell>
-              </TableRow>
-            ) : (
-              paginatedReservations.map((reservation) => (
-                <TableRow key={reservation.id} className="hover:bg-muted/50">
-                  <TableCell>
-                    <div className="space-y-1">
-                      <div className="font-medium text-sm">{reservation.userName}</div>
-                        <div className="text-xs text-blue-600 font-medium">{reservation.userDomicilio}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <MapPin className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-sm truncate">{reservation.areaName}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm">
-                      {format(reservation.fecha, 'dd/MM/yy', { locale: es })}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <div className="text-sm font-medium">
-                        {reservation.horaInicio && reservation.horaFin && reservation.horaInicio !== reservation.horaFin 
-                          ? `${reservation.horaInicio} - ${reservation.horaFin}`
-                          : reservation.horaInicio || 'Horario no especificado'
-                        }
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {reservation.duracion}h
-                      </div>
-                      <div className="text-[11px] font-medium">
-                        {reservation.isMoroso ? (
-                          <span className="text-red-600">Moroso</span>
-                        ) : (
-                          <span className="text-green-600">Al día</span>
-                        )}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-xs text-muted-foreground">
-                      {reservation.createdAt ? `${format(reservation.createdAt, "dd/MM/yyyy", { locale: es })} ${format(reservation.createdAt, "h:mm a", { locale: es })}` : 's/f'}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Users className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-sm">{reservation.personas}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <DollarSign className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-sm font-medium">${reservation.precio}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      {/* Estado principal de la reservación */}
-                      <Badge className={`text-xs ${statusColors[reservation.status]}`}>
-                        {statusLabels[reservation.status]}
-                      </Badge>
-                      
-                      {/* 🆕 NUEVO: Estado de acceso dinámico (similar a Flutter) */}
-                      <div className="mt-1">
-                        <Badge className={`text-xs ${getAccessStatusColor(reservation)}`}>
-                          {getAccessStatusText(reservation)}
-                        </Badge>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      {/* Estado de las llaves */}
-                      {reservation.estadoLlaves ? (
-                        <Badge className={`text-xs ${keysStatusColors[reservation.estadoLlaves]}`}>
-                          <Key className="h-3 w-3 mr-1" />
-                          {keysStatusLabels[reservation.estadoLlaves]}
-                        </Badge>
+                  {hasMoreReservations && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={loadMoreReservations}
+                      disabled={loadingMore}
+                      className="flex items-center gap-2 rounded-2xl font-bold"
+                    >
+                      {loadingMore ? (
+                        <>
+                          <RefreshCw className="h-3 w-3 animate-spin" />
+                          Cargando...
+                        </>
                       ) : (
-                        <Badge variant="outline" className="text-xs text-gray-500">
-                          <Key className="h-3 w-3 mr-1" />
-                          Sin Estado
-                        </Badge>
+                        <>
+                          <Download className="h-3 w-3" />
+                          Cargar más
+                        </>
                       )}
-                      
-                      {/* 🆕 NUEVO: Descripción detallada del estado */}
-                      <div className="text-xs text-muted-foreground">
-                        {getKeysStatusDescription(reservation)}
-                      </div>
-                      
-                      {/* 🆕 NUEVO: Información adicional de llaves */}
-                      {reservation.estadoLlaves === 'entregadas' && reservation.fechaEntregaLlaves && (
-                        <div className="text-xs text-muted-foreground">
-                          Entregada: {format(reservation.fechaEntregaLlaves, 'dd/MM HH:mm')}
-                        </div>
-                      )}
-                      
-                      {reservation.estadoLlaves === 'recibidas' && reservation.fechaRecepcionLlaves && (
-                        <div className="text-xs text-muted-foreground">
-                          Recibida: {format(reservation.fechaRecepcionLlaves, 'dd/MM HH:mm')}
-                        </div>
-                      )}
-                      
-                      {reservation.fechaLimiteDevolucion && (
-                        <div className="text-xs text-muted-foreground">
-                          Límite: {format(reservation.fechaLimiteDevolucion, 'dd/MM HH:mm')}
-                        </div>
-                      )}
-                      
-                      {/* 🆕 NUEVO: Indicador de estado de recepción */}
-                      {reservation.status === 'finalizada' && reservation.estadoLlaves === 'entregadas' && (
-                        <div className="text-xs text-orange-600 font-medium">
-                          ⚠️ Pendiente de recepción
-                        </div>
-                      )}
-                      
-                      {reservation.status === 'finalizada' && !reservation.estadoLlaves && (
-                        <div className="text-xs text-red-600 font-medium">
-                          ❌ Sin entrega de llaves
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-7 w-7 p-0">
-                          <MoreHorizontal className="h-3 w-3" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <ReservationAuditHistory 
-                          reservationId={reservation.id}
-                          residencialId={user?.residencialID || userClaims?.residencialId || reservation.residencialId || ''}
-                          trigger={
-                            <DropdownMenuItem onSelect={(e) => {
-                              e.preventDefault();
-                              console.log('🔍 [DEBUG] Abriendo historial para:', {
-                                reservationId: reservation.id,
-                                residencialId: user?.residencialID,
-                                userClaims_residencialId: userClaims?.residencialId,
-                                reservation_residencialId: reservation.residencialId,
-                                finalResidencialId: user?.residencialID || userClaims?.residencialId || reservation.residencialId || '',
-                                userObject: user,
-                                userClaims: userClaims,
-                                reservationData: reservation
-                              });
-                            }}>
-                              <History className="mr-2 h-3 w-3" />
-                              Ver Historial
-                            </DropdownMenuItem>
-                          }
-                        />
-                        {reservation.status === 'pendiente' && (
-                          <>
-                            <DropdownMenuItem
-                              onClick={() => updateReservationStatus(reservation.id, 'aprobada')}
-                              className="text-green-600"
-                            >
-                              <CheckCircle className="mr-2 h-3 w-3" />
-                              Aprobar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => updateReservationStatus(reservation.id, 'rechazada')}
-                              className="text-red-600"
-                            >
-                              <XCircle className="mr-2 h-3 w-3" />
-                              Rechazar
-                            </DropdownMenuItem>
-                          </>
-                        )}
-
-                        <DropdownMenuItem>
-                          <Eye className="mr-2 h-3 w-3" />
-                          Ver detalles
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600" onClick={async () => { 
-                          console.log('🔍 [DEBUG] Clic en eliminar reserva:', reservation.id);
-                          
-                          // SOLUCIÓN TEMPORAL: Usar confirm() nativo mientras se resuelve el problema del diálogo
-                          const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar esta reserva?\n\nID: ${reservation.id}\n\nEsta acción no se puede deshacer.`);
-                          
-                          if (confirmed) {
-                            console.log('✅ [DEBUG] Usuario confirmó eliminación');
-                            await deleteReservation(reservation.id);
-                          } else {
-                            console.log('❌ [DEBUG] Usuario canceló eliminación');
-                          }
-                          
-                          // Código original comentado temporalmente
-                          // setDeleteTargetId(reservation.id); 
-                          // setDeleteDialogOpen(true);
-                          // console.log('🔍 [DEBUG] Estado actualizado:', { deleteTargetId: reservation.id, deleteDialogOpen: true });
-                        }}>
-                          <Trash className="mr-2 h-3 w-3" />
-                          Eliminar
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      )}
-
-      {viewMode === 'month' && (
-        <div className="space-y-3">
-          {/* Controles mes */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}>Anterior</Button>
+                    </Button>
+                  )}
+                </div>
               </div>
-              <div className="text-xl sm:text-2xl font-bold text-center">
-                {format(monthDate, "MMMM yyyy", { locale: es })}
-            </div>
-            <div className="flex items-center gap-2">
-                {/* Selector de mes simple */}
-                <Select value={`${monthDate.getFullYear()}-${monthDate.getMonth()}`} onValueChange={(v)=>{
-                  const [y,m] = v.split('-').map(Number);
-                  setMonthDate(new Date(y, m, 1));
-                }}>
-                  <SelectTrigger className="h-8 w-[160px]"><SelectValue placeholder="Elegir mes" /></SelectTrigger>
-                  <SelectContent className="max-h-64 overflow-auto">
-                    {(() => {
-                      const options: {label:string; value:string}[] = [];
-                      const base = new Date();
-                      base.setDate(1);
-                      for (let i = -24; i <= 24; i++) {
-                        const d = new Date(base.getFullYear(), base.getMonth() + i, 1);
-                        options.push({ label: format(d, 'MMMM yyyy', { locale: es }), value: `${d.getFullYear()}-${d.getMonth()}` });
-                      }
-                      return options.map(o => (
-                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                      ));
-                    })()}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Búsqueda */}
+                <div className="relative">
+                  <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                  <Input
+                    type="search"
+                    placeholder="Buscar por nombre..."
+                    className="pl-12 h-14 bg-white border border-slate-200 shadow-sm rounded-2xl font-bold focus-visible:ring-indigo-500/20 text-slate-900 placeholder:text-slate-400"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+
+                {/* Filtro por Estado */}
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-14 bg-white border border-slate-200 shadow-sm rounded-2xl font-bold px-6 text-slate-900 focus:ring-indigo-500/20">
+                    <SelectValue placeholder="Estado" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-3xl border-none shadow-2xl bg-white/95 backdrop-blur-3xl">
+                    <div className="p-2">
+                      <SelectItem value="all" className="font-bold mb-1 rounded-xl">Todos los estados</SelectItem>
+                      <SelectItem value="pendiente" className="font-bold mb-1 rounded-xl">Pendiente</SelectItem>
+                      <SelectItem value="aprobada" className="font-bold mb-1 rounded-xl">Aprobada</SelectItem>
+                      <SelectItem value="rechazada" className="font-bold mb-1 rounded-xl">Rechazada</SelectItem>
+                      <SelectItem value="cancelada" className="font-bold mb-1 rounded-xl">Cancelada</SelectItem>
+                      <SelectItem value="en_curso" className="font-bold mb-1 rounded-xl">En Curso</SelectItem>
+                      <SelectItem value="finalizada" className="font-bold rounded-xl">Finalizada</SelectItem>
+                    </div>
                   </SelectContent>
                 </Select>
-              <Button variant="outline" size="sm" onClick={() => setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}>Siguiente</Button>
-            </div>
-          </div>
 
-          {/* Calendario mensual (grid grande) */}
-          <div className="rounded-md border overflow-hidden">
-            {/* Encabezado sin leyenda: limpio */}
-            {/* Encabezado de días */}
-            <div
-              className="grid grid-cols-7 bg-muted/60 text-xs text-muted-foreground w-full"
-              style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}
-            >
-              {['Lun.', 'Mar.', 'Miérc.', 'Juev.', 'Vier.', 'Sáb.', 'Dom.'].map(d => (
-                <div key={d} className="p-2 border-b">{d}</div>
-              ))}
-            </div>
+                {/* Filtro por Área */}
+                <Select value={areaFilter} onValueChange={setAreaFilter}>
+                  <SelectTrigger className="h-14 bg-white border border-slate-200 shadow-sm rounded-2xl font-bold px-6 text-slate-900 focus:ring-indigo-500/20">
+                    <SelectValue placeholder="Área" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-3xl border-none shadow-2xl bg-white/95 backdrop-blur-3xl">
+                    <div className="p-2">
+                      <SelectItem value="all" className="font-bold mb-1 rounded-xl">Todas las áreas</SelectItem>
+                      {areas.map((area) => (
+                        <SelectItem key={area} value={area} className="font-bold mb-1 rounded-xl">
+                          {area}
+                        </SelectItem>
+                      ))}
+                    </div>
+                  </SelectContent>
+                </Select>
 
-            {/* Celdas */}
-            <div
-              className="grid grid-cols-7 w-full"
-              style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}
-            >
-              {(() => {
-                const firstOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
-                const startWeekday = (firstOfMonth.getDay() + 6) % 7; // lunes=0
-                const startDate = addDays(firstOfMonth, -startWeekday);
-                return Array.from({ length: 42 }).map((_, i) => {
-                  const day = addDays(startDate, i);
-                  const inCurrentMonth = day.getMonth() === monthDate.getMonth();
-                  const key = format(startOfDay(day), 'yyyy-MM-dd');
-                  const list = reservationsByDay.get(key) || [];
-                  const totalCount = list.length;
-                  const pendingCount = list.filter(r => r.status === 'pendiente').length;
-                  const approvedCount = list.filter(r => r.status === 'aprobada').length;
-                  const rejectedCount = list.filter(r => r.status === 'rechazada').length;
-                  const canceledCount = list.filter(r => r.status === 'cancelada').length;
-                  const today = isSameDay(day, new Date());
-                  return (
-                    <div
-                      key={i}
-                      className={`min-h-[140px] p-2 border ${inCurrentMonth ? 'bg-background' : 'bg-muted/20'} cursor-pointer hover:bg-muted/50 transition-colors ${today ? 'ring-2 ring-primary/60' : ''}`}
-                      onClick={() => openDayDialog(day)}
+                {/* Filtro por Residencial - Solo para admin globales */}
+                {userClaims?.residencialId === 'global' && (
+                  <Select value={residencialFilter} onValueChange={setResidencialFilter}>
+                    <SelectTrigger className="h-14 bg-white border border-slate-200 shadow-sm rounded-2xl font-bold px-6 text-slate-900 focus:ring-indigo-500/20">
+                      <SelectValue placeholder="Residencial" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-3xl border-none shadow-2xl bg-white/95 backdrop-blur-3xl">
+                      <div className="p-2">
+                        <SelectItem value="all" className="font-bold mb-1 rounded-xl">Todos los residenciales</SelectItem>
+                        {residenciales.map((residencial) => (
+                          <SelectItem key={residencial.id} value={residencial.id} className="font-bold mb-1 rounded-xl">
+                            {residencial.nombre}
+                          </SelectItem>
+                        ))}
+                      </div>
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {/* Filtro por Fecha */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={`h-14 justify-start text-left font-bold rounded-2xl border-slate-200 ${!dateRange.from && !dateRange.to ? "text-slate-400" : "text-slate-900"
+                        }`}
                     >
-                      <div className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-1">
-                          <span className={`font-semibold ${inCurrentMonth ? '' : 'text-muted-foreground'}`}>{format(day, 'd', { locale: es })}</span>
-                          <span className={`uppercase tracking-wide text-[10px] ${inCurrentMonth ? 'text-muted-foreground' : 'text-muted-foreground/70'}`}>{format(day, 'EEE', { locale: es }).replace('.', '')}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {pendingCount > 0 && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 border border-yellow-300">{pendingCount} pend.</span>
-                          )}
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">{totalCount}</span>
-                        </div>
-                      </div>
-                      {/* Resumen por estado */}
-                      <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
-                        {approvedCount > 0 && (
-                          <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-300">{approvedCount} apr.</span>
-                        )}
-                        {pendingCount > 0 && (
-                          <span className="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 border border-yellow-300">{pendingCount} pend.</span>
-                        )}
-                        {rejectedCount > 0 && (
-                          <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-300">{rejectedCount} rej.</span>
-                        )}
-                        {canceledCount > 0 && (
-                          <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 border border-gray-300">{canceledCount} canc.</span>
-                        )}
-                      </div>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateRange.from ? (
+                        dateRange.to ? (
+                          <>
+                            {format(dateRange.from, "dd/MM/yy", { locale: es })} -{" "}
+                            {format(dateRange.to, "dd/MM/yy", { locale: es })}
+                          </>
+                        ) : (
+                          format(dateRange.from, "dd/MM/yy", { locale: es })
+                        )
+                      ) : (
+                        "Rango de fechas"
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 rounded-3xl border-none shadow-2xl" align="start">
+                    <Calendar
+                      initialFocus
+                      mode="range"
+                      defaultMonth={dateRange.from}
+                      selected={dateRange}
+                      onSelect={(range) => setDateRange(range || { from: undefined, to: undefined })}
+                      numberOfMonths={2}
+                      locale={es}
+                    />
+                  </PopoverContent>
+                </Popover>
 
-                      {/* 🆕 NUEVO: Resumen por estado de llaves */}
+                {/* Botón de exportar */}
+                <Button
+                  variant="outline"
+                  onClick={exportReservations}
+                  disabled={filteredReservations.length === 0}
+                  className="flex items-center gap-2 h-14 rounded-2xl font-bold border-slate-200"
+                >
+                  <Download className="h-4 w-4" />
+                  Exportar
+                </Button>
+              </div>
+
+              {/* Resumen de filtros activos */}
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-bold text-slate-600">Mostrando {filteredReservations.length} de {reservations.length} reservas</span>
+                {searchTerm && (
+                  <Badge className="bg-indigo-100 text-indigo-700 border-none font-bold px-3 py-1 rounded-full">
+                    Búsqueda: "{searchTerm}"
+                  </Badge>
+                )}
+                {statusFilter !== 'all' && (
+                  <Badge className="bg-blue-100 text-blue-700 border-none font-bold px-3 py-1 rounded-full">
+                    Estado: {statusFilter}
+                  </Badge>
+                )}
+                {areaFilter !== 'all' && (
+                  <Badge className="bg-green-100 text-green-700 border-none font-bold px-3 py-1 rounded-full">
+                    Área: {areaFilter}
+                  </Badge>
+                )}
+                {userClaims?.residencialId === 'global' && residencialFilter !== 'all' && (
+                  <Badge className="bg-purple-100 text-purple-700 border-none font-bold px-3 py-1 rounded-full">
+                    Residencial: {residenciales.find(r => r.id === residencialFilter)?.nombre || residencialFilter}
+                  </Badge>
+                )}
+                {(dateRange.from || dateRange.to) && (
+                  <Badge variant="secondary" className="text-xs">
+                    Fechas: {dateRange.from ? format(dateRange.from, "dd/MM/yy", { locale: es }) : "..."} - {dateRange.to ? format(dateRange.to, "dd/MM/yy", { locale: es }) : "..."}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </Card>
+
+          {viewMode === 'table' && (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[200px]">Usuario</TableHead>
+                    <TableHead className="w-[150px]">Área</TableHead>
+                    <TableHead className="w-[100px]">Fecha</TableHead>
+                    <TableHead className="w-[150px]">Horario</TableHead>
+                    <TableHead className="w-[120px]">Creada</TableHead>
+                    <TableHead className="w-[80px]">Personas</TableHead>
+                    <TableHead className="w-[80px]">Precio</TableHead>
+                    <TableHead className="w-[100px]">Estado</TableHead>
+                    <TableHead className="w-[120px]">Estado Llaves</TableHead>
+                    <TableHead className="w-[60px] text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedReservations.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8">
+                        No se encontraron reservas
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    paginatedReservations.map((reservation) => (
+                      <TableRow key={reservation.id} className="hover:bg-muted/50">
+                        <TableCell>
+                          <div className="space-y-1">
+                            <div className="font-medium text-sm">{reservation.userName}</div>
+                            <div className="text-xs text-blue-600 font-medium">{reservation.userDomicilio}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-sm truncate">{reservation.areaName}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {format(reservation.fecha, 'dd/MM/yy', { locale: es })}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <div className="text-sm font-medium">
+                              {reservation.horaInicio && reservation.horaFin && reservation.horaInicio !== reservation.horaFin
+                                ? `${reservation.horaInicio} - ${reservation.horaFin}`
+                                : reservation.horaInicio || 'Horario no especificado'
+                              }
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {reservation.duracion}h
+                            </div>
+                            <div className="text-[11px] font-medium">
+                              {reservation.isMoroso ? (
+                                <span className="text-red-600">Moroso</span>
+                              ) : (
+                                <span className="text-green-600">Al día</span>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-xs text-muted-foreground">
+                            {reservation.createdAt ? `${format(reservation.createdAt, "dd/MM/yyyy", { locale: es })} ${format(reservation.createdAt, "h:mm a", { locale: es })}` : 's/f'}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Users className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-sm">{reservation.personas}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <DollarSign className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-sm font-medium">${reservation.precio}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            {/* Estado principal de la reservación */}
+                            <Badge className={`text-xs ${statusColors[reservation.status]}`}>
+                              {statusLabels[reservation.status]}
+                            </Badge>
+
+                            {/* 🆕 NUEVO: Estado de acceso dinámico (similar a Flutter) */}
+                            <div className="mt-1">
+                              <Badge className={`text-xs ${getAccessStatusColor(reservation)}`}>
+                                {getAccessStatusText(reservation)}
+                              </Badge>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            {/* Estado de las llaves */}
+                            {reservation.estadoLlaves ? (
+                              <Badge className={`text-xs ${keysStatusColors[reservation.estadoLlaves]}`}>
+                                <Key className="h-3 w-3 mr-1" />
+                                {keysStatusLabels[reservation.estadoLlaves]}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs text-gray-500">
+                                <Key className="h-3 w-3 mr-1" />
+                                Sin Estado
+                              </Badge>
+                            )}
+
+                            {/* 🆕 NUEVO: Descripción detallada del estado */}
+                            <div className="text-xs text-muted-foreground">
+                              {getKeysStatusDescription(reservation)}
+                            </div>
+
+                            {/* 🆕 NUEVO: Información adicional de llaves */}
+                            {reservation.estadoLlaves === 'entregadas' && reservation.fechaEntregaLlaves && (
+                              <div className="text-xs text-muted-foreground">
+                                Entregada: {format(reservation.fechaEntregaLlaves, 'dd/MM HH:mm')}
+                              </div>
+                            )}
+
+                            {reservation.estadoLlaves === 'recibidas' && reservation.fechaRecepcionLlaves && (
+                              <div className="text-xs text-muted-foreground">
+                                Recibida: {format(reservation.fechaRecepcionLlaves, 'dd/MM HH:mm')}
+                              </div>
+                            )}
+
+                            {reservation.fechaLimiteDevolucion && (
+                              <div className="text-xs text-muted-foreground">
+                                Límite: {format(reservation.fechaLimiteDevolucion, 'dd/MM HH:mm')}
+                              </div>
+                            )}
+
+                            {/* 🆕 NUEVO: Indicador de estado de recepción */}
+                            {reservation.status === 'finalizada' && reservation.estadoLlaves === 'entregadas' && (
+                              <div className="text-xs text-orange-600 font-medium">
+                                ⚠️ Pendiente de recepción
+                              </div>
+                            )}
+
+                            {reservation.status === 'finalizada' && !reservation.estadoLlaves && (
+                              <div className="text-xs text-red-600 font-medium">
+                                ❌ Sin entrega de llaves
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-7 w-7 p-0">
+                                <MoreHorizontal className="h-3 w-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <ReservationAuditHistory
+                                reservationId={reservation.id}
+                                residencialId={user?.residencialID || userClaims?.residencialId || reservation.residencialId || ''}
+                                trigger={
+                                  <DropdownMenuItem onSelect={(e) => {
+                                    e.preventDefault();
+                                    console.log('🔍 [DEBUG] Abriendo historial para:', {
+                                      reservationId: reservation.id,
+                                      residencialId: user?.residencialID,
+                                      userClaims_residencialId: userClaims?.residencialId,
+                                      reservation_residencialId: reservation.residencialId,
+                                      finalResidencialId: user?.residencialID || userClaims?.residencialId || reservation.residencialId || '',
+                                      userObject: user,
+                                      userClaims: userClaims,
+                                      reservationData: reservation
+                                    });
+                                  }}>
+                                    <History className="mr-2 h-3 w-3" />
+                                    Ver Historial
+                                  </DropdownMenuItem>
+                                }
+                              />
+                              {reservation.status === 'pendiente' && (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={() => updateReservationStatus(reservation.id, 'aprobada')}
+                                    className="text-green-600"
+                                  >
+                                    <CheckCircle className="mr-2 h-3 w-3" />
+                                    Aprobar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => updateReservationStatus(reservation.id, 'rechazada')}
+                                    className="text-red-600"
+                                  >
+                                    <XCircle className="mr-2 h-3 w-3" />
+                                    Rechazar
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+
+                              {(reservation.status === 'aprobada' || reservation.status === 'en_curso') && (
+                                <DropdownMenuItem
+                                  onClick={() => updateReservationStatus(reservation.id, 'finalizada')}
+                                  className="text-purple-600"
+                                >
+                                  <CheckCircle className="mr-2 h-3 w-3" />
+                                  Marcar como Completada
+                                </DropdownMenuItem>
+                              )}
+
+                              <DropdownMenuItem>
+                                <Eye className="mr-2 h-3 w-3" />
+                                Ver detalles
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-red-600" onClick={async () => {
+                                console.log('🔍 [DEBUG] Clic en eliminar reserva:', reservation.id);
+
+                                // SOLUCIÓN TEMPORAL: Usar confirm() nativo mientras se resuelve el problema del diálogo
+                                const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar esta reserva?\n\nID: ${reservation.id}\n\nEsta acción no se puede deshacer.`);
+
+                                if (confirmed) {
+                                  console.log('✅ [DEBUG] Usuario confirmó eliminación');
+                                  await deleteReservation(reservation.id);
+                                } else {
+                                  console.log('❌ [DEBUG] Usuario canceló eliminación');
+                                }
+
+                                // Código original comentado temporalmente
+                                // setDeleteTargetId(reservation.id); 
+                                // setDeleteDialogOpen(true);
+                                // console.log('🔍 [DEBUG] Estado actualizado:', { deleteTargetId: reservation.id, deleteDialogOpen: true });
+                              }}>
+                                <Trash className="mr-2 h-3 w-3" />
+                                Eliminar
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {viewMode === 'month' && (
+            <div className="space-y-3">
+              {/* Controles mes */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}>Anterior</Button>
+                </div>
+                <div className="text-xl sm:text-2xl font-bold text-center">
+                  {format(monthDate, "MMMM yyyy", { locale: es })}
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* Selector de mes simple */}
+                  <Select value={`${monthDate.getFullYear()}-${monthDate.getMonth()}`} onValueChange={(v) => {
+                    const [y, m] = v.split('-').map(Number);
+                    setMonthDate(new Date(y, m, 1));
+                  }}>
+                    <SelectTrigger className="h-8 w-[160px]"><SelectValue placeholder="Elegir mes" /></SelectTrigger>
+                    <SelectContent className="max-h-64 overflow-auto">
                       {(() => {
-                        const keysDeliveredCount = list.filter(r => r.estadoLlaves === 'entregadas').length;
-                        const keysReceivedCount = list.filter(r => r.estadoLlaves === 'recibidas').length;
-                        const keysPendingCount = list.filter(r => !r.estadoLlaves || r.estadoLlaves === 'pendiente').length;
-                        
-                        return (
+                        const options: { label: string; value: string }[] = [];
+                        const base = new Date();
+                        base.setDate(1);
+                        for (let i = -24; i <= 24; i++) {
+                          const d = new Date(base.getFullYear(), base.getMonth() + i, 1);
+                          options.push({ label: format(d, 'MMMM yyyy', { locale: es }), value: `${d.getFullYear()}-${d.getMonth()}` });
+                        }
+                        return options.map(o => (
+                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                        ));
+                      })()}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="sm" onClick={() => setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}>Siguiente</Button>
+                </div>
+              </div>
+
+              {/* Calendario mensual (grid grande) */}
+              <div className="rounded-md border overflow-hidden">
+                {/* Encabezado sin leyenda: limpio */}
+                {/* Encabezado de días */}
+                <div
+                  className="grid grid-cols-7 bg-muted/60 text-xs text-muted-foreground w-full"
+                  style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}
+                >
+                  {['Lun.', 'Mar.', 'Miérc.', 'Juev.', 'Vier.', 'Sáb.', 'Dom.'].map(d => (
+                    <div key={d} className="p-2 border-b">{d}</div>
+                  ))}
+                </div>
+
+                {/* Celdas */}
+                <div
+                  className="grid grid-cols-7 w-full"
+                  style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}
+                >
+                  {(() => {
+                    const firstOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+                    const startWeekday = (firstOfMonth.getDay() + 6) % 7; // lunes=0
+                    const startDate = addDays(firstOfMonth, -startWeekday);
+                    return Array.from({ length: 42 }).map((_, i) => {
+                      const day = addDays(startDate, i);
+                      const inCurrentMonth = day.getMonth() === monthDate.getMonth();
+                      const key = format(startOfDay(day), 'yyyy-MM-dd');
+                      const list = reservationsByDay.get(key) || [];
+                      const totalCount = list.length;
+                      const pendingCount = list.filter(r => r.status === 'pendiente').length;
+                      const approvedCount = list.filter(r => r.status === 'aprobada').length;
+                      const rejectedCount = list.filter(r => r.status === 'rechazada').length;
+                      const canceledCount = list.filter(r => r.status === 'cancelada').length;
+                      const today = isSameDay(day, new Date());
+                      return (
+                        <div
+                          key={i}
+                          className={`min-h-[140px] p-2 border ${inCurrentMonth ? 'bg-background' : 'bg-muted/20'} cursor-pointer hover:bg-muted/50 transition-colors ${today ? 'ring-2 ring-primary/60' : ''}`}
+                          onClick={() => openDayDialog(day)}
+                        >
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-1">
+                              <span className={`font-semibold ${inCurrentMonth ? '' : 'text-muted-foreground'}`}>{format(day, 'd', { locale: es })}</span>
+                              <span className={`uppercase tracking-wide text-[10px] ${inCurrentMonth ? 'text-muted-foreground' : 'text-muted-foreground/70'}`}>{format(day, 'EEE', { locale: es }).replace('.', '')}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {pendingCount > 0 && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 border border-yellow-300">{pendingCount} pend.</span>
+                              )}
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">{totalCount}</span>
+                            </div>
+                          </div>
+                          {/* Resumen por estado */}
                           <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
-                            {keysDeliveredCount > 0 && (
-                              <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-300">
-                                <Key className="h-2 w-2 inline mr-1" />
-                                {keysDeliveredCount} entreg.
-                              </span>
+                            {approvedCount > 0 && (
+                              <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-300">{approvedCount} apr.</span>
                             )}
-                            {keysReceivedCount > 0 && (
-                              <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-300">
-                                <Key className="h-2 w-2 inline mr-1" />
-                                {keysReceivedCount} recib.
-                              </span>
+                            {pendingCount > 0 && (
+                              <span className="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 border border-yellow-300">{pendingCount} pend.</span>
                             )}
-                            {keysPendingCount > 0 && (
-                              <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 border border-gray-300">
-                                <Key className="h-2 w-2 inline mr-1" />
-                                {keysPendingCount} pend.
-                              </span>
+                            {rejectedCount > 0 && (
+                              <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-300">{rejectedCount} rej.</span>
                             )}
+                            {canceledCount > 0 && (
+                              <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 border border-gray-300">{canceledCount} canc.</span>
+                            )}
+                          </div>
+
+                          {/* 🆕 NUEVO: Resumen por estado de llaves */}
+                          {(() => {
+                            const keysDeliveredCount = list.filter(r => r.estadoLlaves === 'entregadas').length;
+                            const keysReceivedCount = list.filter(r => r.estadoLlaves === 'recibidas').length;
+                            const keysPendingCount = list.filter(r => !r.estadoLlaves || r.estadoLlaves === 'pendiente').length;
+
+                            return (
+                              <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
+                                {keysDeliveredCount > 0 && (
+                                  <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-300">
+                                    <Key className="h-2 w-2 inline mr-1" />
+                                    {keysDeliveredCount} entreg.
+                                  </span>
+                                )}
+                                {keysReceivedCount > 0 && (
+                                  <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-300">
+                                    <Key className="h-2 w-2 inline mr-1" />
+                                    {keysReceivedCount} recib.
+                                  </span>
+                                )}
+                                {keysPendingCount > 0 && (
+                                  <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 border border-gray-300">
+                                    <Key className="h-2 w-2 inline mr-1" />
+                                    {keysPendingCount} pend.
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          {/* Vista previa de eventos (máx 3) */}
+                          {list.length > 0 && (
+                            <div className="mt-2 space-y-1">
+                              {list
+                                .slice()
+                                .sort((a, b) => (parseTimeToMinutes(a.horaInicio) ?? 0) - (parseTimeToMinutes(b.horaInicio) ?? 0))
+                                .slice(0, 3)
+                                .map(ev => {
+                                  const dotClass = ev.status === 'aprobada'
+                                    ? 'bg-green-500'
+                                    : ev.status === 'pendiente'
+                                      ? 'bg-yellow-500'
+                                      : ev.status === 'rechazada'
+                                        ? 'bg-red-500'
+                                        : 'bg-gray-400';
+
+                                  // 🆕 NUEVO: Estado de las llaves
+                                  const keysStatus = ev.estadoLlaves === 'entregadas'
+                                    ? '🔑'
+                                    : ev.estadoLlaves === 'recibidas'
+                                      ? '✅'
+                                      : '⏳';
+
+                                  return (
+                                    <div key={ev.id} className="flex items-center gap-2 text-[11px] truncate">
+                                      <span className={`h-2 w-2 rounded-full ${dotClass}`} />
+                                      <span className="font-medium whitespace-nowrap">{formatTime12(ev.horaInicio)}</span>
+                                      <span className="truncate">{ev.areaName}</span>
+                                      <span className="text-xs">{keysStatus}</span>
+                                    </div>
+                                  );
+                                })}
+                              {list.length > 3 && (
+                                <div className="text-[10px] text-muted-foreground">+{list.length - 3} más</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+
+              {/* Diálogo por día */}
+              {dayDialogOpen && (
+                <Dialog modal={false} open={dayDialogOpen} onOpenChange={(open) => {
+                  console.log('🔍 [DEBUG] dayDialogOpen cambiando:', { from: dayDialogOpen, to: open });
+                  setDayDialogOpen(open);
+                }}>
+                  <DialogContent
+                    aria-describedby="day-dialog-description"
+                    className="max-w-3xl h-[85vh] sm:h-[85vh] p-0 flex flex-col"
+                    onOpenAutoFocus={(e) => { try { e.preventDefault(); } catch (_) { } }}
+                    onCloseAutoFocus={(e) => { try { e.preventDefault(); } catch (_) { } }}
+                  >
+                    <DialogHeader className="sticky top-0 z-10 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 sm:px-6 py-3 border-b">
+                      <div className="flex items-center justify-between gap-2">
+                        <DialogTitle className="text-base">
+                          {dialogDate ? format(dialogDate, "EEEE d 'de' MMMM yyyy", { locale: es }) : 'Reservas'}
+                        </DialogTitle>
+                        <DialogDescription id="day-dialog-description" className="sr-only">
+                          Lista y filtros de reservas del día seleccionado.
+                        </DialogDescription>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => dialogDate && setDialogDate(addDays(dialogDate, -1))}>Anterior</Button>
+                          <Button variant="outline" size="sm" onClick={() => setDialogDate(new Date())}>Hoy</Button>
+                          <Button variant="outline" size="sm" onClick={() => dialogDate && setDialogDate(addDays(dialogDate, 1))}>Siguiente</Button>
+                        </div>
+                      </div>
+                      {/* Filtros inline */}
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {(() => {
+                          const list = dialogDate ? (reservationsByDay.get(format(startOfDay(dialogDate), 'yyyy-MM-dd')) || []) : [];
+                          const total = list.length;
+                          const apr = list.filter(r => r.status === 'aprobada').length;
+                          const pen = list.filter(r => r.status === 'pendiente').length;
+                          const rej = list.filter(r => r.status === 'rechazada').length;
+                          const can = list.filter(r => r.status === 'cancelada').length;
+                          return (
+                            <div className="flex items-center gap-2 text-[11px]">
+                              <span className="px-1.5 py-0.5 rounded border bg-muted text-muted-foreground">{total} total</span>
+                              <span className="px-1.5 py-0.5 rounded border bg-green-100 text-green-700">{apr} apr.</span>
+                              <span className="px-1.5 py-0.5 rounded border bg-yellow-100 text-yellow-800">{pen} pend.</span>
+                              <span className="px-1.5 py-0.5 rounded border bg-red-100 text-red-700">{rej} rej.</span>
+                              <span className="px-1.5 py-0.5 rounded border bg-gray-100 text-gray-700">{can} canc.</span>
+                            </div>
+                          );
+                        })()}
+                        <div className="ml-auto flex items-center gap-2">
+                          <Select value={modalAreaFilter || ''} onValueChange={setModalAreaFilter}>
+                            <SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Área" /></SelectTrigger>
+                            <SelectContent>
+                              {modalAreas.map(a => (<SelectItem key={a} value={a}>{a}</SelectItem>))}
+                            </SelectContent>
+                          </Select>
+                          <Select value={modalStatusFilter || 'all'} onValueChange={(v: any) => setModalStatusFilter(v)}>
+                            <SelectTrigger className="h-8 w-[160px]"><SelectValue placeholder="Estado" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">Todos</SelectItem>
+                              <SelectItem value="pendiente">Pendiente</SelectItem>
+                              <SelectItem value="aprobada">Aprobada</SelectItem>
+                              <SelectItem value="rechazada">Rechazada</SelectItem>
+                              <SelectItem value="cancelada">Cancelada</SelectItem>
+                              <SelectItem value="en_curso">En Curso</SelectItem>
+                              <SelectItem value="finalizada">Finalizada</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <div className="relative">
+                            <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input value={modalSearch} onChange={(e) => setModalSearch(e.target.value)} placeholder="Buscar..." className="h-8 pl-8 w-[200px]" />
+                          </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            <Checkbox id="hideEmpty" checked={hideEmptyBlocks} onCheckedChange={(v) => setHideEmptyBlocks(Boolean(v))} />
+                            <label htmlFor="hideEmpty" className="text-muted-foreground">Ocultar bloques vacíos</label>
+                          </div>
+                        </div>
+                      </div>
+                    </DialogHeader>
+                    <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3">
+                      {(() => {
+                        const list = dialogDate ? (reservationsByDay.get(format(startOfDay(dialogDate), 'yyyy-MM-dd')) || []) : [];
+                        if (list.length === 0) {
+                          return <div className="text-sm text-muted-foreground">No hay reservas en este día.</div>;
+                        }
+                        const areas = modalAreas.length ? modalAreas : Array.from(new Set(list.map(r => r.areaName)));
+                        const area = modalAreaFilter && areas.includes(modalAreaFilter) ? modalAreaFilter : areas[0];
+
+                        // Filtros in-modal
+                        let listForArea = area ? list.filter(r => r.areaName === area) : list;
+                        if (modalStatusFilter !== 'all') listForArea = listForArea.filter(r => r.status === modalStatusFilter);
+                        if (modalSearch.trim()) {
+                          const s = modalSearch.toLowerCase();
+                          listForArea = listForArea.filter(r =>
+                            r.userName.toLowerCase().includes(s) ||
+                            r.userEmail.toLowerCase().includes(s) ||
+                            r.areaName.toLowerCase().includes(s)
+                          );
+                        }
+
+                        // Derivar bloques directamente de las reservas (inicio-fin exactos)
+                        const blockMap = new Map<string, { start: number; end: number }>();
+                        for (const ev of listForArea) {
+                          const s = parseTimeToMinutes(ev.horaInicio) ?? null;
+                          if (s == null) continue;
+                          const e = parseTimeToMinutes(ev.horaFin) ?? (s + Number(ev.duracion || 1) * 60);
+                          const key = `${s}-${e}`;
+                          if (!blockMap.has(key)) blockMap.set(key, { start: s, end: e });
+                        }
+                        const blocks = Array.from(blockMap.values()).sort((a, b) => a.start - b.start);
+
+                        return (
+                          <div className="space-y-3">
+                            {/* selector de área del día */}
+                            {areas.length > 1 && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">Área:</span>
+                                <Select value={area || ''} onValueChange={setModalAreaFilter}>
+                                  <SelectTrigger className="h-8 w-[220px]"><SelectValue placeholder="Seleccione área" /></SelectTrigger>
+                                  <SelectContent>
+                                    {areas.map(a => (<SelectItem key={a} value={a}>{a}</SelectItem>))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+
+                            {/* Bloques */}
+                            <div className="space-y-2">
+                              {blocks
+                                .map((b, idx) => {
+                                  const blockLabel = `${formatTime12(`${Math.floor(b.start / 60)}:${String(b.start % 60).padStart(2, '0')}`)} - ${formatTime12(`${Math.floor(b.end / 60)}:${String(b.end % 60).padStart(2, '0')}`)}`;
+                                  // Solo las reservas que exactamente coinciden con el bloque (evita duplicados por traslape)
+                                  const inBlock = listForArea.filter(ev => {
+                                    const s = parseTimeToMinutes(ev.horaInicio) ?? null;
+                                    if (s == null) return false;
+                                    const e = parseTimeToMinutes(ev.horaFin) ?? (s + Number(ev.duracion || 1) * 60);
+                                    return s === b.start && e === b.end;
+                                  });
+                                  const blockKey = `${Math.floor(b.start / 60)}:${String(b.start % 60).padStart(2, '0')}-${Math.floor(b.end / 60)}:${String(b.end % 60).padStart(2, '0')}`;
+                                  const isCollapsed = collapsedBlocks.has(blockKey);
+                                  return (
+                                    <div key={idx} className="rounded-md border">
+                                      <button
+                                        type="button"
+                                        className="w-full flex items-center justify-between px-3 py-2 bg-muted/30 hover:bg-muted/50 transition-colors"
+                                        onClick={() => setCollapsedBlocks(prev => {
+                                          const n = new Set(prev);
+                                          if (n.has(blockKey)) n.delete(blockKey); else n.add(blockKey);
+                                          return n;
+                                        })}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                          <div className="text-sm font-medium">{blockLabel}</div>
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">{inBlock.length} reservas</div>
+                                      </button>
+                                      {inBlock.length > 0 && !isCollapsed && (
+                                        <div className="px-3 py-2 space-y-2">
+                                          {/* Acciones masivas si hay seleccionados */}
+                                          {selectedIds.size > 0 && (
+                                            <div className="flex items-center justify-between p-2 rounded border bg-muted/30">
+                                              <div className="text-xs text-muted-foreground">{selectedIds.size} seleccionadas</div>
+                                              <div className="flex items-center gap-2">
+                                                <Button size="sm" className="h-7" onClick={() => {
+                                                  console.log('🔍 [DEBUG] Botón Aprobar múltiples reservas clickeado:', Array.from(selectedIds));
+                                                  updateMultipleReservationsStatus(Array.from(selectedIds), 'aprobada');
+                                                }}>
+                                                  <CheckCircle className="mr-2 h-3 w-3" /> Aprobar
+                                                </Button>
+                                                <Button size="sm" variant="destructive" className="h-7" onClick={() => setRejectDialogOpen(true)}>
+                                                  <XCircle className="mr-2 h-3 w-3" /> Rechazar
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          )}
+
+                                          {inBlock
+                                            .sort((a, b) => {
+                                              const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                                              const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                                              const byCreated = ca - cb;
+                                              if (byCreated !== 0) return byCreated;
+                                              return (parseTimeToMinutes(a.horaInicio) ?? 0) - (parseTimeToMinutes(b.horaInicio) ?? 0);
+                                            })
+                                            .map(ev => {
+                                              return (
+                                                <div key={ev.id} className="p-2 rounded border group">
+                                                  <div className="flex items-start justify-between gap-2">
+                                                    <div>
+                                                      <div className="text-sm font-medium">{ev.userName}</div>
+                                                      <div className="text-[11px] text-blue-600">{ev.userDomicilio}</div>
+                                                      <div className="text-[11px] font-medium">
+                                                        {ev.isMoroso ? (
+                                                          <span className="text-red-600">Moroso</span>
+                                                        ) : (
+                                                          <span className="text-green-600">Al día</span>
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                      <Badge className={`text-[11px] ${statusColors[ev.status]}`}>
+                                                        {updatingReservationIds.has(ev.id) ? 'Actualizando…' : statusLabels[ev.status]}
+                                                      </Badge>
+                                                      <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                          <Button variant="ghost" className="h-7 w-7 p-0" title="Acciones">
+                                                            <MoreHorizontal className="h-3.5 w-3.5" />
+                                                          </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end">
+                                                          <ReservationAuditHistory
+                                                            reservationId={ev.id}
+                                                            residencialId={user?.residencialID || userClaims?.residencialId || ev.residencialId || ''}
+                                                            trigger={
+                                                              <DropdownMenuItem onSelect={(e) => {
+                                                                e.preventDefault();
+                                                                console.log('🔍 [DEBUG] Abriendo historial para (vista calendario):', {
+                                                                  reservationId: ev.id,
+                                                                  residencialId: user?.residencialID,
+                                                                  userClaims_residencialId: userClaims?.residencialId,
+                                                                  ev_residencialId: ev.residencialId,
+                                                                  finalResidencialId: user?.residencialID || userClaims?.residencialId || ev.residencialId || '',
+                                                                  userObject: user,
+                                                                  userClaims: userClaims,
+                                                                  eventData: ev
+                                                                });
+                                                              }}>
+                                                                <History className="mr-2 h-3 w-3" />
+                                                                Ver Historial
+                                                              </DropdownMenuItem>
+                                                            }
+                                                          />
+                                                          {ev.status !== 'aprobada' && (
+                                                            <DropdownMenuItem disabled={updatingReservationIds.has(ev.id)} onClick={() => {
+                                                              console.log('🔍 [DEBUG] Botón Marcar como aprobada clickeado:', ev.id);
+                                                              updateReservationStatus(ev.id, 'aprobada');
+                                                            }} className="text-green-600">
+                                                              <CheckCircle className="mr-2 h-3 w-3" /> Marcar como aprobada
+                                                            </DropdownMenuItem>
+                                                          )}
+                                                          {ev.status !== 'finalizada' && (
+                                                            <DropdownMenuItem disabled={updatingReservationIds.has(ev.id)} onClick={() => {
+                                                              console.log('🔍 [DEBUG] Botón Marcar como completada clickeado:', ev.id);
+                                                              updateReservationStatus(ev.id, 'finalizada');
+                                                            }} className="text-purple-600">
+                                                              <CheckCircle className="mr-2 h-3 w-3" /> Marcar como completada
+                                                            </DropdownMenuItem>
+                                                          )}
+                                                          {ev.status !== 'rechazada' && (
+                                                            <DropdownMenuItem onClick={() => { setRejectReason(''); setRejectDialogOpen(true); setSelectedIds(new Set([ev.id])); }} className="text-red-600">
+                                                              <XCircle className="mr-2 h-3 w-3" /> Marcar como rechazada
+                                                            </DropdownMenuItem>
+                                                          )}
+                                                          {ev.status !== 'pendiente' && (
+                                                            <DropdownMenuItem disabled={updatingReservationIds.has(ev.id)} onClick={() => updateReservationStatus(ev.id, 'pendiente')}>
+                                                              <Clock className="mr-2 h-3 w-3" /> Volver a pendiente
+                                                            </DropdownMenuItem>
+                                                          )}
+                                                          <DropdownMenuItem onClick={async () => {
+                                                            console.log('🔍 [DEBUG] Clic en eliminar reserva (calendario):', ev.id);
+
+                                                            // SOLUCIÓN TEMPORAL: Usar confirm() nativo mientras se resuelve el problema del diálogo
+                                                            const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar esta reserva?\n\nID: ${ev.id}\n\nEsta acción no se puede deshacer.`);
+
+                                                            if (confirmed) {
+                                                              console.log('✅ [DEBUG] Usuario confirmó eliminación');
+                                                              await deleteReservation(ev.id);
+                                                            } else {
+                                                              console.log('❌ [DEBUG] Usuario canceló eliminación');
+                                                            }
+
+                                                            // Código original comentado temporalmente
+                                                            // setDeleteTargetId(ev.id); 
+                                                            // setDeleteDialogOpen(true);
+                                                            // console.log('🔍 [DEBUG] Estado actualizado:', { deleteTargetId: ev.id, deleteDialogOpen: true });
+                                                          }} className="text-red-600">
+                                                            <Trash className="mr-2 h-3 w-3" /> Eliminar reserva
+                                                          </DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                      </DropdownMenu>
+                                                    </div>
+                                                  </div>
+                                                  <div className="mt-1 flex flex-wrap items-center gap-3 text-[13px]">
+                                                    <div className="flex items-center gap-1"><CalendarIcon2 className="h-3 w-3" /> {formatTime12(ev.horaInicio)}{ev.horaFin ? ` - ${formatTime12(ev.horaFin)}` : ''}</div>
+                                                    <div className="flex items-center gap-1"><Users className="h-3 w-3" /> {ev.personas}</div>
+                                                    <div className="flex items-center gap-1"><DollarSign className="h-3 w-3" /> ${ev.precio}</div>
+                                                    <div className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" /> {ev.createdAt ? `Reservado el ${format(ev.createdAt, "dd/MM/yyyy 'a las' h:mm a", { locale: es })}` : 'Reservado: s/f'}</div>
+
+                                                    {/* 🗝️ NUEVO: Estado de las llaves */}
+                                                    {ev.estadoLlaves && (
+                                                      <div className="flex items-center gap-1">
+                                                        <Key className="h-3 w-3" />
+                                                        <Badge className={`text-[10px] ${keysStatusColors[ev.estadoLlaves]}`}>
+                                                          {keysStatusLabels[ev.estadoLlaves]}
+                                                        </Badge>
+                                                      </div>
+                                                    )}
+
+                                                    {/* 🗝️ NUEVO: Información adicional de llaves */}
+                                                    {ev.estadoLlaves === 'entregadas' && ev.fechaEntregaLlaves && (
+                                                      <div className="flex items-center gap-1 text-blue-600">
+                                                        <CheckCircle className="h-3 w-3" />
+                                                        <span className="text-[10px]">Entregada {format(ev.fechaEntregaLlaves, "h:mm a", { locale: es })}</span>
+                                                      </div>
+                                                    )}
+
+                                                    {ev.estadoLlaves === 'recibidas' && ev.fechaRecepcionLlaves && (
+                                                      <div className="flex items-center gap-1 text-green-600">
+                                                        <Key className="h-3 w-3" />
+                                                        <span className="text-[10px]">Recibida {format(ev.fechaRecepcionLlaves, "h:mm a", { locale: es })}</span>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                            </div>
                           </div>
                         );
                       })()}
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
+              {rejectDialogOpen && (
+                <Dialog open={rejectDialogOpen} onOpenChange={(o) => { setRejectDialogOpen(o); if (!o) setSelectedIds(new Set()); }}>
+                  <DialogContent aria-describedby="reject-reason-description" className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Motivo de rechazo</DialogTitle>
+                      <DialogDescription id="reject-reason-description" className="sr-only">Formulario para especificar el motivo de rechazo de la reserva.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2">
+                      <Input placeholder="Escribe el motivo..." value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" onClick={() => { setRejectDialogOpen(false); setSelectedIds(new Set()); }}>Cancelar</Button>
+                        <Button variant="destructive" onClick={async () => { await updateMultipleReservationsStatus(Array.from(selectedIds), 'rechazada', rejectReason.trim() || 'Rechazada desde panel administrativo'); setRejectDialogOpen(false); }}>Rechazar</Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
 
-                      {/* Vista previa de eventos (máx 3) */}
-                      {list.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {list
-                            .slice()
-                            .sort((a, b) => (parseTimeToMinutes(a.horaInicio) ?? 0) - (parseTimeToMinutes(b.horaInicio) ?? 0))
-                            .slice(0, 3)
-                            .map(ev => {
-                              const dotClass = ev.status === 'aprobada'
-                                ? 'bg-green-500'
-                                : ev.status === 'pendiente'
-                                  ? 'bg-yellow-500'
-                                  : ev.status === 'rechazada'
-                                    ? 'bg-red-500'
-                                    : 'bg-gray-400';
-                              
-                              // 🆕 NUEVO: Estado de las llaves
-                              const keysStatus = ev.estadoLlaves === 'entregadas' 
-                                ? '🔑' 
-                                : ev.estadoLlaves === 'recibidas' 
-                                  ? '✅' 
-                                  : '⏳';
-                              
-                              return (
-                                <div key={ev.id} className="flex items-center gap-2 text-[11px] truncate">
-                                  <span className={`h-2 w-2 rounded-full ${dotClass}`} />
-                                  <span className="font-medium whitespace-nowrap">{formatTime12(ev.horaInicio)}</span>
-                                  <span className="truncate">{ev.areaName}</span>
-                                  <span className="text-xs">{keysStatus}</span>
-                                </div>
-                              );
-                            })}
-                          {list.length > 3 && (
-                            <div className="text-[10px] text-muted-foreground">+{list.length - 3} más</div>
-                          )}
-                        </div>
+              {/* Confirmación de eliminación */}
+              {deleteDialogOpen && (
+                <Dialog open={deleteDialogOpen} onOpenChange={(o) => {
+                  console.log('🔍 [DEBUG] Cambio de estado del diálogo:', o);
+                  setDeleteDialogOpen(o);
+                  if (!o) setDeleteTargetId(null);
+                }}>
+                  <DialogContent aria-describedby="delete-reservation-description" className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Eliminar reserva</DialogTitle>
+                      <DialogDescription id="delete-reservation-description" className="sr-only">Confirmación para eliminar definitivamente la reserva seleccionada.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3 text-sm">
+                      <p>¿Estás seguro de que deseas eliminar esta reserva? Esta acción no se puede deshacer.</p>
+                      {deleteTargetId && (
+                        <p className="text-xs text-muted-foreground">ID de reserva: {deleteTargetId}</p>
                       )}
                     </div>
-                  );
-                });
-              })()}
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => {
+                        console.log('🔍 [DEBUG] Cancelando eliminación');
+                        setDeleteDialogOpen(false);
+                        setDeleteTargetId(null);
+                      }}>Cancelar</Button>
+                      <Button variant="destructive" onClick={async () => {
+                        console.log('🔍 [DEBUG] Confirmando eliminación de:', deleteTargetId);
+                        if (deleteTargetId) {
+                          await deleteReservation(deleteTargetId);
+                        }
+                        setDeleteDialogOpen(false);
+                        setDeleteTargetId(null);
+                      }}>Eliminar</Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
-          </div>
+          )}
 
-          {/* Diálogo por día */}
-          {dayDialogOpen && (
-            <Dialog modal={false} open={dayDialogOpen} onOpenChange={(open) => {
-              console.log('🔍 [DEBUG] dayDialogOpen cambiando:', { from: dayDialogOpen, to: open });
-              setDayDialogOpen(open);
-            }}>
-            <DialogContent
-              aria-describedby="day-dialog-description"
-              className="max-w-3xl h-[85vh] sm:h-[85vh] p-0 flex flex-col"
-              onOpenAutoFocus={(e)=>{ try { e.preventDefault(); } catch(_){} }}
-              onCloseAutoFocus={(e)=>{ try { e.preventDefault(); } catch(_){} }}
-            >
-              <DialogHeader className="sticky top-0 z-10 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 sm:px-6 py-3 border-b">
-                <div className="flex items-center justify-between gap-2">
-                  <DialogTitle className="text-base">
-                  {dialogDate ? format(dialogDate, "EEEE d 'de' MMMM yyyy", { locale: es }) : 'Reservas'}
-                </DialogTitle>
-                <DialogDescription id="day-dialog-description" className="sr-only">
-                  Lista y filtros de reservas del día seleccionado.
-                </DialogDescription>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => dialogDate && setDialogDate(addDays(dialogDate, -1))}>Anterior</Button>
-                    <Button variant="outline" size="sm" onClick={() => setDialogDate(new Date())}>Hoy</Button>
-                    <Button variant="outline" size="sm" onClick={() => dialogDate && setDialogDate(addDays(dialogDate, 1))}>Siguiente</Button>
-                  </div>
-                </div>
-                {/* Filtros inline */}
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  {(() => {
-                    const list = dialogDate ? (reservationsByDay.get(format(startOfDay(dialogDate), 'yyyy-MM-dd')) || []) : [];
-                    const total = list.length;
-                    const apr = list.filter(r=>r.status==='aprobada').length;
-                    const pen = list.filter(r=>r.status==='pendiente').length;
-                    const rej = list.filter(r=>r.status==='rechazada').length;
-                    const can = list.filter(r=>r.status==='cancelada').length;
-                    return (
-                      <div className="flex items-center gap-2 text-[11px]">
-                        <span className="px-1.5 py-0.5 rounded border bg-muted text-muted-foreground">{total} total</span>
-                        <span className="px-1.5 py-0.5 rounded border bg-green-100 text-green-700">{apr} apr.</span>
-                        <span className="px-1.5 py-0.5 rounded border bg-yellow-100 text-yellow-800">{pen} pend.</span>
-                        <span className="px-1.5 py-0.5 rounded border bg-red-100 text-red-700">{rej} rej.</span>
-                        <span className="px-1.5 py-0.5 rounded border bg-gray-100 text-gray-700">{can} canc.</span>
-                      </div>
-                    );
-                  })()}
-                  <div className="ml-auto flex items-center gap-2">
-                    <Select value={modalAreaFilter || ''} onValueChange={setModalAreaFilter}>
-                      <SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Área" /></SelectTrigger>
-                      <SelectContent>
-                        {modalAreas.map(a => (<SelectItem key={a} value={a}>{a}</SelectItem>))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={modalStatusFilter || 'all'} onValueChange={(v: any)=>setModalStatusFilter(v)}>
-                      <SelectTrigger className="h-8 w-[160px]"><SelectValue placeholder="Estado" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        <SelectItem value="pendiente">Pendiente</SelectItem>
-                        <SelectItem value="aprobada">Aprobada</SelectItem>
-                        <SelectItem value="rechazada">Rechazada</SelectItem>
-                        <SelectItem value="cancelada">Cancelada</SelectItem>
-                        <SelectItem value="en_curso">En Curso</SelectItem>
-                        <SelectItem value="finalizada">Finalizada</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <div className="relative">
-                      <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
-                      <Input value={modalSearch} onChange={(e)=>setModalSearch(e.target.value)} placeholder="Buscar..." className="h-8 pl-8 w-[200px]" />
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <Checkbox id="hideEmpty" checked={hideEmptyBlocks} onCheckedChange={(v)=>setHideEmptyBlocks(Boolean(v))} />
-                      <label htmlFor="hideEmpty" className="text-muted-foreground">Ocultar bloques vacíos</label>
-                    </div>
-                  </div>
-                </div>
-              </DialogHeader>
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3">
-                {(() => {
-                  const list = dialogDate ? (reservationsByDay.get(format(startOfDay(dialogDate), 'yyyy-MM-dd')) || []) : [];
-                  if (list.length === 0) {
-                    return <div className="text-sm text-muted-foreground">No hay reservas en este día.</div>;
-                  }
-                  const areas = modalAreas.length ? modalAreas : Array.from(new Set(list.map(r => r.areaName)));
-                  const area = modalAreaFilter && areas.includes(modalAreaFilter) ? modalAreaFilter : areas[0];
-
-                  // Filtros in-modal
-                  let listForArea = area ? list.filter(r => r.areaName === area) : list;
-                  if (modalStatusFilter !== 'all') listForArea = listForArea.filter(r => r.status === modalStatusFilter);
-                  if (modalSearch.trim()) {
-                    const s = modalSearch.toLowerCase();
-                    listForArea = listForArea.filter(r =>
-                      r.userName.toLowerCase().includes(s) ||
-                      r.userEmail.toLowerCase().includes(s) ||
-                      r.areaName.toLowerCase().includes(s)
-                    );
-                  }
-
-                  // Derivar bloques directamente de las reservas (inicio-fin exactos)
-                  const blockMap = new Map<string, { start: number; end: number }>();
-                  for (const ev of listForArea) {
-                    const s = parseTimeToMinutes(ev.horaInicio) ?? null;
-                    if (s == null) continue;
-                    const e = parseTimeToMinutes(ev.horaFin) ?? (s + Number(ev.duracion || 1) * 60);
-                    const key = `${s}-${e}`;
-                    if (!blockMap.has(key)) blockMap.set(key, { start: s, end: e });
-                  }
-                  const blocks = Array.from(blockMap.values()).sort((a, b) => a.start - b.start);
-
-                  return (
-                    <div className="space-y-3">
-                      {/* selector de área del día */}
-                      {areas.length > 1 && (
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">Área:</span>
-                          <Select value={area || ''} onValueChange={setModalAreaFilter}>
-                            <SelectTrigger className="h-8 w-[220px]"><SelectValue placeholder="Seleccione área" /></SelectTrigger>
-                            <SelectContent>
-                              {areas.map(a => (<SelectItem key={a} value={a}>{a}</SelectItem>))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-
-                      {/* Bloques */}
-                      <div className="space-y-2">
-                        {blocks
-                          .map((b, idx) => {
-                          const blockLabel = `${formatTime12(`${Math.floor(b.start/60)}:${String(b.start%60).padStart(2,'0')}`)} - ${formatTime12(`${Math.floor(b.end/60)}:${String(b.end%60).padStart(2,'0')}`)}`;
-                          // Solo las reservas que exactamente coinciden con el bloque (evita duplicados por traslape)
-                          const inBlock = listForArea.filter(ev => {
-                            const s = parseTimeToMinutes(ev.horaInicio) ?? null;
-                            if (s == null) return false;
-                            const e = parseTimeToMinutes(ev.horaFin) ?? (s + Number(ev.duracion || 1) * 60);
-                            return s === b.start && e === b.end;
-                          });
-                          const blockKey = `${Math.floor(b.start/60)}:${String(b.start%60).padStart(2,'0')}-${Math.floor(b.end/60)}:${String(b.end%60).padStart(2,'0')}`;
-                          const isCollapsed = collapsedBlocks.has(blockKey);
-                          return (
-                            <div key={idx} className="rounded-md border">
-                              <button
-                                type="button"
-                                className="w-full flex items-center justify-between px-3 py-2 bg-muted/30 hover:bg-muted/50 transition-colors"
-                                onClick={() => setCollapsedBlocks(prev => {
-                                  const n = new Set(prev);
-                                  if (n.has(blockKey)) n.delete(blockKey); else n.add(blockKey);
-                                  return n;
-                                })}
-                              >
-                                <div className="flex items-center gap-2">
-                                  {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                                <div className="text-sm font-medium">{blockLabel}</div>
-                              </div>
-                                <div className="text-xs text-muted-foreground">{inBlock.length} reservas</div>
-                              </button>
-                              {inBlock.length > 0 && !isCollapsed && (
-                                <div className="px-3 py-2 space-y-2">
-                                  {/* Acciones masivas si hay seleccionados */}
-                                  {selectedIds.size > 0 && (
-                                    <div className="flex items-center justify-between p-2 rounded border bg-muted/30">
-                                      <div className="text-xs text-muted-foreground">{selectedIds.size} seleccionadas</div>
-                                      <div className="flex items-center gap-2">
-                                        <Button size="sm" className="h-7" onClick={() => {
-                                          console.log('🔍 [DEBUG] Botón Aprobar múltiples reservas clickeado:', Array.from(selectedIds));
-                                          updateMultipleReservationsStatus(Array.from(selectedIds), 'aprobada');
-                                        }}>
-                                          <CheckCircle className="mr-2 h-3 w-3" /> Aprobar
-                                        </Button>
-                                        <Button size="sm" variant="destructive" className="h-7" onClick={() => setRejectDialogOpen(true)}>
-                                          <XCircle className="mr-2 h-3 w-3" /> Rechazar
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {inBlock
-                                    .sort((a,b)=> {
-                                      const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-                                      const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-                                      const byCreated = ca - cb;
-                                      if (byCreated !== 0) return byCreated;
-                                      return (parseTimeToMinutes(a.horaInicio)??0)-(parseTimeToMinutes(b.horaInicio)??0);
-                                    })
-                                    .map(ev => {
-                                      return (
-                                        <div key={ev.id} className="p-2 rounded border group">
-                                          <div className="flex items-start justify-between gap-2">
-                                        <div>
-                                          <div className="text-sm font-medium">{ev.userName}</div>
-                                          <div className="text-[11px] text-blue-600">{ev.userDomicilio}</div>
-                                          <div className="text-[11px] font-medium">
-                                            {ev.isMoroso ? (
-                                              <span className="text-red-600">Moroso</span>
-                                            ) : (
-                                              <span className="text-green-600">Al día</span>
-                                            )}
-                                          </div>
-                                        </div>
-                                            <div className="flex items-center gap-1">
-                                                <Badge className={`text-[11px] ${statusColors[ev.status]}`}>
-                                                  {updatingReservationIds.has(ev.id) ? 'Actualizando…' : statusLabels[ev.status]}
-                                                </Badge>
-                                              <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                  <Button variant="ghost" className="h-7 w-7 p-0" title="Acciones">
-                                                    <MoreHorizontal className="h-3.5 w-3.5" />
-                                                  </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                  <ReservationAuditHistory 
-                                                    reservationId={ev.id}
-                                                    residencialId={user?.residencialID || userClaims?.residencialId || ev.residencialId || ''}
-                                                    trigger={
-                                                      <DropdownMenuItem onSelect={(e) => {
-                                                        e.preventDefault();
-                                                        console.log('🔍 [DEBUG] Abriendo historial para (vista calendario):', {
-                                                          reservationId: ev.id,
-                                                          residencialId: user?.residencialID,
-                                                          userClaims_residencialId: userClaims?.residencialId,
-                                                          ev_residencialId: ev.residencialId,
-                                                          finalResidencialId: user?.residencialID || userClaims?.residencialId || ev.residencialId || '',
-                                                          userObject: user,
-                                                          userClaims: userClaims,
-                                                          eventData: ev
-                                                        });
-                                                      }}>
-                                                        <History className="mr-2 h-3 w-3" />
-                                                        Ver Historial
-                                                      </DropdownMenuItem>
-                                                    }
-                                                  />
-                                                  {ev.status !== 'aprobada' && (
-                                                    <DropdownMenuItem disabled={updatingReservationIds.has(ev.id)} onClick={() => {
-                                                      console.log('🔍 [DEBUG] Botón Marcar como aprobada clickeado:', ev.id);
-                                                      updateReservationStatus(ev.id, 'aprobada');
-                                                    }} className="text-green-600">
-                                                      <CheckCircle className="mr-2 h-3 w-3" /> Marcar como aprobada
-                                                    </DropdownMenuItem>
-                                                  )}
-                                                  {ev.status !== 'rechazada' && (
-                                                    <DropdownMenuItem onClick={() => { setRejectReason(''); setRejectDialogOpen(true); setSelectedIds(new Set([ev.id])); }} className="text-red-600">
-                                                      <XCircle className="mr-2 h-3 w-3" /> Marcar como rechazada
-                                                    </DropdownMenuItem>
-                                                  )}
-                                                  {ev.status !== 'pendiente' && (
-                                                    <DropdownMenuItem disabled={updatingReservationIds.has(ev.id)} onClick={() => updateReservationStatus(ev.id, 'pendiente')}>
-                                                      <Clock className="mr-2 h-3 w-3" /> Volver a pendiente
-                                                    </DropdownMenuItem>
-                                                  )}
-                                                  <DropdownMenuItem onClick={async () => { 
-                                                    console.log('🔍 [DEBUG] Clic en eliminar reserva (calendario):', ev.id);
-                                                    
-                                                    // SOLUCIÓN TEMPORAL: Usar confirm() nativo mientras se resuelve el problema del diálogo
-                                                    const confirmed = window.confirm(`¿Estás seguro de que deseas eliminar esta reserva?\n\nID: ${ev.id}\n\nEsta acción no se puede deshacer.`);
-                                                    
-                                                    if (confirmed) {
-                                                      console.log('✅ [DEBUG] Usuario confirmó eliminación');
-                                                      await deleteReservation(ev.id);
-                                                    } else {
-                                                      console.log('❌ [DEBUG] Usuario canceló eliminación');
-                                                    }
-                                                    
-                                                    // Código original comentado temporalmente
-                                                    // setDeleteTargetId(ev.id); 
-                                                    // setDeleteDialogOpen(true);
-                                                    // console.log('🔍 [DEBUG] Estado actualizado:', { deleteTargetId: ev.id, deleteDialogOpen: true });
-                                                  }} className="text-red-600">
-                                                    <Trash className="mr-2 h-3 w-3" /> Eliminar reserva
-                                                  </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                              </DropdownMenu>
-                                            </div>
-                                      </div>
-                                      <div className="mt-1 flex flex-wrap items-center gap-3 text-[13px]">
-                                        <div className="flex items-center gap-1"><CalendarIcon2 className="h-3 w-3" /> {formatTime12(ev.horaInicio)}{ev.horaFin ? ` - ${formatTime12(ev.horaFin)}` : ''}</div>
-                                        <div className="flex items-center gap-1"><Users className="h-3 w-3" /> {ev.personas}</div>
-                                        <div className="flex items-center gap-1"><DollarSign className="h-3 w-3" /> ${ev.precio}</div>
-                                        <div className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" /> {ev.createdAt ? `Reservado el ${format(ev.createdAt, "dd/MM/yyyy 'a las' h:mm a", { locale: es })}` : 'Reservado: s/f'}</div>
-                                        
-                                        {/* 🗝️ NUEVO: Estado de las llaves */}
-                                        {ev.estadoLlaves && (
-                                          <div className="flex items-center gap-1">
-                                            <Key className="h-3 w-3" />
-                                            <Badge className={`text-[10px] ${keysStatusColors[ev.estadoLlaves]}`}>
-                                              {keysStatusLabels[ev.estadoLlaves]}
-                                            </Badge>
-                                          </div>
-                                        )}
-                                        
-                                        {/* 🗝️ NUEVO: Información adicional de llaves */}
-                                        {ev.estadoLlaves === 'entregadas' && ev.fechaEntregaLlaves && (
-                                          <div className="flex items-center gap-1 text-blue-600">
-                                            <CheckCircle className="h-3 w-3" />
-                                            <span className="text-[10px]">Entregada {format(ev.fechaEntregaLlaves, "h:mm a", { locale: es })}</span>
-                                          </div>
-                                        )}
-                                        
-                                        {ev.estadoLlaves === 'recibidas' && ev.fechaRecepcionLlaves && (
-                                          <div className="flex items-center gap-1 text-green-600">
-                                            <Key className="h-3 w-3" />
-                                            <span className="text-[10px]">Recibida {format(ev.fechaRecepcionLlaves, "h:mm a", { locale: es })}</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                      );
-                                    })}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
+          {/* Paginación compacta (solo en tabla) */}
+          {viewMode === 'table' && totalPages > 1 && (
+            <div className="flex items-center justify-between py-3 border-t">
+              <div className="text-xs text-muted-foreground">
+                {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredReservations.length)} de {filteredReservations.length}
               </div>
-            </DialogContent>
-          </Dialog>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="h-7 px-2"
+                >
+                  ←
+                </Button>
+                <span className="text-xs px-2">
+                  {currentPage}/{totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="h-7 px-2"
+                >
+                  →
+                </Button>
+              </div>
+            </div>
           )}
-          {rejectDialogOpen && (
-            <Dialog open={rejectDialogOpen} onOpenChange={(o)=>{ setRejectDialogOpen(o); if (!o) setSelectedIds(new Set()); }}>
-              <DialogContent aria-describedby="reject-reason-description" className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Motivo de rechazo</DialogTitle>
-                  <DialogDescription id="reject-reason-description" className="sr-only">Formulario para especificar el motivo de rechazo de la reserva.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-2">
-                  <Input placeholder="Escribe el motivo..." value={rejectReason} onChange={(e)=>setRejectReason(e.target.value)} />
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={()=>{ setRejectDialogOpen(false); setSelectedIds(new Set()); }}>Cancelar</Button>
-                    <Button variant="destructive" onClick={async ()=>{ await updateMultipleReservationsStatus(Array.from(selectedIds), 'rechazada', rejectReason.trim() || 'Rechazada desde panel administrativo'); setRejectDialogOpen(false); }}>Rechazar</Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-          )}
-
-          {/* Confirmación de eliminación */}
-          {deleteDialogOpen && (
-            <Dialog open={deleteDialogOpen} onOpenChange={(o)=>{ 
-              console.log('🔍 [DEBUG] Cambio de estado del diálogo:', o);
-              setDeleteDialogOpen(o); 
-              if (!o) setDeleteTargetId(null); 
-            }}>
-              <DialogContent aria-describedby="delete-reservation-description" className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Eliminar reserva</DialogTitle>
-                  <DialogDescription id="delete-reservation-description" className="sr-only">Confirmación para eliminar definitivamente la reserva seleccionada.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-3 text-sm">
-                  <p>¿Estás seguro de que deseas eliminar esta reserva? Esta acción no se puede deshacer.</p>
-                  {deleteTargetId && (
-                    <p className="text-xs text-muted-foreground">ID de reserva: {deleteTargetId}</p>
-                  )}
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={()=>{ 
-                    console.log('🔍 [DEBUG] Cancelando eliminación');
-                    setDeleteDialogOpen(false); 
-                    setDeleteTargetId(null); 
-                  }}>Cancelar</Button>
-                  <Button variant="destructive" onClick={async ()=>{ 
-                    console.log('🔍 [DEBUG] Confirmando eliminación de:', deleteTargetId);
-                    if (deleteTargetId) { 
-                      await deleteReservation(deleteTargetId); 
-                    } 
-                    setDeleteDialogOpen(false); 
-                    setDeleteTargetId(null); 
-                  }}>Eliminar</Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          )}
-        </div>
-      )}
-
-      {/* Paginación compacta (solo en tabla) */}
-      {viewMode === 'table' && totalPages > 1 && (
-        <div className="flex items-center justify-between py-3 border-t">
-          <div className="text-xs text-muted-foreground">
-            {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredReservations.length)} de {filteredReservations.length}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
-              className="h-7 px-2"
-            >
-              ←
-            </Button>
-            <span className="text-xs px-2">
-              {currentPage}/{totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              disabled={currentPage === totalPages}
-              className="h-7 px-2"
-            >
-              →
-            </Button>
-          </div>
-        </div>
-      )}
         </>
       )}
     </div>

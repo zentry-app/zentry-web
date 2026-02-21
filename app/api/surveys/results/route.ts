@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase/admin';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Obtener el token de autorización
@@ -14,13 +16,16 @@ export async function GET(request: NextRequest) {
 
     const idToken = authorization.split('Bearer ')[1];
 
-    // Verificar que adminAuth esté disponible
-    if (!adminAuth) {
+    // Verificar que adminAuth y adminDb estén disponibles
+    if (!adminAuth || !adminDb) {
       return NextResponse.json(
         { error: 'Firebase Admin no está configurado correctamente' },
         { status: 500 }
       );
     }
+
+    // TypeScript assertion para adminDb (ya verificado arriba)
+    const db = adminDb!;
 
     // Verificar el token y obtener las claims del usuario
     const decodedToken = await adminAuth.verifyIdToken(idToken);
@@ -40,13 +45,13 @@ export async function GET(request: NextRequest) {
     const residencialDocId = searchParams.get('residencialDocId');
 
     if (!surveyId || !residencialDocId) {
-      return NextResponse.json({ 
-        error: 'Parámetros requeridos: surveyId, residencialDocId' 
+      return NextResponse.json({
+        error: 'Parámetros requeridos: surveyId, residencialDocId'
       }, { status: 400 });
     }
 
     // Obtener la encuesta
-    const surveyDoc = await adminDb
+    const surveyDoc = await db
       .collection('residenciales')
       .doc(residencialDocId)
       .collection('encuestas')
@@ -76,20 +81,37 @@ export async function GET(request: NextRequest) {
     };
 
     // Obtener todas las respuestas con información de usuarios
-    const responses = [];
+    const responses: any[] = [];
     const respuestas = surveyData.respuestas || {};
-    
+
     // Obtener información de usuarios en paralelo
     const userIds = Object.keys(respuestas);
     const userPromises = userIds.map(async (userId) => {
       try {
-        const userDoc = await adminDb.collection('usuarios').doc(userId).get();
+        const userDoc = await db.collection('usuarios').doc(userId).get();
         const userData = userDoc.data();
+        // Obtener domicilio del usuario usando la misma lógica que en otras páginas
+        let userDomicilio = 'Sin domicilio registrado';
+        if (userData?.calle && userData?.houseNumber) {
+          userDomicilio = `${userData.calle} ${userData.houseNumber}`;
+        } else if (userData?.calle) {
+          userDomicilio = userData.calle;
+        } else if (userData?.houseNumber) {
+          userDomicilio = `Casa ${userData.houseNumber}`;
+        } else if (userData?.houseID) {
+          userDomicilio = `Casa ${userData.houseID}`;
+        } else if (userData?.domicilio) {
+          userDomicilio = userData.domicilio;
+        } else if (userData?.direccion) {
+          userDomicilio = userData.direccion;
+        }
+
         return {
           userId,
-          userName: userData?.nombre || userData?.displayName || 'Usuario',
+          userName: userData?.nombre || userData?.displayName || userData?.name || userData?.fullName || `${userData?.firstName || ''} ${userData?.lastName || ''}`.trim() || 'Usuario',
           userEmail: userData?.email || '',
-          userRole: userData?.rol || 'residente'
+          userRole: userData?.rol || 'residente',
+          userDomicilio: userDomicilio
         };
       } catch (error) {
         console.error(`Error getting user ${userId}:`, error);
@@ -97,14 +119,15 @@ export async function GET(request: NextRequest) {
           userId,
           userName: 'Usuario',
           userEmail: '',
-          userRole: 'residente'
+          userRole: 'residente',
+          userDomicilio: 'Sin domicilio registrado'
         };
       }
     });
 
     const userInfos = await Promise.all(userPromises);
     const userMap = new Map(userInfos.map(info => [info.userId, info]));
-    
+
     for (const [userId, responseData] of Object.entries(respuestas)) {
       const userInfo = userMap.get(userId);
       responses.push({
@@ -112,15 +135,16 @@ export async function GET(request: NextRequest) {
         userName: userInfo?.userName || 'Usuario',
         userEmail: userInfo?.userEmail || '',
         userRole: userInfo?.userRole || 'residente',
-        submittedAt: (responseData as any).submittedAt,
+        userDomicilio: userInfo?.userDomicilio || 'Sin domicilio registrado',
+        submittedAt: (responseData as any).submittedAt?.toDate ? (responseData as any).submittedAt.toDate().toISOString() : (responseData as any).submittedAt,
         answers: (responseData as any).answers || []
       });
     }
 
     // Calcular estadísticas básicas
     const totalResponses = responses.length;
-    const questionResults = survey.preguntas.map((question, index) => {
-      const questionResponses = responses
+    const questionResults = survey.preguntas.map((question: any, index: number) => {
+      const questionResponses: any[] = responses
         .map(response => response.answers[index])
         .filter(answer => answer !== null && answer !== undefined);
 
@@ -166,7 +190,7 @@ export async function GET(request: NextRequest) {
             } else {
               option = String(response || '');
             }
-            
+
             if (option) {
               acc[option] = (acc[option] || 0) + 1;
             }
@@ -179,7 +203,7 @@ export async function GET(request: NextRequest) {
         case 'opcionMultiple':
           const multipleOptionCounts = questionResponses.reduce((acc: any, response: any) => {
             let options: any[] = [];
-            
+
             if (Array.isArray(response)) {
               // Si es un array directo
               options = response;
@@ -195,7 +219,7 @@ export async function GET(request: NextRequest) {
             } else if (typeof response === 'string') {
               options = [response];
             }
-            
+
             // Contar cada opción seleccionada
             options.forEach((option: any) => {
               const optionStr = String(option || '');
@@ -203,7 +227,7 @@ export async function GET(request: NextRequest) {
                 acc[optionStr] = (acc[optionStr] || 0) + 1;
               }
             });
-            
+
             return acc;
           }, {});
           results.counts = multipleOptionCounts;
@@ -220,24 +244,17 @@ export async function GET(request: NextRequest) {
           results.distribution = distribution;
           results.average = average;
           break;
-
-        case 'escalaNumero':
-          const numericValues = questionResponses.map((r: any) => parseFloat(r) || 0);
-          const numericAverage = numericValues.length > 0 ? numericValues.reduce((sum: number, val: number) => sum + val, 0) / numericValues.length : 0;
-          const min = numericValues.length > 0 ? Math.min(...numericValues) : 0;
-          const max = numericValues.length > 0 ? Math.max(...numericValues) : 0;
-          results.average = numericAverage;
-          results.min = min;
-          results.max = max;
+        case 'escalaFrecuencia':
+          const frecuenciaValues = questionResponses.map((r: any) => parseInt(r) || 0).filter((v: number) => v >= 0 && v <= 4);
+          const frecuenciaDistribution = frecuenciaValues.reduce((acc: any, value: number) => {
+            acc[value] = (acc[value] || 0) + 1;
+            return acc;
+          }, {});
+          const frecuenciaAverage = frecuenciaValues.length > 0 ? frecuenciaValues.reduce((sum: number, val: number) => sum + val, 0) / frecuenciaValues.length : 0;
+          results.distribution = frecuenciaDistribution;
+          results.average = frecuenciaAverage;
           break;
 
-        case 'deslizante':
-          const sliderValues = questionResponses.map((r: any) => parseFloat(r) || 0);
-          const sliderAverage = sliderValues.length > 0 ? sliderValues.reduce((sum: number, val: number) => sum + val, 0) / sliderValues.length : 0;
-          results.average = sliderAverage;
-          results.minValue = question.minValue || 0;
-          results.maxValue = question.maxValue || 100;
-          break;
       }
 
       return {
@@ -249,13 +266,13 @@ export async function GET(request: NextRequest) {
     });
 
     // Calcular tasa de respuesta
-    const residencialDoc = await adminDb.collection('residenciales').doc(residencialDocId).get();
+    const residencialDoc = await db.collection('residenciales').doc(residencialDocId).get();
     const residencialData = residencialDoc.data();
     const residencialCode = residencialData?.residencialID;
-    
+
     let totalUsers = 0;
     if (residencialCode) {
-      const usersSnapshot = await adminDb
+      const usersSnapshot = await db
         .collection('usuarios')
         .where('residencialID', '==', residencialCode)
         .where('rol', '==', 'residente')
@@ -279,8 +296,8 @@ export async function GET(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Error getting survey results:', error);
-    return NextResponse.json({ 
-      error: error.message || 'Error interno del servidor' 
+    return NextResponse.json({
+      error: error.message || 'Error interno del servidor'
     }, { status: 500 });
   }
 }

@@ -17,7 +17,7 @@ const BrowseForMeSection = () => {
         <div className="flex flex-col lg:flex-row items-center justify-between">
           {/* Columna izquierda - Texto */}
           <div className="w-full lg:w-1/3 mb-12 lg:mb-0 text-left">
-            <motion.h2 
+            <motion.h2
               key={activeTab}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -30,11 +30,11 @@ const BrowseForMeSection = () => {
               {activeTab === 'emergencias' && "La seguridad de tu familia, a un toque de distancia."}
             </motion.h2>
           </div>
-          
+
           {/* Columna central - Solo la imagen */}
           <div className="w-full lg:w-1/3 flex justify-center mb-12 lg:mb-0">
             <AnimatePresence mode="wait">
-              <motion.div 
+              <motion.div
                 key={activeTab}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -43,39 +43,43 @@ const BrowseForMeSection = () => {
                 className="relative w-[280px] h-[560px]"
               >
                 {activeTab === 'accesos' && (
-                  <Image 
+                  <Image
                     src="/assets/HomeImg.webp"
                     alt="Pantalla principal de Zentry"
                     fill
+                    sizes="280px"
                     className="object-cover rounded-[40px]"
-                    priority
+                    loading="lazy"
                   />
                 )}
                 {activeTab === 'pagos' && (
-                  <Image 
+                  <Image
                     src="/assets/QRImg.webp"
                     alt="Generación de códigos QR"
                     fill
+                    sizes="280px"
                     className="object-cover rounded-[40px]"
-                    priority
+                    loading="lazy"
                   />
                 )}
                 {activeTab === 'reservas' && (
-                  <Image 
+                  <Image
                     src="/assets/ReservaImg.webp"
                     alt="Sistema de reservas"
                     fill
+                    sizes="280px"
                     className="object-cover rounded-[40px]"
-                    priority
+                    loading="lazy"
                   />
                 )}
                 {activeTab === 'emergencias' && (
-                  <Image 
+                  <Image
                     src="/assets/PanicImg.webp"
                     alt="Botón de pánico y emergencias"
                     fill
+                    sizes="280px"
                     className="object-cover rounded-[40px]"
-                    priority
+                    loading="lazy"
                   />
                 )}
               </motion.div>
@@ -105,7 +109,7 @@ const BrowseForMeSection = () => {
                     </div>
                   </div>
                 )}
-                
+
                 {activeTab === 'pagos' && (
                   <div className="space-y-4">
                     <h3 className="text-xl font-bold text-gray-800">Códigos QR Inteligentes</h3>
@@ -156,43 +160,39 @@ const BrowseForMeSection = () => {
       {/* Tabs en la parte inferior */}
       <div className="mt-8 w-full flex justify-center">
         <div className="grid grid-cols-2 md:flex md:space-x-4 md:space-x-8 gap-2 md:gap-0 px-4 md:px-0">
-          <button 
+          <button
             onClick={() => setActiveTab('accesos')}
-            className={`font-medium rounded-full px-3 py-2 text-xs md:text-sm transition-colors ${
-              activeTab === 'accesos' 
-                ? 'bg-gray-200 text-primary' 
+            className={`font-medium rounded-full px-3 py-2 text-xs md:text-sm transition-colors ${activeTab === 'accesos'
+                ? 'bg-gray-200 text-primary'
                 : 'bg-white text-gray-500 shadow-sm hover:bg-gray-50'
-            }`}
+              }`}
           >
             PANTALLA PRINCIPAL
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('pagos')}
-            className={`font-medium rounded-full px-3 py-2 text-xs md:text-sm transition-colors ${
-              activeTab === 'pagos' 
-                ? 'bg-gray-200 text-primary' 
+            className={`font-medium rounded-full px-3 py-2 text-xs md:text-sm transition-colors ${activeTab === 'pagos'
+                ? 'bg-gray-200 text-primary'
                 : 'bg-white text-gray-500 shadow-sm hover:bg-gray-50'
-            }`}
+              }`}
           >
             CÓDIGOS QR
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('reservas')}
-            className={`font-medium rounded-full px-3 py-2 text-xs md:text-sm transition-colors ${
-              activeTab === 'reservas' 
-                ? 'bg-gray-200 text-primary' 
+            className={`font-medium rounded-full px-3 py-2 text-xs md:text-sm transition-colors ${activeTab === 'reservas'
+                ? 'bg-gray-200 text-primary'
                 : 'bg-white text-gray-500 shadow-sm hover:bg-gray-50'
-            }`}
+              }`}
           >
             RESERVAS
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('emergencias')}
-            className={`font-medium rounded-full px-3 py-2 text-xs md:text-sm transition-colors ${
-              activeTab === 'emergencias' 
-                ? 'bg-gray-200 text-primary' 
+            className={`font-medium rounded-full px-3 py-2 text-xs md:text-sm transition-colors ${activeTab === 'emergencias'
+                ? 'bg-gray-200 text-primary'
                 : 'bg-white text-gray-500 shadow-sm hover:bg-gray-50 border border-gray-100'
-            }`}
+              }`}
           >
             BOTÓN DE PÁNICO
           </button>

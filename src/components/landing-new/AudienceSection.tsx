@@ -45,16 +45,16 @@ const AudienceSection = () => {
               />
             ))}
           </motion.div>
-          <motion.h2 
+          <motion.h2
             className="text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-6"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            ¿Qué es{' '}
+            ¿Por qué Zentry es la mejor{' '}
             <span className="relative inline-block">
               <span className="bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 bg-clip-text text-transparent font-bold">
-                Zentry
+                aplicación para residenciales
               </span>
               <motion.div
                 className="absolute inset-0 bg-gradient-to-r from-blue-500/30 via-blue-600/30 to-blue-700/30 blur-xl"
@@ -83,7 +83,7 @@ const AudienceSection = () => {
             </span>
             ?
           </motion.h2>
-          <motion.p 
+          <motion.p
             className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -95,9 +95,9 @@ const AudienceSection = () => {
 
         {/* Grid de 3 plataformas */}
         <div className="grid md:grid-cols-3 gap-8 md:gap-16">
-          
+
           {/* Plataforma 1: Administradores */}
-          <motion.div 
+          <motion.div
             className="group relative"
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -109,18 +109,20 @@ const AudienceSection = () => {
               <p className="text-gray-600 mb-8 text-base leading-relaxed">
                 Transforma la gestión residencial con herramientas inteligentes
               </p>
-              
+
               {/* Imagen de la plataforma web */}
               <div className="rounded-2xl h-48 md:h-52 mb-6 overflow-hidden border border-gray-100">
-                <Image 
+                <Image
                   src="/assets/AdminWeb.webp"
                   alt="Plataforma Web de Administración Zentry"
                   width={400}
                   height={208}
+                  sizes="(max-width: 768px) 100vw, 400px"
                   className="w-full h-full object-cover"
+                  loading="lazy"
                 />
               </div>
-              
+
               {/* Características */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
@@ -168,7 +170,7 @@ const AudienceSection = () => {
           </motion.div>
 
           {/* Plataforma 2: Residentes */}
-          <motion.div 
+          <motion.div
             className="group relative"
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -180,19 +182,21 @@ const AudienceSection = () => {
               <p className="text-gray-600 mb-8 text-base leading-relaxed">
                 Experiencia móvil premium con acceso instantáneo a servicios
               </p>
-              
+
               {/* Imagen de la app móvil */}
               <div className="rounded-2xl h-48 md:h-52 mb-6 overflow-hidden border border-gray-100">
-                <Image 
+                <Image
                   src="/assets/ResidentImg.webp"
                   alt="App Móvil Zentry para Residentes"
                   width={400}
                   height={208}
+                  sizes="(max-width: 768px) 100vw, 400px"
                   className="w-full h-full object-cover"
                   style={{ objectPosition: '50% 30%' }}
+                  loading="lazy"
                 />
               </div>
-              
+
               {/* Características */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
@@ -240,7 +244,7 @@ const AudienceSection = () => {
           </motion.div>
 
           {/* Plataforma 3: Seguridad/Caseta */}
-          <motion.div 
+          <motion.div
             className="group relative"
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -252,22 +256,20 @@ const AudienceSection = () => {
               <p className="text-gray-600 mb-8 text-base leading-relaxed">
                 Seguridad avanzada con identificación automática y monitoreo inteligente
               </p>
-              
+
               {/* Imagen del panel de seguridad */}
               <div className="rounded-2xl h-48 md:h-52 mb-6 overflow-hidden border border-gray-100 bg-gray-100">
-                <img 
+                <Image
                   src="/assets/GuardiaImg.webp"
                   alt="Panel de Control de Seguridad Zentry"
+                  width={400}
+                  height={208}
+                  sizes="(max-width: 768px) 100vw, 400px"
                   className="w-full h-full object-cover"
-                  onError={(e) => {
-                    console.error('Error loading GuardiaImg.webp:', e);
-                  }}
-                  onLoad={() => {
-                    console.log('GuardiaImg.webp loaded successfully');
-                  }}
+                  loading="lazy"
                 />
               </div>
-              
+
               {/* Características */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">

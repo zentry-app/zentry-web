@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase/admin';
 import { getTagAuditHistory } from '@/lib/firebase/tags-sync';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Obtener el token de autorización
@@ -48,14 +50,14 @@ export async function GET(request: NextRequest) {
     // Obtener historial de auditoría
     const auditHistory = await getTagAuditHistory(tagId);
 
-    return NextResponse.json({ 
-      success: true, 
-      auditHistory 
+    return NextResponse.json({
+      success: true,
+      auditHistory
     });
 
   } catch (error) {
     console.error('Error en /api/tags/audit-history:', error);
-    
+
     if (error instanceof Error) {
       return NextResponse.json(
         { error: error.message },

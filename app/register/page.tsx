@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { MultiStepRegisterForm, RegistrationData } from '@/components/auth/MultiStepRegisterForm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -271,12 +272,13 @@ export default function RegisterPage() {
               </Button>
               <div className="h-8 w-px bg-gray-300" />
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <Home className="w-5 h-5 text-white" />
-                </div>
-                <h1 className="text-xl font-bold text-gray-900">
-                  Zentry
-                </h1>
+                <Image
+                  src="/assets/logo/ZentryLogo.png"
+                  alt="Zentry Logo"
+                  width={100}
+                  height={32}
+                  className="h-8 w-auto"
+                />
               </div>
             </div>
 
@@ -530,10 +532,13 @@ export default function RegisterPage() {
             {/* Información de la empresa */}
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center">
-                  <Home className="w-4 h-4 text-white" />
-                </div>
-                <span className="font-bold text-gray-900">Zentry</span>
+                <Image
+                  src="/assets/logo/ZentryLogo.png"
+                  alt="Zentry Logo"
+                  width={100}
+                  height={32}
+                  className="h-8 w-auto"
+                />
               </div>
               <p className="text-sm text-gray-600">
                 La plataforma integral para la gestión de residenciales. 

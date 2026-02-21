@@ -1,620 +1,729 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminRequired } from "@/lib/hooks";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle, 
-  CardFooter 
+import { motion, AnimatePresence } from "framer-motion";
+import {
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle,
+    CardDescription
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Users, 
-  Building, 
-  Home, 
-  UserCheck,
-  ShieldCheck,
-  RefreshCw,
-  Clock,
-  AlertTriangle,
-  UserPlus,
-  ShieldAlert
+import {
+    Users,
+    Building,
+    Home,
+    ShieldCheck,
+    RefreshCw,
+    Clock,
+    AlertTriangle,
+    UserPlus,
+    ShieldAlert,
+    TrendingUp,
+    TrendingDown,
+    Car,
+    Calendar,
+    Activity,
+    CheckCircle2,
+    XCircle,
+    ArrowRight,
+    Zap,
+    Database,
+    Bell,
+    Search,
+    ArrowUpRight,
+    ArrowDownRight,
+    BarChart3,
+    FileText
 } from "lucide-react";
 import Link from "next/link";
 import { AdminService, DashboardService } from "@/lib/services";
-import type { 
-  DashboardRealTimeStats, 
-  PanicAlert, 
-  ActiveVisitor, 
-  ActiveRound, 
-  RecentActivity, 
-  SystemHealth 
+import type {
+    SystemHealth
 } from "@/lib/services/dashboard-service";
-import { collection, getDocs, query, where, limit as fbLimit, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where, limit as fbLimit, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { getUsuariosPendientes } from '@/lib/firebase/firestore';
+// Componentes pesados cargados dinámicamente
+const DashboardChart = dynamic(() => import('@/components/dashboard/dashboard-chart'), {
+    ssr: false,
+    loading: () => <Skeleton className="h-[260px] w-full rounded-2xl" />
+});
+const CountUp = dynamic(() => import('react-countup'), { ssr: false });
 
-// Interfaces para datos básicos del sistema
+// Interfaces
 interface DashboardStats {
-  totalResidentes: number;
-  totalResidenciales: number;
-  totalAdmins: number;
-  globalAdmins?: number;
-  pendingUsers: number;
+    totalResidentes: number;
+    totalResidenciales: number;
+    totalAdmins: number;
+    globalAdmins?: number;
+    pendingUsers: number;
+}
+
+interface FinancialStats {
+    casasMorosas: number;
+    totalCasas: number;
+    porcentajeMorosidad: number;
+}
+
+interface IngresoStats {
+    totalIngresos: number;
+    ingresosActivos: number;
+    ingresosVehiculares: number;
+    history: { day: string, count: number }[];
+}
+
+interface RecentActivity {
+    id: string;
+    type: 'ingreso' | 'alerta' | 'reserva' | 'usuario';
+    title: string;
+    subtitle: string;
+    time: Date;
+    status: 'active' | 'completed' | 'urgent';
+}
+
+interface PendingPass {
+    id: string;
+    passNumber: string | number;
+    house: string;
+    time: Date;
 }
 
 export default function DashboardPage() {
-  // Proteger la ruta - este hook redirigirá automáticamente si no es admin
-  const { isAdmin, isUserLoading } = useAdminRequired();
-  const { user, userData, userClaims } = useAuth();
-  
-  // Estados para datos básicos del sistema
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loadingStats, setLoadingStats] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [residencialNombre, setResidencialNombre] = useState<string | null>(null);
-  
-  // Estados para datos del dashboard en tiempo real
-  const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
-  const [uniqueHousesCount, setUniqueHousesCount] = useState<number | null>(null);
-  const [pendingReservationsCount, setPendingReservationsCount] = useState<number | null>(null);
-  const [pendingUsersCount, setPendingUsersCount] = useState<number | null>(null);
-  const [totalResidentesCount, setTotalResidentesCount] = useState<number | null>(null);
-  
-  // Obtener el ID del residencial que maneja este admin
-  const esAdminGlobal = userClaims?.isGlobalAdmin === true;
-  const esAdminDeResidencial = (userClaims?.role === 'admin') && !esAdminGlobal;
-  const residencialId = useMemo(() => {
-    if (!esAdminDeResidencial) return null;
-    // Priorizar lista administrada; fallback a residencialId
-    return userClaims?.managedResidencials?.[0] || userClaims?.residencialId || null;
-  }, [esAdminDeResidencial, userClaims]);
+    const { isAdmin, isUserLoading } = useAdminRequired();
+    const { user, userData, userClaims } = useAuth();
 
-  // Cargar nombre del residencial asignado (para admins no globales)
-  useEffect(() => {
-    const fetchResidencialNombre = async () => {
-      if (!esAdminDeResidencial || !residencialId) {
-        setResidencialNombre(null);
-        return;
-      }
-      try {
-        const residencialesRef = collection(db, 'residenciales');
-        // 1) Buscar por código en campo residencialID
-        const qByCode = query(residencialesRef, where('residencialID', '==', residencialId), fbLimit(1));
-        const snapByCode = await getDocs(qByCode);
-        if (!snapByCode.empty) {
-          const data: any = snapByCode.docs[0].data();
-          setResidencialNombre(data?.nombre || residencialId);
-          return;
-        }
-        // 2) Fallback: intentar por ID de documento
+    // Estados
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [financialStats, setFinancialStats] = useState<FinancialStats | null>(null);
+    const [ingresoStats, setIngresoStats] = useState<IngresoStats | null>(null);
+    const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+    const [pendingPasses, setPendingPasses] = useState<PendingPass[]>([]);
+    const [loadingStats, setLoadingStats] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [refreshing, setRefreshing] = useState(false);
+    const [residencialNombre, setResidencialNombre] = useState<string | null>(null);
+    const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
+    const [uniqueHousesCount, setUniqueHousesCount] = useState<number | null>(null);
+    const [pendingReservationsCount, setPendingReservationsCount] = useState<number | null>(null);
+    const [pendingUsersCount, setPendingUsersCount] = useState<number | null>(null);
+    const [totalResidentesCount, setTotalResidentesCount] = useState<number | null>(null);
+    const [currentTime, setCurrentTime] = useState(new Date());
+    const [dbStatus, setDbStatus] = useState<'online' | 'error' | 'loading'>('loading');
+
+    // Determinar tipo de admin
+    const esAdminGlobal = userClaims?.isGlobalAdmin === true;
+    const esAdminDeResidencial = (userClaims?.role === 'admin') && !esAdminGlobal;
+    const residencialId = useMemo(() => {
+        if (!esAdminDeResidencial) return null;
+        return userClaims?.managedResidencials?.[0] || userClaims?.residencialId || null;
+    }, [esAdminDeResidencial, userClaims]);
+
+    // Reloj
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+        return () => clearInterval(timer);
+    }, []);
+
+    // Cargar nombre del residencial
+    useEffect(() => {
+        const fetchResidencialNombre = async () => {
+            if (!esAdminDeResidencial || !residencialId) {
+                setResidencialNombre(null);
+                return;
+            }
+            try {
+                const residencialesRef = collection(db, 'residenciales');
+                const qByCode = query(residencialesRef, where('residencialID', '==', residencialId), fbLimit(1));
+                const snapByCode = await getDocs(qByCode);
+                if (!snapByCode.empty) {
+                    const data: any = snapByCode.docs[0].data();
+                    setResidencialNombre(data?.nombre || residencialId);
+                    return;
+                }
+                try {
+                    const { getDoc, doc } = await import('firebase/firestore');
+                    const docSnap = await getDoc(doc(db, 'residenciales', residencialId));
+                    if (docSnap.exists()) {
+                        const data: any = docSnap.data();
+                        setResidencialNombre(data?.nombre || residencialId);
+                        return;
+                    }
+                } catch { }
+                setResidencialNombre(residencialId);
+            } catch (e) {
+                setResidencialNombre(residencialId);
+            }
+        };
+        fetchResidencialNombre();
+    }, [esAdminDeResidencial, residencialId]);
+
+    // Cargar datos básicos y financieros
+    const fetchAllStats = async () => {
         try {
-          const { getDoc, doc } = await import('firebase/firestore');
-          const docSnap = await getDoc(doc(db, 'residenciales', residencialId));
-          if (docSnap.exists()) {
-            const data: any = docSnap.data();
-            setResidencialNombre(data?.nombre || residencialId);
-            return;
-          }
-        } catch {}
-        setResidencialNombre(residencialId);
-      } catch (e) {
-        console.error('Error obteniendo nombre de residencial:', e);
-        setResidencialNombre(residencialId);
-      }
+            setLoadingStats(true);
+            setError(null);
+
+            // Importar servicios de caché
+            const {
+                getCachedSystemStats,
+                getCachedSystemHealth,
+                getCachedResidencialData,
+                getCachedResidencialUsers,
+                getCachedIngresos,
+                getCachedActivePasses,
+                getCachedPendingReservations
+            } = await import('@/lib/cache/dashboard-cache');
+
+            // 1. Estadísticas básicas (Caché)
+            const systemStats = await getCachedSystemStats();
+            setStats(systemStats);
+
+            // 2. Salud del sistema (Caché)
+            const health = await getCachedSystemHealth();
+            setSystemHealth(health);
+
+            if (esAdminDeResidencial && residencialId) {
+                // 3. Usuarios y Casas (Morosidad) - Usamos caché
+                const residentsData = await getCachedResidencialUsers(residencialId, 'resident');
+
+                // FIX: Recalcular admins localmente para asegurar precisión (excluyendo globales si existen en la lista)
+                const adminsData = await getCachedResidencialUsers(residencialId, 'admin');
+                const localAdminsCount = adminsData.filter((d: any) => !d.isGlobalAdmin).length;
+
+                // Actualizamos stats con el conteo real local
+                setStats(prev => ({
+                    ...prev!,
+                    totalAdmins: localAdminsCount,
+                    totalResidentes: residentsData.length
+                }));
+
+                const sanitize = (s?: string) => (s || '').toString().replace(/[\u0000-\u001F\u007F-\u009F\u200B\u200C\u200D\FEFF]/g, '');
+                const normalize = (s?: string) => sanitize(s).trim().toUpperCase().replace(/\s+/g, ' ');
+                const addrKey = (calle?: string, houseNumber?: string) => `ADDR::${normalize(calle)}#${normalize(houseNumber)}`;
+
+                const casasUnicas = new Set<string>();
+                const casasConMorosos = new Set<string>();
+                const hidIndex = new Map<string, string>();
+                const addrIndex = new Map<string, string>();
+
+                residentsData.forEach((usuario: any) => {
+                    const tieneCasa = usuario.houseID || usuario.houseId || usuario.houseNumber || usuario.calle;
+                    if (!tieneCasa) return;
+
+                    const rawHid = (usuario.houseID || usuario.houseId || '').toString();
+                    const hidNorm = normalize(rawHid);
+                    const aKey = addrKey(usuario.calle, usuario.houseNumber);
+
+                    let chosenKey = hidNorm || aKey;
+
+                    const addrExisting = addrIndex.get(aKey);
+                    if (addrExisting && addrExisting !== chosenKey) {
+                        chosenKey = addrExisting;
+                    }
+
+                    if (hidNorm) {
+                        const hidExisting = hidIndex.get(hidNorm);
+                        if (hidExisting && hidExisting !== chosenKey) {
+                            chosenKey = hidExisting;
+                        } else if (!hidExisting) {
+                            hidIndex.set(hidNorm, chosenKey);
+                        }
+                    }
+                    if (!addrIndex.has(aKey)) addrIndex.set(aKey, chosenKey);
+
+                    casasUnicas.add(chosenKey);
+                    if (usuario.isMoroso === true) casasConMorosos.add(chosenKey);
+                });
+
+                const totalCasas = casasUnicas.size;
+                const casasMorosas = casasConMorosos.size;
+                setUniqueHousesCount(totalCasas);
+                setTotalResidentesCount(residentsData.length);
+                setFinancialStats({
+                    totalCasas,
+                    casasMorosas,
+                    porcentajeMorosidad: totalCasas > 0 ? Math.round((casasMorosas / totalCasas) * 100) : 0
+                });
+
+                // 4. Ingresos Vehiculares y Gráfica
+                const residencialData = await getCachedResidencialData(residencialId);
+                const residencialDocId = residencialData?.id;
+
+                if (residencialDocId) {
+                    const now = new Date();
+                    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                    const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+                    // Para que los datos coincidan, debemos traer TODO lo del mes si queremos el total del mes
+                    const fetchLimitDate = firstDayOfMonth < last7Days ? firstDayOfMonth : last7Days;
+
+                    // Usamos caché para ingresos y pases activos
+                    const [ingresosData, activePassesData] = await Promise.all([
+                        getCachedIngresos(residencialDocId, fetchLimitDate),
+                        getCachedActivePasses(residencialDocId)
+                    ]);
+
+                    let totalM = 0;
+                    let activosM = 0;
+                    let vehicularesM = 0;
+                    const historyMap = new Map<string, number>();
+                    const activities: RecentActivity[] = [];
+                    const pPasses: PendingPass[] = [];
+
+                    // Procesar Activos (Pases Pendientes)
+                    activePassesData.forEach((data: any) => {
+                        if (data.physicalPass?.delivered && !data.physicalPass?.returned) {
+                            pPasses.push({
+                                id: data.id,
+                                passNumber: data.physicalPass?.number || 'S/N',
+                                house: `${data.domicilio?.calle || ''} ${data.domicilio?.houseNumber || ''}`.trim() || 'N/A',
+                                time: (data.timestamp as any).toDate()
+                            });
+                        }
+                    });
+
+                    // Procesar Stats y Actividad
+                    ingresosData.forEach((data: any) => {
+                        const date = (data.timestamp as any).toDate();
+
+                        // Totales del mes (si es del mes actual)
+                        if (date >= firstDayOfMonth) {
+                            totalM++;
+                            if (data.status === 'active') activosM++;
+
+                            const isVehicular = !!data.vehicleInfo?.placa || !!data.vehicleInfo;
+                            if (isVehicular) vehicularesM++;
+                        }
+
+                        // Historial últimos 7 días
+                        if (date >= last7Days) {
+                            const dayStr = date.toLocaleDateString('es-MX', { weekday: 'short' });
+                            historyMap.set(dayStr, (historyMap.get(dayStr) || 0) + 1);
+                        }
+
+                        // Actividad reciente (Top 5)
+                        if (activities.length < 5) {
+                            activities.push({
+                                id: data.id,
+                                type: 'ingreso',
+                                title: data.visitanteNombre || 'Registro en Caseta',
+                                subtitle: `${data.domicilio?.calle || ''} ${data.domicilio?.houseNumber || ''}`,
+                                time: date,
+                                status: data.status === 'active' ? 'active' : 'completed'
+                            });
+                        }
+                    });
+
+                    const history = Array.from(historyMap.entries())
+                        .map(([day, count]) => ({ day, count }))
+                        .reverse();
+
+                    setIngresoStats({
+                        totalIngresos: totalM,
+                        ingresosActivos: activosM,
+                        ingresosVehiculares: vehicularesM,
+                        history
+                    });
+                    setRecentActivities(activities);
+                    setPendingPasses(pPasses.sort((a, b) => a.time.getTime() - b.time.getTime()));
+                    setDbStatus('online');
+
+                    // 5. Reservas Pendientes (Caché)
+                    const reservationsData = await getCachedPendingReservations(residencialDocId);
+                    setPendingReservationsCount(reservationsData.length);
+
+                    // 6. Usuarios Pendientes (Este servicio ya suele estar optimizado, pero lo mantenemos igual por ahora)
+                    const pending = await getUsuariosPendientes({ limit: 100 });
+                    setPendingUsersCount(pending.filter(u => (u as any).residencialID === residencialId).length);
+                }
+            }
+        } catch (err: any) {
+            console.error("Error al cargar estadísticas:", err);
+            setError(err.message);
+            setDbStatus('error');
+        } finally {
+            setLoadingStats(false);
+            setRefreshing(false);
+        }
     };
-    fetchResidencialNombre();
-  }, [esAdminDeResidencial, residencialId]);
-  
-  // Cargar datos básicos del sistema
-  const fetchBasicStats = async () => {
-    try {
-      console.log("Obteniendo estadísticas básicas del dashboard...");
-      const systemStats = await AdminService.getSystemStats();
-      setStats(systemStats);
-    } catch (err: any) {
-      console.error("Error obteniendo estadísticas básicas:", err);
-      setError(err.message || "Error al cargar estadísticas básicas");
-    }
-  };
-  
 
-  
-  // Cargar estado del sistema
-  const fetchSystemHealth = async () => {
-    try {
-      console.log("Obteniendo estado del sistema...");
-      const health = await DashboardService.getSystemHealth();
-      setSystemHealth(health);
-    } catch (err: any) {
-      console.error("Error obteniendo estado del sistema:", err);
-    }
-  };
-
-  // Contar casas únicas usando la misma lógica que la página de usuarios
-  const fetchUniqueHousesCount = async () => {
-    try {
-      if (!esAdminDeResidencial || !residencialId) {
-        setUniqueHousesCount(null);
-        return;
-      }
-      
-      const usersRef = collection(db, 'usuarios');
-      // Intento 1: por residencialID (código)
-      const snap1 = await getDocs(query(usersRef, where('residencialID', '==', residencialId), where('role', '==', 'resident')));
-      // Intento 2: por residencialId (docId) si el primero no trae resultados
-      const snap2 = snap1.empty
-        ? await getDocs(query(usersRef, where('residencialId', '==', residencialId), where('role', '==', 'resident')))
-        : null;
-      const snap = snap2 ?? snap1;
-      
-      // Aplicar la misma lógica de agrupación que en la página de usuarios
-      const sanitize = (s?: string) => (s || '')
-        .toString()
-        .replace(/[\u0000-\u001F\u007F-\u009F\u200B\u200C\u200D\uFEFF]/g, '');
-      const normalize = (s?: string) => sanitize(s).trim().toUpperCase().replace(/\s+/g, ' ');
-      const addrKey = (calle?: string, houseNumber?: string) => `ADDR::${normalize(calle)}#${normalize(houseNumber)}`;
-
-      const hidIndex = new Map<string, string>();
-      const addrIndex = new Map<string, string>();
-      const casasUnicas = new Set<string>();
-
-      snap.forEach(doc => {
-        const data = doc.data();
-        // Solo residentes con referencia de casa
-        const tieneCasa = data.houseID || data.houseId || data.houseNumber || data.calle;
-        if (!tieneCasa) return;
-
-        const rawHid = (data.houseID || data.houseId || '').toString();
-        const hidSanitized = sanitize(rawHid);
-        const hidNorm = normalize(hidSanitized);
-        const aKey = addrKey(data.calle, data.houseNumber);
-
-        // Elegir key preferente (HID si existe, sino dirección)
-        let chosenKey = hidNorm || aKey;
-
-        // Si ya existe una key para esta dirección, usar esa para agrupar
-        const addrExisting = addrIndex.get(aKey);
-        if (addrExisting && addrExisting !== chosenKey) {
-          chosenKey = addrExisting;
+    useEffect(() => {
+        if (isAdmin) {
+            fetchAllStats();
         }
+    }, [isAdmin]);
 
-        // Registrar índices
-        if (hidNorm) {
-          const hidExisting = hidIndex.get(hidNorm);
-          if (hidExisting && hidExisting !== chosenKey) {
-            chosenKey = hidExisting;
-          } else if (!hidExisting) {
-            hidIndex.set(hidNorm, chosenKey);
-          }
-        }
-        if (!addrIndex.has(aKey)) addrIndex.set(aKey, chosenKey);
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        await fetchAllStats();
+        setRefreshing(false);
+    };
 
-        casasUnicas.add(chosenKey);
-      });
+    const formatTimeAgo = (date: Date): string => {
+        const now = new Date();
+        const diffMin = Math.floor((now.getTime() - date.getTime()) / 60000);
+        if (diffMin < 1) return 'Ahora';
+        if (diffMin < 60) return `${diffMin}m`;
+        if (diffMin < 1440) return `${Math.floor(diffMin / 60)}h`;
+        return date.toLocaleDateString();
+    };
 
-      console.log(`🏠 [Dashboard] Casas únicas encontradas: ${casasUnicas.size}`);
-      setUniqueHousesCount(casasUnicas.size);
-    } catch (e) {
-      console.error('Error contando casas únicas:', e);
-      setUniqueHousesCount(null);
+    if (isUserLoading || !isAdmin) {
+        return (
+            <div className="flex items-center justify-center h-screen bg-premium">
+                <div className="text-center">
+                    <div className="relative h-20 w-20 mx-auto mb-6">
+                        <div className="absolute inset-0 rounded-full border-4 border-primary/20 animate-ping"></div>
+                        <div className="absolute inset-0 rounded-full border-t-4 border-primary animate-spin"></div>
+                    </div>
+                    <p className="text-primary font-bold animate-pulse text-lg">Sincronizando Zentry...</p>
+                </div>
+            </div>
+        );
     }
-  };
 
-  // Contar reservas pendientes para admin de residencial
-  const fetchPendingReservationsCount = async () => {
-    try {
-      if (!esAdminDeResidencial || !residencialId) {
-        setPendingReservationsCount(null);
-        return;
-      }
-      // Intentar directamente usar residencialId como docId
-      let targetDocId: string | null = residencialId;
-      try {
-        const { getDoc, doc } = await import('firebase/firestore');
-        const snap = await getDoc(doc(db, 'residenciales', residencialId));
-        if (!snap.exists()) {
-          targetDocId = null;
-        }
-      } catch {
-        targetDocId = null;
-      }
-      if (!targetDocId) {
-        // Buscar por código en campo residencialID
-        const residencialesRef = collection(db, 'residenciales');
-        const qByCode = query(residencialesRef, where('residencialID', '==', residencialId), fbLimit(1));
-        const snapByCode = await getDocs(qByCode);
-        targetDocId = snapByCode.empty ? null : snapByCode.docs[0].id;
-      }
-      if (!targetDocId) {
-        setPendingReservationsCount(0);
-        return;
-      }
-      const reservationsRef = collection(db, 'residenciales', targetDocId, 'reservaciones');
-      const q = query(reservationsRef, where('status', '==', 'pendiente'), orderBy('fecha', 'desc'));
-      const snap = await getDocs(q);
-      setPendingReservationsCount(snap.size);
-    } catch (e) {
-      console.error('Error contando reservas pendientes:', e);
-      setPendingReservationsCount(null);
-    }
-  };
-
-  // Contar usuarios pendientes del residencial del admin
-  const fetchPendingUsersCount = async () => {
-    try {
-      if (!esAdminDeResidencial || !residencialId) {
-        setPendingUsersCount(null);
-        return;
-      }
-      const pending = await getUsuariosPendientes({ limit: 100 });
-      const count = pending.filter(u => (u as any).residencialID === residencialId).length;
-      setPendingUsersCount(count);
-    } catch (e) {
-      console.error('Error contando usuarios pendientes:', e);
-      setPendingUsersCount(null);
-    }
-  };
-
-  // Contar total de usuarios residentes
-  const fetchTotalResidentesCount = async () => {
-    try {
-      if (!esAdminDeResidencial || !residencialId) {
-        setTotalResidentesCount(null);
-        return;
-      }
-      
-      const usersRef = collection(db, 'usuarios');
-      // Intento 1: por residencialID (código)
-      const snap1 = await getDocs(query(usersRef, where('residencialID', '==', residencialId), where('role', '==', 'resident')));
-      // Intento 2: por residencialId (docId) si el primero no trae resultados
-      const snap2 = snap1.empty
-        ? await getDocs(query(usersRef, where('residencialId', '==', residencialId), where('role', '==', 'resident')))
-        : null;
-      const snap = snap2 ?? snap1;
-      
-      console.log(`👥 [Dashboard] Total de residentes encontrados: ${snap.size}`);
-      setTotalResidentesCount(snap.size);
-    } catch (e) {
-      console.error('Error contando total de residentes:', e);
-      setTotalResidentesCount(null);
-    }
-  };
-  
-  // Función para cargar todos los datos
-  const fetchAllData = async () => {
-    try {
-      setLoadingStats(true);
-      setError(null);
-      
-      // Cargar datos básicos y de estado del sistema en paralelo
-      await Promise.all([
-        fetchBasicStats(),
-        fetchSystemHealth(),
-        fetchUniqueHousesCount(),
-        fetchPendingReservationsCount(),
-        fetchPendingUsersCount(),
-        fetchTotalResidentesCount(),
-      ]);
-      
-
-      
-    } catch (err: any) {
-      console.error("Error obteniendo datos del dashboard:", err);
-      setError(err.message || "Error al cargar datos");
-    } finally {
-      setLoadingStats(false);
-    }
-  };
-  
-  useEffect(() => {
-    if (isAdmin) {
-      fetchAllData();
-      
-      // Configurar actualización periódica de datos
-      const interval = setInterval(() => {
-        fetchSystemHealth();
-      }, 60000); // Actualizar cada minuto
-      
-      return () => clearInterval(interval);
-    }
-  }, [isAdmin]);
-  
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchAllData();
-    setRefreshing(false);
-  };
-  
-  // Renderizar skeleton durante la carga
-  const renderStat = (value: number | undefined, label: string, icon: React.ReactNode, className?: string) => {
     return (
-      <Card className={className}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">
-            {label}
-          </CardTitle>
-          {icon}
-        </CardHeader>
-        <CardContent>
-          {loadingStats ? (
-            <Skeleton className="h-7 w-16" />
-          ) : error ? (
-            <div className="text-destructive text-xs">Error al cargar</div>
-          ) : (
-            <div className="text-2xl font-bold">{value || 0}</div>
-          )}
-        </CardContent>
-      </Card>
+        <div className="min-h-screen bg-premium px-4 lg:px-10 py-8 relative">
+            {/* Hero Header */}
+            <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-10 flex flex-col md:flex-row md:items-end md:justify-between gap-6"
+            >
+                <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-[0.2em]">
+                        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse"></span>
+                        Overview del Sistema
+                    </div>
+                    <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
+                        Hola, <span className="text-gradient-zentry">{userData?.fullName?.split(' ')[0] || "Admin"}</span> 👋
+                    </h1>
+                    <p className="text-slate-500 font-medium text-lg">
+                        {currentTime.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    </p>
+                </div>
+
+                <Button
+                    onClick={handleRefresh}
+                    disabled={refreshing || loadingStats}
+                    size="lg"
+                    className="bg-white dark:bg-slate-900 border-primary/20 dark:border-white/10 text-primary hover:bg-white dark:hover:bg-slate-800 shadow-zentry dark:shadow-none hover-lift rounded-2xl h-14 px-8 font-bold transition-all"
+                >
+                    <RefreshCw className={`mr-2 h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
+                    {refreshing ? 'Sincronizando...' : 'Actualizar'}
+                </Button>
+            </motion.div>
+
+            {/* Grid General de Stats */}
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-10">
+                <StatCard
+                    label="Residentes"
+                    value={esAdminDeResidencial ? (totalResidentesCount ?? 0) : (stats?.totalResidentes || 0)}
+                    icon={<Users className="h-6 w-6 text-white" />}
+                    gradient="from-blue-600 to-sky-400"
+                    delay={0.1}
+                    trend={{ val: 8, up: true }}
+                    loading={loadingStats}
+                />
+                <StatCard
+                    label={esAdminDeResidencial ? "Propiedades" : "Comunidades"}
+                    value={esAdminDeResidencial ? (uniqueHousesCount ?? 0) : (stats?.totalResidenciales || 0)}
+                    icon={esAdminDeResidencial ? <Home className="h-6 w-6 text-white" /> : <Building className="h-6 w-6 text-white" />}
+                    gradient="from-emerald-500 to-teal-400"
+                    delay={0.2}
+                    trend={{ val: 2, up: true }}
+                    loading={loadingStats}
+                />
+                <StatCard
+                    label="Administradores"
+                    value={stats?.totalAdmins || 0}
+                    icon={<ShieldCheck className="h-6 w-6 text-white" />}
+                    gradient="from-amber-500 to-orange-400"
+                    delay={0.3}
+                    trend={{ val: 0, up: true }}
+                    loading={loadingStats}
+                />
+                <StatCard
+                    label={esAdminDeResidencial && financialStats ? "Morosidad" : "Pendientes"}
+                    value={esAdminDeResidencial && financialStats ? `${financialStats.porcentajeMorosidad}%` : (esAdminDeResidencial ? (pendingUsersCount ?? 0) : (stats?.pendingUsers || 0))}
+                    icon={esAdminDeResidencial && financialStats ? <TrendingDown className="h-6 w-6 text-white" /> : <UserPlus className="h-6 w-6 text-white" />}
+                    gradient={esAdminDeResidencial && financialStats ? "from-red-600 to-rose-500" : "from-purple-600 to-fuchsia-500"}
+                    delay={0.4}
+                    trend={{ val: 3, up: false }}
+                    loading={loadingStats}
+                />
+            </div>
+
+            {/* Dashboard Bento Grid */}
+            <div className="grid gap-6 grid-cols-1 lg:grid-cols-12 mb-10">
+
+                {/* Columna Principal - Gráfico y Stats Rápidas (8 Col) */}
+                <div className="lg:col-span-8 space-y-6">
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.5 }}
+                    >
+                        <Card className="border-none shadow-zentry-lg dark:shadow-none bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl rounded-[2.5rem] overflow-hidden dark:ring-1 dark:ring-white/5">
+                            <CardHeader className="p-8 pb-2">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                        <CardTitle className="text-2xl font-black flex items-center gap-3 dark:text-white">
+                                            <Car className="h-8 w-8 text-primary" />
+                                            Flujo de Accesos
+                                        </CardTitle>
+                                        <p className="text-slate-500 dark:text-slate-400 font-medium">Volumen de ingresos semanal</p>
+                                    </div>
+                                    <div className="flex items-center gap-3 overflow-x-auto no-scrollbar">
+                                        <div className="px-4 py-2 bg-blue-50 dark:bg-blue-500/10 rounded-2xl shrink-0">
+                                            <p className="text-[10px] font-black text-blue-400 dark:text-blue-500 uppercase leading-none mb-1">Total Mes</p>
+                                            <p className="text-lg font-black text-blue-600 dark:text-blue-400 leading-none">{ingresoStats?.totalIngresos || 0}</p>
+                                        </div>
+                                        <div className="px-4 py-2 bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl shrink-0">
+                                            <p className="text-[10px] font-black text-emerald-400 dark:text-emerald-500 uppercase leading-none mb-1">Activos</p>
+                                            <p className="text-lg font-black text-emerald-600 dark:text-emerald-400 leading-none">{ingresoStats?.ingresosActivos || 0}</p>
+                                        </div>
+                                        <div className="px-4 py-2 bg-purple-50 dark:bg-purple-500/10 rounded-2xl shrink-0">
+                                            <p className="text-[10px] font-black text-purple-400 dark:text-purple-500 uppercase leading-none mb-1">Vehicular</p>
+                                            <p className="text-lg font-black text-purple-600 dark:text-purple-400 leading-none">{ingresoStats?.ingresosVehiculares || 0}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="px-8 pb-10">
+                                <div className="h-[260px] w-full mt-6">
+                                    <DashboardChart
+                                        data={ingresoStats?.history || []}
+                                        loading={loadingStats}
+                                    />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </motion.div>
+
+                    {/* Estado del Sistema (Real) */}
+                    <div className="grid grid-cols-1 gap-6">
+                        <Card className="border-none shadow-zentry-lg dark:shadow-none bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl rounded-[2.5rem] p-6 dark:ring-1 dark:ring-white/5">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${dbStatus === 'online' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600' :
+                                        dbStatus === 'loading' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600'
+                                        }`}>
+                                        <Database size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-black text-slate-900 dark:text-white leading-none text-sm">Estado de Conexión</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">Firebase Real-time DB</p>
+                                    </div>
+                                </div>
+                                <Badge className={`${dbStatus === 'online' ? 'bg-emerald-500/10 text-emerald-600' :
+                                    dbStatus === 'loading' ? 'bg-blue-500/10 text-blue-600' : 'bg-rose-500/10 text-rose-600'
+                                    } border-none text-[10px] font-black uppercase tracking-widest px-3 py-1`}>
+                                    {dbStatus === 'online' ? 'Online' : dbStatus === 'loading' ? 'Sincronizando' : 'Error'}
+                                </Badge>
+                            </div>
+                        </Card>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <QuickTile href="/dashboard/usuarios" icon={<Users size={20} />} label="Usuarios" color="blue" />
+                            {esAdminDeResidencial ? (
+                                <QuickTile href="/dashboard/ingresos" icon={<Car size={20} />} label="Ingresos" color="emerald" />
+                            ) : (
+                                <QuickTile href="/dashboard/residenciales" icon={<Building size={20} />} label="Condos" color="purple" />
+                            )}
+                            <QuickTile href="/dashboard/reportes" icon={<FileText size={20} />} label="Reportes" color="slate" />
+                            <QuickTile href="/dashboard/reservas" icon={<Calendar size={20} />} label="Reservas" color="amber" />
+                            <QuickTile href="/dashboard/alertas-panico" icon={<ShieldAlert size={20} />} label="Pánico" color="red" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Columna Lateral - Pases y Actividad (4 Col) */}
+                <div className="lg:col-span-4 space-y-6">
+                    {/* Pases Pendientes (Watchlist Crítica) */}
+                    <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.6 }}
+                    >
+                        <div className="shadow-zentry-lg bg-[#0f172a] text-white rounded-[2.5rem] overflow-hidden border border-white/5">
+                            <div className="p-8 pb-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h2 className="text-2xl font-black flex items-center gap-3 text-white">
+                                            <Database className="h-6 w-6 text-primary" /> Pases Faltantes
+                                        </h2>
+                                        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.2em] mt-1 ml-9">+1 SEMANA FUERA</p>
+                                    </div>
+                                    <Badge className="bg-rose-500 hover:bg-rose-500 text-white border-none text-[10px] font-black px-3 py-1">ALERTA</Badge>
+                                </div>
+                            </div>
+                            <div className="px-6 pb-8 space-y-4">
+                                {loadingStats ? (
+                                    <Skeleton className="h-48 w-full rounded-3xl opacity-10" />
+                                ) : pendingPasses.filter(p => (new Date().getTime() - p.time.getTime()) > 7 * 24 * 60 * 60 * 1000).length > 0 ? (
+                                    pendingPasses
+                                        .filter(p => (new Date().getTime() - p.time.getTime()) > 7 * 24 * 60 * 60 * 1000)
+                                        .slice(0, 5)
+                                        .map((pass) => (
+                                            <div key={pass.id} className="group flex items-center gap-4 p-4 rounded-[1.5rem] bg-white/[0.03] border border-white/[0.05] hover:bg-white/[0.06] transition-all">
+                                                <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0 font-black text-sm border border-primary/20">
+                                                    #{pass.passNumber}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-lg font-black truncate text-white tracking-tight">{pass.house}</p>
+                                                    <p className="text-[11px] font-bold text-rose-400 uppercase flex items-center gap-1.5 opacity-90">
+                                                        <Clock size={12} className="text-rose-500" /> DESDE: {pass.time.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }).toUpperCase()}
+                                                    </p>
+                                                </div>
+                                                <div className="text-right shrink-0">
+                                                    <Badge className="bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-black px-2 py-0.5 rounded-lg">
+                                                        {pass.time.toLocaleDateString('es-MX', { year: 'numeric', month: 'numeric', day: 'numeric' })}
+                                                    </Badge>
+                                                </div>
+                                            </div>
+                                        ))
+                                ) : (
+                                    <div className="text-center py-12 opacity-40 bg-white/[0.02] rounded-[2rem] border border-white/5">
+                                        <CheckCircle2 className="h-10 w-10 mx-auto mb-3 text-emerald-400" />
+                                        <p className="text-xs font-black uppercase tracking-widest text-emerald-400">Sin rezagos críticos</p>
+                                    </div>
+                                )}
+
+                                {pendingPasses.length > 0 && (
+                                    <div className="mt-6 pt-6 border-t border-white/5 flex items-center justify-between px-4">
+                                        <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Total en circulación</span>
+                                        <Badge variant="outline" className="border-white/10 text-white font-black text-xs px-3">{pendingPasses.length} pases</Badge>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </motion.div>
+
+                    {/* Actividad en Vivo (Compacto) */}
+                    <Card className="border-none shadow-zentry-lg dark:shadow-none bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl rounded-[2.5rem] overflow-hidden dark:ring-1 dark:ring-white/5">
+                        <CardHeader className="p-8 pb-4">
+                            <CardTitle className="text-lg font-black dark:text-white">Actividad Reciente</CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-6 pb-6 space-y-2">
+                            {loadingStats ? (
+                                Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-2xl dark:bg-white/5" />)
+                            ) : recentActivities.slice(0, 4).map((activity) => (
+                                <div
+                                    key={activity.id}
+                                    className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white dark:hover:bg-white/5 transition-all border border-transparent hover:border-slate-100 dark:hover:border-white/5 group cursor-pointer"
+                                >
+                                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${activity.status === 'active' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-slate-50 dark:bg-white/5 text-slate-400 dark:text-slate-500'
+                                        }`}>
+                                        <Car size={20} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-black text-slate-900 dark:text-slate-100 truncate">{activity.title}</p>
+                                        <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase truncate">{activity.subtitle}</p>
+                                    </div>
+                                    <span className="text-[9px] font-black text-primary uppercase shrink-0">{formatTimeAgo(activity.time)}</span>
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+        </div>
     );
-  };
+}
 
-  // Función para formatear tiempo relativo
-  const formatTimeAgo = (date: Date): string => {
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMinutes = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    
-    if (diffMinutes < 1) return 'Ahora mismo';
-    if (diffMinutes < 60) return `Hace ${diffMinutes} minutos`;
-    if (diffHours < 24) return `Hace ${diffHours} horas`;
-    
-    return date.toLocaleDateString();
-  };
-
-  // Si está cargando o no es administrador, mostrar un indicador de carga
-  if (isUserLoading || !isAdmin) {
+// Subcomponentes
+function StatCard({ label, value, icon, gradient, delay, trend, loading }: any) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Verificando permisos...</h2>
-          <Progress value={60} className="w-64 mb-2" />
-          <p className="text-muted-foreground">Por favor espere</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6 px-2 lg:px-10">
-      {/* Encabezado y botón de refresh */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight md:text-3xl">
-            Bienvenido, {userData?.fullName || "Administrador"}
-          </h2>
-          <p className="text-muted-foreground">
-            Panel de control de Zentry - Vista general del sistema
-          </p>
-          {esAdminDeResidencial && (
-            <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-              Residencial asignado: <span className="font-medium">{residencialNombre || residencialId}</span>
-            </p>
-          )}
-        </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={handleRefresh}
-          disabled={refreshing || loadingStats}
+        <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay }}
         >
-          <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          {refreshing ? 'Actualizando...' : 'Actualizar datos'}
-        </Button>
-      </div>
+            <Card className="relative border-none shadow-zentry dark:shadow-none bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl rounded-[2.5rem] overflow-hidden group h-full dark:ring-1 dark:ring-white/5">
+                <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${gradient} opacity-[0.03] dark:opacity-[0.08] group-hover:scale-125 transition-transform duration-700`}></div>
+                <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
+                    <CardTitle className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">{label}</CardTitle>
+                    <div className={`h-14 w-14 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-lg group-hover:rotate-6 transition-all`}>
+                        {icon}
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    {loading ? <Skeleton className="h-12 w-28 dark:bg-white/5" /> : (
+                        <>
+                            <div className="text-4xl font-black text-slate-900 dark:text-white mb-2">
+                                <CountUp end={typeof value === 'number' ? value : parseInt(value)} duration={2.5} suffix={typeof value === 'string' && value.includes('%') ? '%' : ''} />
+                            </div>
+                            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full w-fit text-[10px] font-black uppercase ${trend.up ? 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400'}`}>
+                                {trend.up ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                                {trend.val}% tendencia
+                            </div>
+                        </>
+                    )}
+                </CardContent>
+            </Card>
+        </motion.div>
+    );
+}
 
-      {/* Indicador de error */}
-      {error && (
-        <div className="bg-destructive/15 text-destructive p-3 rounded-md">
-          <p className="flex items-center">
-            <AlertTriangle className="mr-2 h-4 w-4" />
-            <span>Error: {error}</span>
-          </p>
+function MetricBox({ label, value, color }: any) {
+    const colors: any = {
+        blue: "bg-blue-50/50 text-blue-600 border-blue-100",
+        emerald: "bg-emerald-50/50 text-emerald-600 border-emerald-100",
+        purple: "bg-purple-50/50 text-purple-600 border-purple-100"
+    };
+    return (
+        <div className={`p-6 rounded-[2rem] border ${colors[color]} hover-lift transition-all flex flex-col items-center`}>
+            <p className="text-[10px] font-black uppercase tracking-widest mb-2">{label}</p>
+            <p className="text-3xl font-black text-slate-900"><CountUp end={value} duration={2} /></p>
         </div>
-      )}
+    );
+}
 
-      {/* Pestañas del Dashboard */}
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Vista General</TabsTrigger>
-        </TabsList>
-        
-        {/* Pestaña de Vista General */}
-        <TabsContent value="overview" className="space-y-4">
-          {/* Estadísticas principales */}
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Mostrar total de residentes (global para admin global, del residencial para admin de residencial) */}
-            {renderStat(
-              esAdminDeResidencial ? totalResidentesCount ?? undefined : stats?.totalResidentes, 
-              "Total de Residentes", 
-              <Users className="h-4 w-4 text-blue-500" />
-            )}
-            {/* Ocultar card de residenciales para admin de residencial */}
-            {!esAdminDeResidencial && renderStat(stats?.totalResidenciales, "Residenciales", <Building className="h-4 w-4 text-purple-500" />)}
-            {esAdminDeResidencial && renderStat(uniqueHousesCount ?? undefined, "Casas", <Home className="h-4 w-4 text-emerald-600" />)}
-            {/* En admins, no contar globales para admins de residencial */}
-            {renderStat(
-              esAdminDeResidencial && stats?.globalAdmins !== undefined
-                ? Math.max((stats?.totalAdmins || 0) - (stats?.globalAdmins || 0), 0)
-                : stats?.totalAdmins,
-              "Administradores",
-              <ShieldCheck className="h-4 w-4 text-amber-500" />
-            )}
-          </div>
+function HealthBadge({ label, status }: any) {
+    const isOk = status === 'operational';
+    return (
+        <div className="flex items-center justify-between p-4 rounded-2xl bg-white border border-slate-100 shadow-sm">
+            <div className="flex items-center gap-2">
+                <div className={`h-2.5 w-2.5 rounded-full ${isOk ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
+                <span className="font-bold text-slate-700 text-sm">{label}</span>
+            </div>
+            <Badge variant="outline" className={`${isOk ? 'text-emerald-600 border-emerald-200 bg-emerald-50' : 'text-rose-600 border-rose-200 bg-rose-50'} font-black text-[10px] uppercase`}>
+                {isOk ? 'OK' : 'ERR'}
+            </Badge>
+        </div>
+    );
+}
 
-          {/* Stripe Connect removido */}
-          
-          {/* Estado del sistema y acciones rápidas */}
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Estado del Sistema</CardTitle>
-                <CardDescription>
-                  Información en tiempo real del sistema Zentry
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Servidor API</span>
-                  <Badge variant="outline" className={
-                    systemHealth?.apiStatus === 'operational' ? 'bg-green-50 text-green-700' : 
-                    systemHealth?.apiStatus === 'degraded' ? 'bg-yellow-50 text-yellow-700' : 
-                    'bg-red-50 text-red-700'
-                  }>
-                    {systemHealth?.apiStatus === 'operational' ? 'Operativo' : 
-                     systemHealth?.apiStatus === 'degraded' ? 'Degradado' : 'Inactivo'}
-                  </Badge>
+function QuickTile({ href, icon, label, color }: any) {
+    const colors: any = {
+        blue: "from-blue-600 to-sky-400 bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400",
+        emerald: "from-emerald-500 to-teal-400 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+        purple: "from-purple-600 to-fuchsia-500 bg-purple-100 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400",
+        amber: "from-amber-500 to-orange-400 bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400",
+        red: "from-red-600 to-rose-400 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400",
+        slate: "from-slate-600 to-slate-500 bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300"
+    };
+    return (
+        <Link href={href} className="w-full">
+            <motion.div
+                whileHover={{ scale: 1.02, y: -4 }}
+                whileTap={{ scale: 0.98 }}
+                className="h-full p-6 rounded-[2.5rem] bg-white dark:bg-slate-900/40 backdrop-blur-md border border-slate-100 dark:border-white/5 shadow-zentry dark:shadow-none flex flex-col items-center justify-center gap-4 transition-all group"
+            >
+                <div className={`h-16 w-16 rounded-[1.5rem] bg-gradient-to-br ${colors[color].split(' ')[0]} ${colors[color].split(' ')[1]} flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform`}>
+                    {icon}
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Servicios de notificaciones</span>
-                  <Badge variant="outline" className={
-                    systemHealth?.notificationStatus === 'operational' ? 'bg-green-50 text-green-700' : 
-                    systemHealth?.notificationStatus === 'degraded' ? 'bg-yellow-50 text-yellow-700' : 
-                    'bg-red-50 text-red-700'
-                  }>
-                    {systemHealth?.notificationStatus === 'operational' ? 'Operativo' : 
-                     systemHealth?.notificationStatus === 'degraded' ? 'Degradado' : 'Inactivo'}
-                  </Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Base de datos</span>
-                  <Badge variant="outline" className={
-                    systemHealth?.databaseStatus === 'operational' ? 'bg-green-50 text-green-700' : 
-                    systemHealth?.databaseStatus === 'degraded' ? 'bg-yellow-50 text-yellow-700' : 
-                    'bg-red-50 text-red-700'
-                  }>
-                    {systemHealth?.databaseStatus === 'operational' ? 'Operativa' : 
-                     systemHealth?.databaseStatus === 'degraded' ? 'Degradada' : 'Inactiva'}
-                  </Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Almacenamiento</span>
-                  <div className="text-right">
-                    <div className="text-sm font-medium">
-                      {systemHealth?.storageUsage ? `${100 - systemHealth.storageUsage}% disponible` : 'Cargando...'}
-                    </div>
-                    <Progress 
-                      value={systemHealth?.storageUsage || 0} 
-                      className="h-2 w-24" 
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Última actualización</span>
-                  <span className="text-sm text-muted-foreground">
-                    {systemHealth?.lastUpdate ? formatTimeAgo(systemHealth.lastUpdate) : 'Cargando...'}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Acciones Rápidas</CardTitle>
-                <CardDescription>
-                  Gestión rápida de la plataforma
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
-                    <Users className="h-4 w-4 text-blue-600" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">Usuarios</p>
-                    <p className="text-sm text-muted-foreground">
-                      Administra residentes y usuarios del sistema
-                    </p>
-                  </div>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href="/dashboard/usuarios">Ir</Link>
-                  </Button>
-                </div>
-                {!esAdminDeResidencial && (
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
-                      <Home className="h-4 w-4 text-green-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium">Residenciales</p>
-                      <p className="text-sm text-muted-foreground">
-                        Gestiona residenciales y propiedades
-                      </p>
-                    </div>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href="/dashboard/residenciales">Ir</Link>
-                    </Button>
-                  </div>
-                )}
-                {esAdminDeResidencial && (
-                  <>
-                    <div className="flex items-start gap-4">
-                                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100">
-                      <Clock className="h-4 w-4 text-amber-600" />
-                    </div>
-                      <div className="flex-1">
-                        <p className="font-medium">Reservas pendientes</p>
-                        <p className="text-sm text-muted-foreground">Revisa y aprueba las solicitudes de áreas comunes</p>
-                      </div>
-                      <Badge variant="secondary" className="mr-2">{pendingReservationsCount ?? 0}</Badge>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href="/dashboard/reservas">Ir</Link>
-                      </Button>
-                    </div>
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100">
-                        <UserPlus className="h-4 w-4 text-indigo-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium">Usuarios por aprobar</p>
-                        <p className="text-sm text-muted-foreground">Aprueba o rechaza nuevos registros</p>
-                      </div>
-                      <Badge variant="secondary" className="mr-2">{pendingUsersCount ?? 0}</Badge>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href="/dashboard/usuarios">Ir</Link>
-                      </Button>
-                    </div>
-                  </>
-                )}
-                <div className="flex items-start gap-4">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100">
-                    <ShieldAlert className="h-4 w-4 text-red-600" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">Alertas de Pánico</p>
-                    <p className="text-sm text-muted-foreground">
-                      Ver y gestionar alertas activas
-                    </p>
-                  </div>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href="/dashboard/alertas-panico">Ir</Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-        
-
-          
-
-          
-
-          
-
-        
-
-      </Tabs>
-    </div>
-  );
-} 
+                <span className="font-black text-sm uppercase tracking-widest text-slate-900 dark:text-white group-hover:text-primary transition-colors">{label}</span>
+            </motion.div>
+        </Link>
+    );
+}

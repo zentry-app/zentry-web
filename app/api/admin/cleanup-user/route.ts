@@ -4,9 +4,28 @@ import { adminAuth, adminDb, adminStorage } from '@/lib/firebase/admin';
 export async function POST(request: NextRequest) {
   try {
     console.log('🔍 [Cleanup User] Iniciando diagnóstico y limpieza de usuario');
-    
-    const { email, action } = await request.json();
-    
+
+    const body = await request.json();
+    const { email, action } = body;
+
+    // 1. Verificar autenticación
+    const authorization = request.headers.get('authorization');
+    if (!authorization || !authorization.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Token de autorización ausente o inválido.' }, { status: 401 });
+    }
+
+    if (!adminAuth) {
+      return NextResponse.json({ error: 'Firebase Admin no configurado' }, { status: 500 });
+    }
+
+    const idToken = authorization.split('Bearer ')[1];
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+
+    // 2. Verificar rol de administrador
+    if (!decodedToken.admin && !decodedToken.superadmin && !decodedToken.isAdmin) {
+      return NextResponse.json({ error: 'Acceso denegado. Se requiere rol de administrador.' }, { status: 403 });
+    }
+
     if (!email) {
       return NextResponse.json(
         { error: 'Email es requerido' },
@@ -19,7 +38,7 @@ export async function POST(request: NextRequest) {
     // Verificar si Firebase Admin está inicializado
     if (!adminAuth || !adminDb || !adminStorage) {
       return NextResponse.json(
-        { 
+        {
           error: 'Firebase Admin no está configurado',
           message: 'Las variables de entorno de Firebase no están configuradas'
         },
@@ -68,16 +87,16 @@ export async function POST(request: NextRequest) {
       const [files] = await bucket.getFiles({
         prefix: 'public_registration/',
       });
-      
+
       for (const file of files) {
         const metadata = await file.getMetadata();
         const customMetadata = metadata[0]?.metadata;
-        
+
         if (customMetadata?.email === email) {
           storageFiles.push(file.name);
         }
       }
-      
+
       console.log(`🗂️ [Cleanup User] Archivos encontrados en Storage: ${storageFiles.length}`);
     } catch (error) {
       console.error(`❌ [Cleanup User] Error verificando Storage:`, error);
@@ -171,7 +190,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('❌ [Cleanup User] Error general:', error);
     return NextResponse.json(
-      { 
+      {
         error: error instanceof Error ? error.message : 'Error interno del servidor'
       },
       { status: 500 }

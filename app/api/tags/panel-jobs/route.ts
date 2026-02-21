@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase/admin';
 import { getTagPanelJobs, getPanelJobsStats } from '@/lib/firebase/tags-sync';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Obtener el token de autorización
@@ -58,7 +60,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Error en /api/tags/panel-jobs:', error);
-    
+
     if (error instanceof Error) {
       return NextResponse.json(
         { error: error.message },

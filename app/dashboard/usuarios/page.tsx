@@ -1,72 +1,73 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogFooter, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogTrigger 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
 } from "@/components/ui/dialog";
-import { 
-  Tabs, 
-  TabsContent, 
-  TabsList, 
-  TabsTrigger 
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
 } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { 
-  Search, 
-  Plus, 
-  MoreHorizontal, 
-  UserPlus, 
-  Filter, 
-  RefreshCw, 
-  CheckCircle, 
-  XCircle, 
-  Edit, 
-  Trash, 
-  UserCog, 
-  Mail, 
-  Phone, 
-  Home, 
+import {
+  Search,
+  Plus,
+  MoreHorizontal,
+  UserPlus,
+  Filter,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  Edit,
+  Trash,
+  UserCog,
+  Mail,
+  Phone,
+  Home,
   Clock,
   Shield,
   Users,
@@ -78,12 +79,14 @@ import {
   RefreshCcw,
   AlertTriangle,
   Percent,
-  Info
+  Info,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { getUsuarios, getUsuariosPendientes, getUsuariosPorResidencial, cambiarEstadoUsuario, cambiarEstadoMoroso, crearUsuario, eliminarUsuario, Usuario, getResidenciales, Residencial, suscribirseAUsuarios, suscribirseAUsuariosPendientes, suscribirseAResidenciales, cambiarMorosidadPorCasa } from "@/lib/firebase/firestore";
-import { 
-  documentExistsSimplificado, 
-  getDocumentURLSimplificado, 
+import {
+  documentExistsSimplificado,
+  getDocumentURLSimplificado,
   eliminarDocumento // Añadir eliminarDocumento a la importación
 } from '@/lib/firebase/storage';
 import { usuarioToUserModel, userModelToUsuario } from "@/lib/utils/user-mappers";
@@ -171,7 +174,7 @@ const TableSkeleton = () => (
 export default function UsuariosPage() {
   // Este key se usa para forzar un remontaje completo del componente
   const [componentKey, setComponentKey] = useState<number>(0);
-  
+
   return (
     <UsuariosPageContent key={componentKey} onReset={() => setComponentKey(prev => prev + 1)} />
   );
@@ -181,7 +184,7 @@ export default function UsuariosPage() {
 function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element {
   const router = useRouter();
   // Obtener userClaims del AuthContext
-  const { user, userClaims, loading: authLoading } = useAuth(); 
+  const { user, userClaims, loading: authLoading } = useAuth();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [usuariosPendientes, setUsuariosPendientes] = useState<Usuario[]>([]);
   const [residenciales, setResidenciales] = useState<Residencial[]>([]);
@@ -192,7 +195,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
   const [filterCalle, setFilterCalle] = useState("");
   const [filterNumero, setFilterNumero] = useState("");
   const [filterTipoUsuario, setFilterTipoUsuario] = useState<string>("todos"); // Nuevo filtro por tipo de usuario
-  const [mapeoResidenciales, setMapeoResidenciales] = useState<{[key: string]: string}>({});
+  const [mapeoResidenciales, setMapeoResidenciales] = useState<{ [key: string]: string }>({});
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [documentoSeleccionado, setDocumentoSeleccionado] = useState<string | null>(null);
   const [documentoURL, setDocumentoURL] = useState<string | null>(null);
@@ -285,7 +288,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
 
     try {
       const userRef = doc(db, 'usuarios', usuarioAEditar.id);
-      
+
       // Si se está cambiando el límite de códigos QR, eliminar el code_book existente
       // para forzar la regeneración inmediata con el nuevo límite
       if (updatedData.max_codigos_qr_diarios !== undefined) {
@@ -295,7 +298,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
           code_book: null // Esto eliminará el campo code_book
         };
         await updateDoc(userRef, updateDataWithCodeBookRemoval);
-        
+
         sonnerToast.success("Usuario actualizado", {
           description: `Los permisos de ${usuarioAEditar.fullName} se han guardado correctamente. Los códigos QR se regenerarán automáticamente.`,
         });
@@ -320,7 +323,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
   // =================================================================================
   // REFACTORIZACIÓN: Lógica de carga de datos centralizada
   // =================================================================================
-  
+
   // Función para cargar las calles cuando se selecciona un residencial
   const cargarCallesDelResidencial = useCallback(async (residencialId: string) => {
     try {
@@ -328,15 +331,15 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
         setCallesDisponibles([]);
         return;
       }
-      
+
       console.log('🔍 Cargando calles para residencial ID:', residencialId);
-      
+
       // Obtener el documento del residencial
       const residencialDoc = await getDoc(doc(db, 'residenciales', residencialId));
-      
+
       if (residencialDoc.exists()) {
         const residencialData = residencialDoc.data();
-        
+
         // Verificar si existe el campo calles y es un array
         if (residencialData.calles && Array.isArray(residencialData.calles)) {
           console.log('✅ Calles encontradas:', residencialData.calles);
@@ -366,13 +369,13 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       if (Object.keys(mapeoResidenciales).length === 0) {
         console.log('🔍 No hay mapeo de residenciales, cargando...');
         const todosLosResidenciales = await getResidenciales();
-        const mapeo: {[key: string]: string} = {};
+        const mapeo: { [key: string]: string } = {};
         todosLosResidenciales.forEach(r => {
           if (r.id && r.residencialID) mapeo[r.id] = r.residencialID;
         });
-        
 
-        
+
+
         setMapeoResidenciales(mapeo);
         setResidenciales(todosLosResidenciales);
       }
@@ -380,9 +383,9 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       if (residencialId === 'todos') {
         // Carga para admin global, vista "Todos los residenciales"
         console.log('🔍 Cargando TODOS los usuarios para admin global...');
-        fetchedUsuarios = await getUsuarios({ 
+        fetchedUsuarios = await getUsuarios({
           getAll: true, // Usar la nueva opción para obtener todos los usuarios
-          orderBy: 'createdAt', 
+          orderBy: 'createdAt',
           orderDirection: 'desc',
           debug: true // Habilitar logging detallado
         });
@@ -390,9 +393,9 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       } else if (codigoResidencialAdmin) {
         // Carga para admin de residencial (siempre su residencial)
         console.log(`🔍 Cargando usuarios del residencial del admin: ${codigoResidencialAdmin}`);
-        fetchedUsuarios = await getUsuariosPorResidencial(codigoResidencialAdmin, { 
-          getAll: true, 
-          debug: true 
+        fetchedUsuarios = await getUsuariosPorResidencial(codigoResidencialAdmin, {
+          getAll: true,
+          debug: true
         });
         console.log(`✅ Usuarios del residencial del admin: ${fetchedUsuarios.length}`);
       } else {
@@ -400,16 +403,16 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
         const codigoResidencial = mapeoResidenciales[residencialId];
         if (codigoResidencial) {
           console.log(`🔍 Cargando usuarios del residencial seleccionado: ${codigoResidencial}`);
-          fetchedUsuarios = await getUsuariosPorResidencial(codigoResidencial, { 
-            getAll: true, 
-            debug: true 
+          fetchedUsuarios = await getUsuariosPorResidencial(codigoResidencial, {
+            getAll: true,
+            debug: true
           });
           console.log(`✅ Usuarios del residencial seleccionado: ${fetchedUsuarios.length}`);
         } else {
           console.error('❌ No se encontró código de residencial para:', residencialId);
         }
       }
-      
+
       setUsuarios(fetchedUsuarios);
       setLastUpdate(new Date());
 
@@ -481,7 +484,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
         console.log('📊 IDs de usuarios pendientes:', usuariosPendientesActualizados.map(u => u.id));
         setUsuariosPendientes(usuariosPendientesActualizados);
         setActualizacionEnTiempoReal(true);
-        
+
         // Ocultar el indicador de tiempo real después de 3 segundos
         setTimeout(() => setActualizacionEnTiempoReal(false), 3000);
       },
@@ -495,11 +498,11 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       const unsubscribeUsuarios = suscribirseAUsuarios(
         (usuariosActualizados) => {
           console.log('🔄 Usuarios actualizados en tiempo real:', usuariosActualizados.length);
-          
+
           // ✅ CORREGIDO: Siempre actualizar cuando hay cambios en tiempo real
           // Esto permite que se actualice correctamente cuando se aprueban/rechazan usuarios
           console.log('✅ Suscripción en tiempo real: Actualizando usuarios');
-          
+
           // Filtrar usuarios según el residencial seleccionado
           let usuariosFiltrados = usuariosActualizados;
           if (residencialIdDelAdmin) {
@@ -510,16 +513,16 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
               usuariosFiltrados = usuariosActualizados.filter(u => u.residencialID === codigoResidencial);
             }
           }
-          
+
           setUsuarios(usuariosFiltrados);
           setActualizacionEnTiempoReal(true);
-          
+
           // Ocultar el indicador de tiempo real después de 3 segundos
           setTimeout(() => setActualizacionEnTiempoReal(false), 3000);
         },
-        { 
-          orderBy: 'createdAt', 
-          orderDirection: 'desc', 
+        {
+          orderBy: 'createdAt',
+          orderDirection: 'desc',
           limit: 1000 // Aumentar límite para evitar pérdida de usuarios
         }
       );
@@ -533,9 +536,9 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
         (residencialesActualizados) => {
           console.log('🔄 Residenciales actualizados en tiempo real:', residencialesActualizados.length);
           setResidenciales(residencialesActualizados);
-          
+
           // Actualizar el mapeo de residenciales
-          const mapeo: {[key: string]: string} = {};
+          const mapeo: { [key: string]: string } = {};
           residencialesActualizados.forEach(r => {
             if (r.id && r.residencialID) mapeo[r.id] = r.residencialID;
           });
@@ -560,15 +563,15 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
   // Manejar notificaciones de usuarios pendientes en un useEffect separado
   useEffect(() => {
     if (isLoading) return;
-    
-    if (usuariosPendientes.length > 0 && 
-        activeTab !== "pendientes" && 
-        usuariosPendientes.length > lastNotifiedPendingCount) {
-      
+
+    if (usuariosPendientes.length > 0 &&
+      activeTab !== "pendientes" &&
+      usuariosPendientes.length > lastNotifiedPendingCount) {
+
       sonnerToast.info(`${usuariosPendientes.length} usuarios pendientes de aprobación`, {
         description: "Se actualizó automáticamente"
       });
-      
+
       setLastNotifiedPendingCount(usuariosPendientes.length);
     } else if (usuariosPendientes.length !== lastNotifiedPendingCount) {
       setLastNotifiedPendingCount(usuariosPendientes.length);
@@ -598,7 +601,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       cargarYActualizarUsuarios(idParaCargar);
     }
   }, [authLoading, userClaims, residencialIdDelAdmin, cargarYActualizarUsuarios]);
-  
+
   // Efecto para resetear la página al cambiar de filtro o residencial
   useEffect(() => {
     setCurrentPage(1);
@@ -606,12 +609,12 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
 
   useEffect(() => {
     if (isLoading) return;
-    
+
     if (usuariosPendientes.length > 0) {
       usuariosPendientes.forEach(usuario => {
         const identificacionPath = (usuario as any).identificacionPath;
         const comprobantePath = (usuario as any).comprobantePath;
-        
+
         if (identificacionPath || comprobantePath) {
           if (identificacionPath) console.log(`- Identificación: ${identificacionPath}`);
           if (comprobantePath) console.log(`- Comprobante: ${comprobantePath}`);
@@ -624,7 +627,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
     try {
       // Marcar usuario como en proceso de aprobación
       setUsuariosAprobando(prev => new Set(prev).add(id));
-      
+
       // Obtener los datos del usuario antes de aprobarlo para acceder a sus rutas de documentos
       const usuarioPendiente = usuariosPendientes.find(u => u.id === id);
       const identificacionPath = (usuarioPendiente as any)?.identificacionPath;
@@ -637,7 +640,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       console.log("🔄 Aprobando usuario:", id, "con documentos:", rutasDocumentos);
       console.log("📊 Estado antes de aprobar - Usuarios pendientes:", usuariosPendientes.length);
       console.log("📊 Estado antes de aprobar - Usuarios totales:", usuarios.length);
-      
+
       // Aprobar al usuario - las suscripciones en tiempo real manejarán la actualización automática
       await cambiarEstadoUsuario(id, "approved");
       sonnerToast.success("Usuario aprobado correctamente");
@@ -646,15 +649,15 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
         description: "Solo el administrador del fraccionamiento o autoridades competentes podrán consultarlos.",
         duration: 6000
       });
-      
+
       console.log("✅ Usuario aprobado exitosamente. Las suscripciones en tiempo real deberían actualizar automáticamente.");
-      
+
       // ✅ RESPUESTA MANUAL: Recargar datos después de 1 segundo como respaldo
       setTimeout(() => {
         console.log("🔄 Recargando datos manualmente como respaldo...");
         cargarYActualizarUsuarios(residencialSeleccionado);
       }, 1000);
-      
+
       // Las suscripciones en tiempo real actualizarán automáticamente las listas
     } catch (error) {
       console.error("Error al aprobar usuario:", error);
@@ -675,33 +678,33 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       const usuarioPendiente = usuariosPendientes.find(u => u.id === id);
       const identificacionPath = (usuarioPendiente as any)?.identificacionPath;
       const comprobantePath = (usuarioPendiente as any)?.comprobantePath;
-      
+
       // Guardar rutas para registro
       const rutasDocumentos = {
         identificacion: identificacionPath,
         comprobante: comprobantePath
       };
-      
+
       console.log("🔄 Rechazando usuario:", id, "con documentos:", rutasDocumentos);
-      
+
       // Primero rechazamos al usuario
       await cambiarEstadoUsuario(id, "rejected");
       sonnerToast.success("Usuario rechazado correctamente");
-      
+
       // Luego intentamos eliminar los documentos
       let docsEliminados = 0;
       let docsFallidos = 0;
-      
+
       if (identificacionPath) {
         const eliminado = await eliminarDocumento(identificacionPath);
         eliminado ? docsEliminados++ : docsFallidos++;
       }
-      
+
       if (comprobantePath) {
         const eliminado = await eliminarDocumento(comprobantePath);
         eliminado ? docsEliminados++ : docsFallidos++;
       }
-      
+
       // Informar al usuario sobre la eliminación de documentos
       if (docsEliminados > 0) {
         console.log(`✅ Se eliminaron ${docsEliminados} documentos asociados al usuario`);
@@ -710,7 +713,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
           duration: 4000
         });
       }
-      
+
       if (docsFallidos > 0) {
         console.warn(`⚠️ No se pudieron eliminar ${docsFallidos} documentos`);
         sonnerToast.warning(`No se pudieron eliminar ${docsFallidos} documentos`, {
@@ -718,9 +721,9 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
           duration: 4000
         });
       }
-      
+
       // Las suscripciones en tiempo real actualizarán automáticamente las listas
-      
+
       // ✅ RESPUESTA MANUAL: Recargar datos después de 1 segundo como respaldo
       setTimeout(() => {
         console.log("🔄 Recargando datos manualmente como respaldo...");
@@ -731,11 +734,11 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       sonnerToast.error("Error al rechazar el usuario");
     }
   };
-  
+
   const handleCambiarEstado = async (id: string, nuevoEstado: Usuario['status']) => {
     try {
       await cambiarEstadoUsuario(id, nuevoEstado);
-      
+
       if (nuevoEstado === "approved") {
         sonnerToast.success("Usuario activado correctamente");
       } else if (nuevoEstado === "inactive") {
@@ -743,7 +746,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       } else {
         sonnerToast.success(`Estado del usuario cambiado a ${nuevoEstado}`);
       }
-      
+
       // Las suscripciones en tiempo real actualizarán automáticamente las listas
     } catch (error) {
       console.error(`Error al cambiar estado del usuario a ${nuevoEstado}:`, error);
@@ -760,7 +763,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       });
       return usuario.residencialID;
     }
-    
+
     if ((usuario as any)['residencialId']) {
       console.log('🔍 getResidencialIdFromUser - usando residencialId:', {
         nombre: usuario.fullName,
@@ -768,7 +771,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       });
       return (usuario as any)['residencialId'];
     }
-    
+
     if ((usuario as any)['residencialDocId']) {
       const docId = (usuario as any)['residencialDocId'];
       // Intentar obtener el residencialID del mapeo
@@ -786,7 +789,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       });
       return docId;
     }
-    
+
     console.log('❌ getResidencialIdFromUser - no se encontró residencial para:', {
       nombre: usuario.fullName,
       usuario: usuario
@@ -805,21 +808,21 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
     if (residencialId === "todos") {
       return usuarios;
     }
-    
+
     // Obtener el código del residencial del mapeo
     const codigoResidencial = mapeoResidenciales[residencialId];
-    
+
     if (!codigoResidencial) {
       return [];
     }
-    
+
     // Filtrar los usuarios que coinciden con el residencial
     const usuariosFiltrados = usuarios.filter(u => {
       const userResidencialId = getResidencialIdFromUser(u);
       // Solo filtrar por coincidencia de residencial, independientemente del rol
       return userResidencialId === codigoResidencial;
     });
-    
+
     return usuariosFiltrados;
   };
 
@@ -833,9 +836,9 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
 
   const filtrarUsuariosPorBusqueda = (usuarios: Usuario[]) => {
     if (!searchTerm) return usuarios;
-    
+
     const termino = searchTerm.toLowerCase();
-    return usuarios.filter(usuario => 
+    return usuarios.filter(usuario =>
       (usuario.fullName || '').toLowerCase().includes(termino) ||
       (usuario.paternalLastName || '').toLowerCase().includes(termino) ||
       (usuario.maternalLastName || '').toLowerCase().includes(termino) ||
@@ -849,44 +852,44 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
 
   const filtrarUsuariosPorDireccion = (usuarios: Usuario[]) => {
     let usuariosFiltrados = usuarios;
-    
+
     // Filtro por calle
     if (filterCalle && filterCalle.trim() && filterCalle !== "todas") {
       const calle = filterCalle.toLowerCase().trim();
-      usuariosFiltrados = usuariosFiltrados.filter(usuario => 
+      usuariosFiltrados = usuariosFiltrados.filter(usuario =>
         (usuario.calle || '').toLowerCase().includes(calle)
       );
     }
-    
+
     // Filtro por número
     if (filterNumero.trim()) {
       const numero = filterNumero.toLowerCase().trim();
-      usuariosFiltrados = usuariosFiltrados.filter(usuario => 
+      usuariosFiltrados = usuariosFiltrados.filter(usuario =>
         (usuario.houseNumber || '').toLowerCase().includes(numero)
       );
     }
-    
+
     return usuariosFiltrados;
   };
 
   const filtrarUsuariosPorTipo = (usuarios: Usuario[]) => {
     let usuariosFiltrados = usuarios;
-    
+
     // Filtro por tipo de usuario
     if (filterTipoUsuario && filterTipoUsuario !== "todos") {
       if (filterTipoUsuario === "resident") {
         // Filtrar solo residentes
-        usuariosFiltrados = usuariosFiltrados.filter(usuario => 
+        usuariosFiltrados = usuariosFiltrados.filter(usuario =>
           usuario.role === 'resident'
         );
       } else if (filterTipoUsuario === "inquilino") {
         // Filtrar solo inquilinos (usuarios que NO son propietarios)
-        usuariosFiltrados = usuariosFiltrados.filter(usuario => 
+        usuariosFiltrados = usuariosFiltrados.filter(usuario =>
           !((usuario as any).isOwner === true || usuario.ownershipStatus === 'own')
         );
       }
     }
-    
+
     return usuariosFiltrados;
   };
 
@@ -896,16 +899,16 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       // Si es admin de residencial, filtrar por su residencial ID (usando el mapeo para ser consistentes)
       const idDocResidencialAdmin = Object.keys(mapeoResidenciales).find(key => mapeoResidenciales[key] === codigoResidencialAdmin);
       if (idDocResidencialAdmin) {
-         return usuarios.filter(u => getResidencialIdFromUser(u) === codigoResidencialAdmin);
+        return usuarios.filter(u => getResidencialIdFromUser(u) === codigoResidencialAdmin);
       }
       return []; // Si no se encuentra el residencial del admin, devolver lista vacía
     }
-    
+
     // Si es admin global
     if (residencialSeleccionado === "todos") {
       return usuarios;
     }
-    
+
     // IMPORTANTE: Si ya se filtró por residencial en cargarYActualizarUsuarios,
     // no aplicar filtro adicional aquí para evitar doble filtrado
     return usuarios;
@@ -914,11 +917,11 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
   // Usar useMemo para aplicar el filtro de búsqueda
   const usuariosBuscados = useMemo(() => {
     let usuarios = usuariosDelResidencial;
-    
+
     // Aplicar filtro de búsqueda general
     if (searchTerm) {
       const termino = searchTerm.toLowerCase();
-      usuarios = usuarios.filter(usuario => 
+      usuarios = usuarios.filter(usuario =>
         usuario.fullName?.toLowerCase().includes(termino) ||
         usuario.paternalLastName?.toLowerCase().includes(termino) ||
         usuario.maternalLastName?.toLowerCase().includes(termino) ||
@@ -927,27 +930,27 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
         (usuario.houseID && usuario.houseID.toLowerCase().includes(termino))
       );
     }
-    
+
     // Aplicar filtros de dirección
     usuarios = filtrarUsuariosPorDireccion(usuarios);
-    
+
     // Aplicar filtro por tipo de usuario
     usuarios = filtrarUsuariosPorTipo(usuarios);
-    
+
     return usuarios;
   }, [usuariosDelResidencial, searchTerm, filterCalle, filterNumero, filterTipoUsuario, filtrarUsuariosPorDireccion, filtrarUsuariosPorTipo]);
-  
+
   // Usar useMemo para calcular los usuarios filtrados por rol
-  const residentes = useMemo(() => 
+  const residentes = useMemo(() =>
     filtrarUsuariosPorRol(usuariosBuscados, 'resident'),
     [usuariosBuscados]
   );
-  
-  const guardias = useMemo(() => 
+
+  const guardias = useMemo(() =>
     filtrarUsuariosPorRol(usuariosBuscados, 'security'),
     [usuariosBuscados]
   );
-  
+
   const administradores = useMemo(() => {
     // Filtrar admins por rol y estado aprobado
     const adminsAprobados = filtrarUsuariosPorRol(usuariosBuscados, 'admin');
@@ -1071,7 +1074,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
     }
 
     const result = Array.from(map.values()).sort((a, b) => (a.calle || '').localeCompare(b.calle || '') || (a.houseNumber || '').localeCompare(b.houseNumber || '') || (a.houseID || '').localeCompare(b.houseID || ''));
-    
+
     // Solo loggear el resumen una vez cada 5 segundos para evitar spam
     if (!(window as any).lastSummaryLogTime || Date.now() - (window as any).lastSummaryLogTime > 5000) {
       console.debug('[HouseView] Resumen de casas agrupadas:', result.slice(0, 3).map(r => ({ key: r.key, houseID: r.houseID, calle: r.calle, houseNumber: r.houseNumber, total: r.total })));
@@ -1080,15 +1083,15 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       }
       (window as any).lastSummaryLogTime = Date.now();
     }
-    
+
     return result;
   }, [usuariosBuscados]);
 
   // Función para manejar el cambio de estado moroso de usuarios individuales
   const handleCambiarEstadoMorosoIndividual = useCallback((usuarioId: string, nuevoEstado: boolean) => {
     console.log('🔄 Actualizando estado local para usuario individual:', { usuarioId, nuevoEstado });
-    
-    setUsuarios(prevUsuarios => 
+
+    setUsuarios(prevUsuarios =>
       prevUsuarios.map(usuario => {
         const userId = usuario.id || usuario.uid;
         if (userId === usuarioId) {
@@ -1104,7 +1107,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       console.log('🔍 [handleMarcarCasaMorosa] Iniciando proceso para casa:', casa);
       console.log('🔍 [handleMarcarCasaMorosa] Valor a aplicar (isMoroso):', value);
       console.log('🔍 [handleMarcarCasaMorosa] Usuarios en la casa:', casa.usuarios.length);
-      
+
       // OPTIMIZACIÓN: Usar directamente los usuarios que ya tenemos en la casa
       // en lugar de buscarlos nuevamente en Firestore
       if (casa.usuarios.length === 0) {
@@ -1113,12 +1116,12 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       }
 
       console.log('🔍 [handleMarcarCasaMorosa] IDs de usuarios a actualizar:', casa.usuarios.map(u => ({ id: u.id || u.uid, email: u.email })));
-      
+
       let updated = 0;
       const errores: string[] = [];
 
       const usuariosActualizados: string[] = [];
-      
+
       for (const usuario of casa.usuarios) {
         try {
           const userId = usuario.id || usuario.uid;
@@ -1138,12 +1141,12 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
           errores.push(`Error en ${usuario.email}: ${error.message}`);
         }
       }
-      
+
       console.log('🔍 [handleMarcarCasaMorosa] Total usuarios actualizados:', updated);
-      
+
       // ACTUALIZAR ESTADO LOCAL INMEDIATAMENTE para evitar esperar la recarga
       if (usuariosActualizados.length > 0) {
-        setUsuarios(prevUsuarios => 
+        setUsuarios(prevUsuarios =>
           prevUsuarios.map(usuario => {
             const userId = usuario.id || usuario.uid;
             if (userId && usuariosActualizados.includes(userId)) {
@@ -1153,10 +1156,10 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
             return usuario;
           })
         );
-        
+
         console.log('🔄 Estado local actualizado inmediatamente para', usuariosActualizados.length, 'usuarios');
       }
-      
+
       // Mostrar resultado
       if (updated > 0) {
         setTimeout(() => {
@@ -1169,7 +1172,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
           sonnerToast.error(`Errores en ${errores.length} usuarios: ${errores.slice(0, 2).join(', ')}${errores.length > 2 ? '...' : ''}`);
         }, 100);
       }
-      
+
       if (updated === 0 && errores.length === 0) {
         setTimeout(() => {
           sonnerToast.error('No se pudieron actualizar usuarios');
@@ -1212,7 +1215,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentUsers = useMemo(() => 
+  const currentUsers = useMemo(() =>
     listaActiva.slice(indexOfFirstItem, indexOfLastItem),
     [listaActiva, currentPage, itemsPerPage]
   );
@@ -1220,7 +1223,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
   // =================================================================================
   // ESTADÍSTICAS DEL RESIDENCIAL
   // =================================================================================
-  
+
   // Calcular estadísticas del residencial (unificando houseID con sanitización y dirección)
   const estadisticasResidencial = useMemo(() => {
     if (!usuariosDelResidencial.length) return null;
@@ -1349,15 +1352,15 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
 
   const getResidencialNombre = (id: string) => {
     if (!id) return "No asignado";
-    
+
     // Buscar primero por ID directo
     const porIdDirecto = residenciales.find(r => r.id === id);
     if (porIdDirecto) return porIdDirecto.nombre;
-    
+
     // Buscar por residencialID
     const porResidencialID = residenciales.find(r => r.residencialID === id);
     if (porResidencialID) return porResidencialID.nombre;
-    
+
     // Buscar en el mapeo inverso
     for (const [docId, residencialID] of Object.entries(mapeoResidenciales)) {
       if (residencialID === id) {
@@ -1365,15 +1368,15 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
         if (residencial) return residencial.nombre;
       }
     }
-    
+
     // Último intento: búsqueda insensible a mayúsculas/minúsculas
-    const residencialCaseInsensitive = residenciales.find((r): r is Residencial => 
-      (!!r.residencialID && r.residencialID.toLowerCase() === id.toLowerCase()) || 
+    const residencialCaseInsensitive = residenciales.find((r): r is Residencial =>
+      (!!r.residencialID && r.residencialID.toLowerCase() === id.toLowerCase()) ||
       (!!r.id && r.id.toLowerCase() === id.toLowerCase())
     );
-    
+
     if (residencialCaseInsensitive) return residencialCaseInsensitive.nombre;
-    
+
     console.log(`⚠️ No se encontró nombre para residencial ID: ${id}`);
     return "Residencial ID: " + id.substring(0, 6) + "...";
   };
@@ -1395,25 +1398,25 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       setIsLoadingDocument(true);
       setDocumentoSeleccionado(ruta);
       setDocumentoNombre(nombre);
-      
+
       if (!ruta || ruta.trim() === '') {
         console.error('❌ Ruta del documento inválida');
         sonnerToast.error(`La ruta del documento ${nombre} no es válida`);
         setDocumentoSeleccionado(null);
         return;
       }
-      
+
       console.log('[DEBUG] Antes de llamar a documentExists. Ruta:', ruta);
       const resultado = await documentExistsSimplificado(ruta);
       console.log('[DEBUG] Después de llamar a documentExists. Resultado:', resultado);
-      
+
       if (!resultado.existe) {
         console.error('❌ Documento no encontrado o sin permisos:', ruta);
         sonnerToast.error(`No es posible acceder al documento "${nombre}". Verifica que tengas permisos de administrador para el residencial correspondiente.`);
         setDocumentoSeleccionado(null);
         return;
       }
-      
+
       // Si documentExists ya devolvió la URL, usamos esa directamente
       if (resultado.url) {
         console.log('📥 URL obtenida directamente del verificador');
@@ -1421,19 +1424,19 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
         sonnerToast.success(`Documento ${nombre} cargado correctamente`);
         return;
       }
-      
+
       // Si no tenemos URL, intentamos obtenerla con getDocumentURL como fallback
       console.log('[DEBUG] Antes de llamar a getDocumentURL. Ruta:', ruta);
       const url = await getDocumentURLSimplificado(ruta);
       console.log('[DEBUG] Después de llamar a getDocumentURL. URL obtenida:', url ? 'URL Presente' : 'URL Ausente');
-      
+
       if (!url) {
         console.error('❌ No se pudo obtener la URL del documento');
         sonnerToast.error(`No se pudo obtener la URL del documento ${nombre}`);
         setDocumentoSeleccionado(null);
         return;
       }
-      
+
       setDocumentoURL(url);
       sonnerToast.success(`Documento ${nombre} cargado correctamente`);
     } catch (error) {
@@ -1442,17 +1445,17 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
         errorCode: (error as any)?.code,
         errorMessage: (error as Error).message
       });
-      
+
       const errorCode = (error as any)?.code;
       const errorMessage = (error as Error).message || '';
-      
+
       if (errorCode === 'storage/unauthorized' || errorMessage.includes('No tienes permiso')) {
         console.error('🚫 Error de permisos:', {
           userEmail: user?.email,
           userRole: (user as any)?.role,
           documentPath: ruta
         });
-        
+
         sonnerToast.error(`No tienes permisos para acceder al documento ${nombre}`, {
           description: "Debes ser administrador del residencial o propietario del documento",
           duration: 5000
@@ -1469,13 +1472,13 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       } else {
         sonnerToast.error(`Error al cargar el documento ${nombre}: ${errorMessage || 'Error desconocido'}`);
       }
-      
+
       setDocumentoSeleccionado(null);
     } finally {
       setIsLoadingDocument(false);
     }
   };
-  
+
   const cerrarModal = () => {
     setDocumentoSeleccionado(null);
     setDocumentoURL(null);
@@ -1504,7 +1507,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
     } else if (name === "residencialID") {
       // Cuando se cambia el residencial, cargar las calles disponibles
       cargarCallesDelResidencial(value);
-      
+
       setNuevoUsuarioForm({
         ...nuevoUsuarioForm,
         [name]: value,
@@ -1521,7 +1524,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
 
   const handleCrearUsuario = async (): Promise<void> => {
     setCreandoUsuario(true);
-    
+
     try {
       // Validaciones del formulario
       const formToValidate = { ...nuevoUsuarioForm };
@@ -1530,33 +1533,33 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
         setCreandoUsuario(false);
         return;
       }
-      
+
       if (!formToValidate.email) {
         sonnerToast.error('El correo electrónico es obligatorio');
         setCreandoUsuario(false);
         return;
       }
-      
+
       if (!formToValidate.residencialID) {
         sonnerToast.error('Debe seleccionar un residencial');
         setCreandoUsuario(false);
         return;
       }
-      
+
       if (!formToValidate.password) {
         sonnerToast.error('La contraseña es obligatoria');
         setCreandoUsuario(false);
         return;
       }
-      
+
       try {
         // Obtener el residencialID correcto del documento de residencial
         let correctResidencialID = formToValidate.residencialID;
-        
+
         try {
           // Intentar obtener el documento del residencial para extraer el residencialID correcto
           const residencialDoc = await getDoc(doc(db, 'residenciales', formToValidate.residencialID));
-          
+
           if (residencialDoc.exists() && residencialDoc.data().residencialID) {
             correctResidencialID = residencialDoc.data().residencialID;
             console.log(`📌 Usando residencialID correcto: ${correctResidencialID}`);
@@ -1566,10 +1569,10 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
         } catch (error) {
           console.error('Error al obtener residencialID:', error);
         }
-        
+
         // SOLUCIÓN: Crear una instancia de Firebase completamente independiente
         // Esto evita completamente que se interfiera con la sesión del administrador
-        
+
         // Convertir el rol a UserRole enum
         let userRole: UserRole;
         switch (formToValidate.role) {
@@ -1587,19 +1590,19 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
 
         // Usar Firebase Functions para crear el usuario de forma segura
         const { getFunctions, httpsCallable } = await import('firebase/functions');
-        
+
         const functions = getFunctions(undefined, 'us-central1'); // Especificar la región
-        
+
         // Elegir la función correcta según el tipo de usuario
         const functionName = formToValidate.role === 'resident' ? 'createResidentUser' : 'createSecurityUser';
         const createUserFunction = httpsCallable(functions, functionName);
-        
+
         console.log(`🔥 Llamando a Firebase Function ${functionName} con datos:`, {
           email: formToValidate.email,
           role: formToValidate.role,
           residencialId: correctResidencialID
         });
-        
+
         // Preparar datos específicos según el tipo de usuario
         const userData: any = {
           email: formToValidate.email,
@@ -1618,26 +1621,26 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
           userData.street = formToValidate.calle || '';
           userData.houseId = formToValidate.houseID || generarHouseID();
         }
-        
+
         const result = await createUserFunction(userData);
-        
+
         console.log('🎉 Resultado de Firebase Function:', result);
-        
+
         const resultData = result.data as { success: boolean; uid: string; message: string };
-        
+
         console.log('✅ Usuario creado exitosamente:', resultData.uid);
         sonnerToast.success('Usuario creado exitosamente en Authentication y Firestore');
-        
+
         // Resetear el formulario y cerrar el modal
         resetFormularioUsuario();
         setShowNuevoUsuarioDialog(false);
-        
+
         // Recargar la lista de usuarios
         await cargarYActualizarUsuarios(residencialSeleccionado);
-        
+
       } catch (authError: any) {
         console.error('Error al crear usuario:', authError);
-        
+
         // Errores específicos de Firebase Auth
         if (authError.code === 'auth/email-already-in-use') {
           sonnerToast.error('El correo electrónico ya está en uso');
@@ -1674,7 +1677,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       password: ""
     });
   };
-  
+
   // Función para generar el houseID automáticamente (4 caracteres alfanuméricos)
   const generarHouseID = (): string => {
     const caracteres = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -1711,85 +1714,91 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
   // Función para renderizar la paginación
   const renderPagination = () => {
     return (
-      <div className="mt-4">
-        <div className="flex items-center justify-between mb-4">
-          {/* Selector de elementos por página */}
+      <div className="mt-8 bg-white/50 backdrop-blur-xl border border-white/50 rounded-[2rem] p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm w-full group hover:shadow-md transition-all duration-300">
+
+        <div className="flex items-center gap-4 text-xs font-bold text-slate-500 uppercase tracking-widest pl-2">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Mostrar:</span>
-            <Select 
-              value={itemsPerPage.toString()} 
+            <span>Mostrar</span>
+            <Select
+              value={itemsPerPage.toString()}
               onValueChange={(value) => {
                 console.log('Cambiando itemsPerPage de', itemsPerPage, 'a', value);
                 setItemsPerPage(parseInt(value));
                 setCurrentPage(1);
               }}
             >
-              <SelectTrigger className="w-[100px]">
+              <SelectTrigger className="w-[70px] h-8 border-slate-200 bg-white shadow-sm font-bold text-slate-700 text-xs focus:ring-0 rounded-lg transition-all hover:border-blue-200">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="20">20</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
+              <SelectContent className="rounded-xl border-none shadow-xl bg-white/90 backdrop-blur-xl">
+                <SelectItem value="10" className="font-bold text-xs">10</SelectItem>
+                <SelectItem value="20" className="font-bold text-xs">20</SelectItem>
+                <SelectItem value="50" className="font-bold text-xs">50</SelectItem>
+                <SelectItem value="100" className="font-bold text-xs">100</SelectItem>
               </SelectContent>
             </Select>
-            <span className="text-sm text-muted-foreground">por página</span>
           </div>
-          
-          <div className="text-sm text-muted-foreground">
-            Mostrando {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, totalItems)} de {totalItems} usuarios
+
+          <div className="hidden sm:block h-4 w-[1px] bg-slate-200" />
+
+          <div>
+            <span className="text-slate-900 font-black">{indexOfFirstItem + 1}-{Math.min(indexOfLastItem, totalItems)}</span> de <span className="text-slate-900 font-black">{totalItems}</span>
           </div>
         </div>
 
         {/* Paginación solo si hay más de una página */}
         {totalItems > itemsPerPage && (
-          <Pagination>
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (currentPage > 1) setCurrentPage(currentPage - 1);
-                  }}
-                  className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
-                />
-              </PaginationItem>
-              
+          <div className="flex items-center gap-1 bg-white p-1 rounded-xl shadow-sm border border-slate-100">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.preventDefault();
+                if (currentPage > 1) setCurrentPage(currentPage - 1);
+              }}
+              disabled={currentPage === 1}
+              className="h-8 w-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all disabled:opacity-30"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+
+            <div className="flex items-center gap-1 px-1">
               {getPageNumbers().map(number => (
-                <PaginationItem key={number}>
-                  <PaginationLink
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setCurrentPage(number);
-                    }}
-                    isActive={currentPage === number}
-                  >
-                    {number}
-                  </PaginationLink>
-                </PaginationItem>
-              ))}
-              
-              {totalPages > 5 && currentPage < totalPages - 2 && (
-                <PaginationItem>
-                  <PaginationEllipsis />
-                </PaginationItem>
-              )}
-              
-              <PaginationItem>
-                <PaginationNext
-                  href="#"
+                <button
+                  key={number}
                   onClick={(e) => {
                     e.preventDefault();
-                    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+                    setCurrentPage(number);
                   }}
-                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
+                  className={`w-8 h-8 rounded-lg text-xs font-black transition-all ${currentPage === number
+                      ? 'bg-slate-900 text-white shadow-md scale-105'
+                      : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+                    }`}
+                >
+                  {number}
+                </button>
+              ))}
+
+              {totalPages > 5 && currentPage < totalPages - 2 && (
+                <span className="w-8 h-8 flex items-center justify-center text-slate-300">
+                  <PaginationEllipsis className="h-4 w-4" />
+                </span>
+              )}
+            </div>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.preventDefault();
+                if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+              }}
+              disabled={currentPage === totalPages}
+              className="h-8 w-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all disabled:opacity-30"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         )}
       </div>
     );
@@ -1799,7 +1808,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
   const getPageNumbers = () => {
     const pages = [];
     const maxVisible = 5; // Número máximo de páginas visibles
-    
+
     if (totalPages <= maxVisible) {
       // Mostrar todas las páginas si son menos del máximo
       for (let i = 1; i <= totalPages; i++) {
@@ -1809,17 +1818,17 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       // Lógica para mostrar páginas relevantes alrededor de la actual
       let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
       let endPage = startPage + maxVisible - 1;
-      
+
       if (endPage > totalPages) {
         endPage = totalPages;
         startPage = Math.max(1, endPage - maxVisible + 1);
       }
-      
+
       for (let i = startPage; i <= endPage; i++) {
         pages.push(i);
       }
     }
-    
+
     return pages;
   };
 
@@ -1831,11 +1840,11 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       sonnerToast.error("No se puede eliminar el usuario: ID no válido");
       return;
     }
-    
+
     // Mostrar diálogo de confirmación
     setUsuarioAEliminar(usuario);
   };
-  
+
   // SOLUCIÓN FINAL: Un enfoque controlado manual para evitar congelamiento
   const confirmarEliminarUsuario = useCallback(() => {
     // Verificar que tenemos un usuario válido para eliminar
@@ -1843,21 +1852,21 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       console.error("⚠️ No hay usuario válido para eliminar");
       return;
     }
-    
+
     // Guardar datos importantes para uso posterior
     const userId = usuarioAEliminar.id;
     const userName = usuarioAEliminar.fullName || "Usuario";
     const esPendiente = usuarioAEliminar.status === 'pending';
-    
+
     // Cerrar el diálogo inmediatamente
     setUsuarioAEliminar(null);
-    
+
     // Mostrar toast de carga (sin referencias para evitar problemas)
     const toastId = sonnerToast.loading(`Eliminando usuario...`);
-    
+
     // Activar estado de eliminación
     setEliminandoUsuario(true);
-    
+
     // Eliminar usuario simplificado
     eliminarUsuario(userId)
       .then(() => {
@@ -1868,7 +1877,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
           if (esPendiente) {
             setUsuariosPendientes(prev => prev.filter(u => u.id !== userId));
           }
-          
+
           // Cerrar toast y mostrar confirmación
           sonnerToast.dismiss(toastId);
           sonnerToast.success(`Usuario ${userName} eliminado correctamente`);
@@ -1904,11 +1913,11 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
 
       // Actualizar estado local removiendo los usuarios eliminados
       const idsEliminados = new Set(usuariosAEliminar.map(u => u.id).filter(Boolean));
-      
+
       setTimeout(() => {
         setUsuarios(prev => prev.filter(u => !u.id || !idsEliminados.has(u.id)));
         setUsuariosPendientes(prev => prev.filter(u => !u.id || !idsEliminados.has(u.id)));
-        
+
         sonnerToast.dismiss(toastId);
         sonnerToast.success(`${usuariosAEliminar.length} usuarios eliminados correctamente`);
       }, 300);
@@ -1931,72 +1940,130 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
 
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Gestión de Usuarios</h2>
-          <p className="text-muted-foreground">
-            Administra los usuarios por residencial
-            <span className="text-xs block mt-1 flex items-center">
-              <Clock className="h-3.5 w-3.5 mr-1 inline" />
-              Última actualización: {lastUpdate.toLocaleTimeString()}
+    <div className="space-y-8 pb-20 p-2 sm:p-4">
+      {/* Animated Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col xl:flex-row justify-between gap-6 items-start"
+      >
+        <div className="space-y-2 max-w-2xl">
+          <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-50 border-blue-100 font-bold px-3 py-1 rounded-full shadow-sm mb-2 w-fit">
+            <Users className="w-3 h-3 mr-1" />
+            Gestión de Comunidad
+          </Badge>
+          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
+            Directorio de <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Usuarios</span>
+          </h1>
+          <p className="text-slate-500 font-medium text-lg leading-relaxed">
+            Gestiona residentes, seguridad y accesos con herramientas avanzadas de control y monitoreo en tiempo real.
+            <span className="text-xs block mt-2 font-bold text-slate-400 flex items-center gap-2 uppercase tracking-wider">
+              <Clock className="h-3 w-3" />
+              Actualizado: {lastUpdate.toLocaleTimeString()}
               {actualizacionEnTiempoReal && (
-                <span className="flex items-center ml-2 text-green-500">
-                  <RefreshCw className="h-3.5 w-3.5 mr-1 animate-pulse" />
-                  En tiempo real
+                <span className="flex items-center text-emerald-500 animate-pulse">
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Live Sync
                 </span>
               )}
             </span>
           </p>
-          
-
         </div>
-      </div>
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-          {!esAdminDeResidencial && (
-          <div className="flex flex-col w-[250px]">
-            <Select
-              value={residencialSeleccionado}
-              onValueChange={(value) => {
-                if (!esAdminDeResidencial) {
-                  setResidencialSeleccionado(value);
-                  cargarYActualizarUsuarios(value); // Cargar usuarios para el nuevo residencial
-                  if (value !== "todos") {
-                    cargarCallesDelResidencial(value);
-                  }
-                } else {
-                  sonnerToast.info("Solo puedes ver usuarios de tu residencial asignado.");
-                }
-              }}
-              disabled={!!esAdminDeResidencial}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar residencial" />
-              </SelectTrigger>
-              <SelectContent>
-                {(!esAdminDeResidencial || userClaims?.isGlobalAdmin) && (
-                <SelectItem value="todos">Todos los residenciales</SelectItem>
-                )}
-                {residenciales
-                  .filter(residencial => !!residencial.id)
-                  .filter(residencial => !esAdminDeResidencial || (residencial.residencialID === codigoResidencialAdmin) || (mapeoResidenciales[residencial.id!] === codigoResidencialAdmin) )
-                  .map((residencial) => (
-                    <SelectItem key={residencial.id} value={residencial.id!.toString()}>
-                      {residencial.nombre}
-                    </SelectItem>
-                  ))
-                }
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground mt-1">
-                Selecciona un residencial para filtrar usuarios.
-            </p>
-            
-            {/* 🆕 NUEVO: Botón discreto para restricciones globales */}
+        <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
+          <Button
+            onClick={() => setShowNuevoUsuarioDialog(true)}
+            className="bg-slate-900 text-white hover:bg-slate-800 rounded-2xl shadow-xl shadow-slate-900/20 px-6 h-14 font-bold text-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+          >
+            <UserPlus className="mr-2 h-5 w-5" />
+            Nuevo Usuario
+          </Button>
+        </div>
+      </motion.div>
+
+      {/* Control Bar (Glassmorphism) */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="sticky top-4 z-30 bg-white/80 backdrop-blur-xl p-4 rounded-[2rem] shadow-zentry-lg border border-white/50 relative overflow-hidden group"
+      >
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 via-indigo-50/50 to-purple-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+        <div className="relative flex flex-col xl:flex-row justify-between items-center gap-4">
+          {/* Left: Search & Filter Logic */}
+          <div className="flex flex-col md:flex-row gap-3 w-full xl:w-auto items-center">
+            <div className="relative w-full md:w-[320px]">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                type="search"
+                placeholder="Buscar por nombre, email, teléfono..."
+                className="pl-11 h-12 rounded-xl border-slate-200 bg-white/80 focus:bg-white transition-all shadow-sm focus:ring-2 focus:ring-blue-100 font-medium"
+                value={typingSearchTerm}
+                onChange={handleSearchChange}
+              />
+            </div>
+
+            {/* Residential Selector */}
+            {!esAdminDeResidencial && (
+              <div className="w-full md:w-[250px] relative">
+                <Select
+                  value={residencialSeleccionado}
+                  onValueChange={(value) => {
+                    if (!esAdminDeResidencial) {
+                      setResidencialSeleccionado(value);
+                      cargarYActualizarUsuarios(value); // Cargar usuarios para el nuevo residencial
+                      if (value !== "todos") {
+                        cargarCallesDelResidencial(value);
+                      }
+                    } else {
+                      sonnerToast.info("Solo puedes ver usuarios de tu residencial asignado.");
+                    }
+                  }}
+                  disabled={!!esAdminDeResidencial}
+                >
+                  <SelectTrigger className="h-12 rounded-xl bg-white border-slate-200 font-medium shadow-sm">
+                    <SelectValue placeholder="Seleccionar residencial" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-none shadow-xl max-h-[300px]">
+                    {(!esAdminDeResidencial || userClaims?.isGlobalAdmin) && (
+                      <SelectItem value="todos">Todos los residenciales</SelectItem>
+                    )}
+                    {residenciales
+                      .filter(residencial => !!residencial.id)
+                      .filter(residencial => !esAdminDeResidencial || (residencial.residencialID === codigoResidencialAdmin) || (mapeoResidenciales[residencial.id!] === codigoResidencialAdmin))
+                      .map((residencial) => (
+                        <SelectItem key={residencial.id} value={residencial.id!.toString()}>
+                          {residencial.nombre}
+                        </SelectItem>
+                      ))
+                    }
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Street Selector */}
+            <div className="w-full md:w-[200px]">
+              <Select
+                value={filterCalle || "todas"}
+                onValueChange={(value) => setFilterCalle(value === "todas" ? "" : value)}
+                disabled={callesDisponibles.length === 0}
+              >
+                <SelectTrigger className="h-12 rounded-xl bg-white border-slate-200 font-medium shadow-sm">
+                  <SelectValue placeholder="Todas las calles" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-none shadow-xl max-h-[300px]">
+                  <SelectItem value="todas">Todas las calles</SelectItem>
+                  {callesDisponibles.map(calle => (
+                    <SelectItem key={calle} value={calle}>{calle}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Quick Actions for Global Admin */}
             {!esAdminDeResidencial && residencialSeleccionado !== "todos" && userClaims?.isGlobalAdmin && (
-              <div className="mt-2">
+              <div className="flex gap-2">
                 <GlobalScreenRestrictionsConfig
                   residencial={(residenciales.find(r => r.id === residencialSeleccionado) as any) || ({
                     id: residencialSeleccionado,
@@ -2007,281 +2074,202 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
                     codigoPostal: '',
                     cuotaMantenimiento: 0
                   } as any)}
-                  onUpdate={() => {
-                    console.log('Restricciones globales actualizadas');
-                  }}
+                  onUpdate={() => console.log('Restricciones globales actualizadas')}
                 />
               </div>
             )}
-            
-            {/* 🆕 BOTÓN PARA RECARGAR TODOS LOS USUARIOS */}
-            <div className="mt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  console.log('🔄 Recargando TODOS los usuarios...');
-                  cargarYActualizarUsuarios(residencialSeleccionado);
-                }}
-                disabled={isLoading}
-                className="w-full"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                {isLoading ? 'Recargando...' : 'Recargar usuarios'}
-              </Button>
-              <p className="text-xs text-muted-foreground mt-1 text-center">
-                Fuerza una recarga completa
-              </p>
-            </div>
-          </div>
-          )}
 
-          {/* Selector de calle */}
-          <div className="flex flex-col w-[200px]">
-            <Select 
-              value={filterCalle || "todas"} 
-              onValueChange={(value) => setFilterCalle(value === "todas" ? "" : value)}
-              disabled={callesDisponibles.length === 0}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                console.log('🔄 Recargando TODOS los usuarios...');
+                cargarYActualizarUsuarios(residencialSeleccionado);
+              }}
+              disabled={isLoading}
+              className="h-12 w-12 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+              title="Recargar usuarios"
             >
-              <SelectTrigger>
-                <SelectValue placeholder="Todas las calles" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Todas las calles</SelectItem>
-                {callesDisponibles.map(calle => (
-                  <SelectItem key={calle} value={calle}>{calle}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground mt-1">
-              Filtrar por calle
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          <div className="relative w-full sm:w-[350px]">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Buscar por nombre, email, teléfono..."
-              className="pl-8 w-full"
-              value={typingSearchTerm}
-              onChange={handleSearchChange}
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={() => setShowNuevoUsuarioDialog(true)}>
-              <UserPlus className="mr-2 h-4 w-4" />
-              Añadir Usuario
+              <RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
             </Button>
           </div>
-        </div>
-      </div>
 
-      {/* Filtro por tipo de usuario */}
-      <div className="bg-gray-50 rounded-lg p-4 mb-4">
-        <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
-          <Filter className="h-4 w-4" />
-          Filtro por Tipo de Usuario
-        </h3>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Label htmlFor="filter-tipo-usuario" className="text-sm font-medium">
-              Tipo de Usuario:
-            </Label>
-            <Select 
-              value={filterTipoUsuario} 
-              onValueChange={setFilterTipoUsuario}
-            >
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Seleccionar tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos los usuarios</SelectItem>
-                <SelectItem value="resident">Residentes</SelectItem>
-                <SelectItem value="inquilino">Inquilinos</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Right: Type Filter */}
+          <div className="flex gap-1 items-center bg-slate-100/50 p-1 rounded-xl border border-slate-200/50 w-full xl:w-auto overflow-x-auto">
+            {['todos', 'resident', 'inquilino'].map((type) => (
+              <button
+                key={type}
+                onClick={() => setFilterTipoUsuario(type as any)}
+                className={`px-3 py-2 rounded-lg text-xs font-bold transition-all uppercase tracking-wide whitespace-nowrap ${filterTipoUsuario === (type === 'todos' ? 'todos' : type) ? 'bg-white shadow-sm text-slate-900 border border-slate-100' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+              >
+                {type === 'todos' ? 'Todos' : type === 'resident' ? 'Propietarios' : 'Inquilinos'}
+              </button>
+            ))}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setFilterTipoUsuario("todos")}
+        </div>
+      </motion.div>
+
+      {/* Stats Section */}
+      <AnimatePresence mode="wait">
+        {(estadisticasResidencial && residencialSeleccionado !== "todos") ? (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
           >
-            Limpiar Filtro
-          </Button>
-        </div>
-      </div>
-
-      {/* Estadísticas del Residencial - Solo mostrar cuando se selecciona un residencial específico */}
-      {estadisticasResidencial && residencialSeleccionado !== "todos" && (
-        <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 rounded-lg border border-blue-200 dark:border-blue-800">
-          <div className="flex items-center gap-2 mb-3">
-            <Building className="h-5 w-5 text-blue-600" />
-            <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100">
-              Estadísticas del Residencial: {residenciales.find(r => r.id === residencialSeleccionado)?.nombre || 'Seleccionado'}
-            </h3>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Total de Casas */}
-            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-blue-200 dark:border-blue-700">
-              <div className="flex items-center gap-2">
-                <Home className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Total de Casas</span>
+            <div className="bg-white/60 p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-md transition-all group">
+              <div className="flex items-center gap-3 text-slate-500 mb-2">
+                <div className="p-2 bg-blue-50 rounded-lg text-blue-600 group-hover:scale-110 transition-transform">
+                  <Home className="h-5 w-5" />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider">Total Casas</span>
               </div>
-              <div className="mt-1 text-2xl font-bold text-blue-600">
+              <div className="text-3xl font-black text-slate-900 tracking-tight">
                 {estadisticasResidencial.totalCasas}
               </div>
             </div>
 
             {/* Casas con Morosos */}
-            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-red-200 dark:border-red-700">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-red-600" />
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Casas con Morosos</span>
+            <div className="bg-white/60 p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-md transition-all group">
+              <div className="flex items-center gap-3 text-slate-500 mb-2">
+                <div className="p-2 bg-rose-50 rounded-lg text-rose-600 group-hover:scale-110 transition-transform">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider">Morosidad</span>
               </div>
-              <div className="mt-1 text-2xl font-bold text-red-600">
+              <div className="text-3xl font-black text-rose-600 tracking-tight">
                 {estadisticasResidencial.casasMorosas}
               </div>
+              <div className="text-xs text-rose-400 font-medium mt-1">Casas restringidas</div>
             </div>
 
             {/* Casas al Día */}
-            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-green-200 dark:border-green-700">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Casas al Día</span>
+            <div className="bg-white/60 p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-md transition-all group border-l-4 border-l-emerald-400">
+              <div className="flex items-center gap-3 text-slate-500 mb-2">
+                <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600 group-hover:scale-110 transition-transform">
+                  <CheckCircle className="h-5 w-5" />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider">Al Corriente</span>
               </div>
-              <div className="mt-1 text-2xl font-bold text-green-600">
+              <div className="text-3xl font-black text-emerald-600 tracking-tight">
                 {estadisticasResidencial.casasAlDia}
               </div>
             </div>
 
-            {/* Porcentaje de Morosidad */}
-            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-orange-200 dark:border-orange-700">
-              <div className="flex items-center gap-2">
-                <Percent className="h-4 w-4 text-orange-600" />
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">% Morosidad</span>
+            {/* Porcentaje Morosidad */}
+            <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-6 rounded-[2rem] shadow-lg shadow-slate-900/10 text-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <Percent className="h-24 w-24" />
               </div>
-              <div className="mt-1 text-2xl font-bold text-orange-600">
+              <div className="flex items-center gap-3 text-slate-300 mb-2 relative z-10">
+                <span className="text-xs font-bold uppercase tracking-wider opacity-80">% Morosidad Global</span>
+              </div>
+              <div className="text-3xl font-black text-white tracking-tight relative z-10 mb-2">
                 {estadisticasResidencial.porcentajeMorosidad}%
               </div>
-              
-              {/* Barra de progreso visual */}
-              <div className="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                <div 
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    estadisticasResidencial.porcentajeMorosidad >= 50 ? 'bg-red-500' : 
-                    estadisticasResidencial.porcentajeMorosidad >= 25 ? 'bg-orange-500' : 'bg-green-500'
-                  }`}
+
+              <div className="w-full bg-white/10 rounded-full h-1.5 mb-2 relative z-10">
+                <div
+                  className={`h-1.5 rounded-full ${estadisticasResidencial.porcentajeMorosidad >= 50 ? 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]' :
+                    estadisticasResidencial.porcentajeMorosidad >= 25 ? 'bg-orange-500' : 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]'
+                    }`}
                   style={{ width: `${estadisticasResidencial.porcentajeMorosidad}%` }}
                 />
               </div>
-              
-              {/* Indicador de estado */}
-              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                {estadisticasResidencial.porcentajeMorosidad === 0 ? 'Excelente' :
-                 estadisticasResidencial.porcentajeMorosidad <= 10 ? 'Bueno' :
-                 estadisticasResidencial.porcentajeMorosidad <= 25 ? 'Atención' :
-                 estadisticasResidencial.porcentajeMorosidad <= 50 ? 'Crítico' : 'Muy Crítico'}
+              <div className="text-[10px] text-slate-400 uppercase tracking-widest font-bold relative z-10">
+                {estadisticasResidencial.porcentajeMorosidad === 0 ? 'Excelente estado' :
+                  estadisticasResidencial.porcentajeMorosidad <= 10 ? 'Bajo riesgo' :
+                    estadisticasResidencial.porcentajeMorosidad <= 25 ? 'Atención requerida' :
+                      'Estado crítico'}
               </div>
             </div>
-          </div>
-
-          {/* Explicación de la lógica */}
-          <div className="mt-3 text-xs text-gray-600 dark:text-gray-400">
-            <span className="font-medium">Nota:</span> El porcentaje de morosidad se calcula por casa (houseID). 
-            Si al menos un usuario de una casa está marcado como moroso, esa casa cuenta como "morosa" en el porcentaje.
-          </div>
-        </div>
-      )}
-
-      {/* Resumen cuando se seleccionan todos los residenciales */}
-      {residencialSeleccionado === "todos" && (
-        <div className="mb-6 p-4 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-950 dark:to-slate-950 rounded-lg border border-gray-200 dark:border-gray-800">
-          <div className="flex items-center gap-2 mb-3">
-            <Building className="h-5 w-5 text-gray-600" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Vista General - Todos los Residenciales
-            </h3>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Total de Usuarios</span>
+          </motion.div>
+        ) : residencialSeleccionado === "todos" ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-[2rem] border border-blue-100 flex flex-col md:flex-row items-center justify-between gap-6"
+          >
+            <div className="flex items-center gap-4">
+              <div className="bg-white p-3 rounded-2xl shadow-sm text-blue-600">
+                <Building className="h-6 w-6" />
               </div>
-              <div className="mt-1 text-2xl font-bold text-blue-600">
-                {usuariosDelResidencial.length}
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Vista General del Sistema</h3>
+                <p className="text-slate-500 font-medium text-sm">Mostrando usuarios de <span className="text-slate-900 font-bold">{residenciales.length} residenciales</span> activos.</p>
               </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-2">
-                <Building className="h-4 w-4 text-gray-600" />
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Residenciales</span>
-              </div>
-              <div className="mt-1 text-2xl font-bold text-gray-600">
-                {residenciales.length}
+            <div className="flex gap-4">
+              <div className="bg-white/60 px-5 py-3 rounded-2xl border border-white/50 text-center">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Usuarios</div>
+                <div className="text-2xl font-black text-blue-600">{usuariosDelResidencial.length}</div>
               </div>
             </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
-            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-2">
-                <Info className="h-4 w-4 text-gray-600" />
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Información</span>
-              </div>
-              <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                Selecciona un residencial específico para ver estadísticas detalladas de morosidad por casa.
-              </div>
-            </div>
+      {/* Main Content Tabs */}
+      <div className="bg-transparent">
+        <Tabs defaultValue="residentes" value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <div className="flex overflow-x-auto pb-2 mb-6 scrollbar-hide">
+            <TabsList className="bg-slate-100/60 p-1.5 h-auto rounded-full inline-flex border border-slate-200/60 backdrop-blur-sm">
+              <TabsTrigger value="residentes" className="rounded-full px-5 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-primary transition-all duration-300">
+                <div className="flex items-center gap-2">
+                  <Home className="h-4 w-4" />
+                  <span className="font-bold text-xs uppercase tracking-wide">Residentes</span>
+                  <Badge variant="secondary" className="ml-1 h-5 bg-slate-100 text-slate-600 border-none group-data-[state=active]:bg-blue-50 group-data-[state=active]:text-blue-600">
+                    {residentes.length}
+                  </Badge>
+                </div>
+              </TabsTrigger>
+
+              <TabsTrigger value="seguridad" className="rounded-full px-5 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-indigo-600 transition-all duration-300">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  <span className="font-bold text-xs uppercase tracking-wide">Seguridad</span>
+                  <Badge variant="secondary" className="ml-1 h-5 bg-slate-100 text-slate-600 border-none group-data-[state=active]:bg-indigo-50 group-data-[state=active]:text-indigo-600">
+                    {guardias.length}
+                  </Badge>
+                </div>
+              </TabsTrigger>
+
+              <TabsTrigger value="administradores" className="rounded-full px-5 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-purple-600 transition-all duration-300">
+                <div className="flex items-center gap-2">
+                  <UserCog className="h-4 w-4" />
+                  <span className="font-bold text-xs uppercase tracking-wide">Admins</span>
+                  <Badge variant="secondary" className="ml-1 h-5 bg-slate-100 text-slate-600 border-none group-data-[state=active]:bg-purple-50 group-data-[state=active]:text-purple-600">
+                    {administradores.length}
+                  </Badge>
+                </div>
+              </TabsTrigger>
+
+              <TabsTrigger value="pendientes" className="rounded-full px-5 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-amber-600 transition-all duration-300">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  <span className="font-bold text-xs uppercase tracking-wide">Pendientes</span>
+                  {usuariosPendientes.length > 0 && (
+                    <div className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-bold animate-pulse">
+                      {usuariosPendientes.length}
+                    </div>
+                  )}
+                </div>
+              </TabsTrigger>
+
+              <TabsTrigger value="rechazados" className="rounded-full px-5 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-rose-600 transition-all duration-300">
+                <div className="flex items-center gap-2">
+                  <XCircle className="h-4 w-4" />
+                  <span className="font-bold text-xs uppercase tracking-wide">Rechazados</span>
+                  <Badge variant="secondary" className="ml-1 h-5 bg-rose-50 text-rose-600 border-none">
+                    {usuariosRechazados.length}
+                  </Badge>
+                </div>
+              </TabsTrigger>
+            </TabsList>
           </div>
-        </div>
-      )}
-
-
-
-      <div className="border-b">
-        <Tabs defaultValue="residentes" value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-4">
-            <TabsTrigger value="residentes" className="flex items-center gap-2">
-              <Home className="h-4 w-4" />
-              <span>Residentes</span>
-              <Badge variant="secondary" className="ml-1 h-5">
-                {residentes.length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="seguridad" className="flex items-center gap-2">
-              <Shield className="h-4 w-4" />
-              <span>Seguridad</span>
-              <Badge variant="secondary" className="ml-1 h-5">
-                {guardias.length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="administradores" className="flex items-center gap-2">
-              <UserCog className="h-4 w-4" />
-              <span>Admins</span>
-              <Badge variant="secondary" className="ml-1 h-5">
-                {administradores.length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="pendientes" className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              <span>Pendientes</span>
-              <Badge variant="secondary" className="ml-1 h-5 text-amber-600 bg-amber-100 dark:bg-amber-900 dark:text-amber-300">
-                {usuariosPendientes.length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="rechazados" className="flex items-center gap-2">
-              <XCircle className="h-4 w-4" />
-              <span>Rechazados</span>
-              <Badge variant="secondary" className="ml-1 h-5 text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-300">
-                {usuariosRechazados.length}
-              </Badge>
-            </TabsTrigger>
-          </TabsList>
 
           <TabsContent value="residentes">
             {/* Toggle vista casa/usuarios */}
@@ -2313,25 +2301,25 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
             ) : (
               <div className="rounded-md border">
                 <Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead className="w-[60px] text-center">#</TableHead>
-							<TableHead>Casa</TableHead>
-							<TableHead>HouseID</TableHead>
-							<TableHead className="w-[120px]">Usuarios</TableHead>
-							<TableHead className="w-[180px]">Moroso</TableHead>
-						</TableRow>
-					</TableHeader>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[60px] text-center">#</TableHead>
+                      <TableHead>Casa</TableHead>
+                      <TableHead>HouseID</TableHead>
+                      <TableHead className="w-[120px]">Usuarios</TableHead>
+                      <TableHead className="w-[180px]">Moroso</TableHead>
+                    </TableRow>
+                  </TableHeader>
                   <TableBody>
-						{casasResumen.length === 0 ? (
-							<TableRow>
-								<TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No hay casas para mostrar</TableCell>
-							</TableRow>
-						) : (
-							casasResumen.map((casa, index) => (
-								<TableRow key={casa.key}>
-									<TableCell className="text-center text-muted-foreground">{index + 1}</TableCell>
-									<TableCell>
+                    {casasResumen.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No hay casas para mostrar</TableCell>
+                      </TableRow>
+                    ) : (
+                      casasResumen.map((casa, index) => (
+                        <TableRow key={casa.key}>
+                          <TableCell className="text-center text-muted-foreground">{index + 1}</TableCell>
+                          <TableCell>
                             {(casa.calle || casa.houseNumber) ? (
                               <div className="text-sm font-medium">{casa.calle || 'Calle s/d'} {casa.houseNumber || ''}</div>
                             ) : (
@@ -2369,7 +2357,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
             <Suspense fallback={<TableSkeleton />}>
               <ContenidoPestanaSeguridad
                 usuarios={currentUsers}
-                isLoading={isLoading} 
+                isLoading={isLoading}
                 onVerDetalles={handleVerDetallesUsuario}
                 onEditarUsuario={handleEditarUsuario}
                 onEliminarUsuario={handleEliminarUsuario}
@@ -2390,7 +2378,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
             <Suspense fallback={<TableSkeleton />}>
               <ContenidoPestanaAdministradores
                 usuarios={currentUsers}
-                isLoading={isLoading} 
+                isLoading={isLoading}
                 onVerDetalles={handleVerDetallesUsuario}
                 onEditarUsuario={handleEditarUsuario}
                 onEliminarUsuario={handleEliminarUsuario}
@@ -2455,14 +2443,14 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
               documentoNombre={documentoNombre}
               documentoURL={documentoURL}
               isLoadingDocument={isLoadingDocument}
-              onCloseDialog={cerrarModal} 
+              onCloseDialog={cerrarModal}
             />
           </Suspense>
         )}
       </Dialog>
 
       {/* Modal detalles de casa */}
-      <Dialog open={!!casaDetalles} onOpenChange={(o)=>!o && setCasaDetalles(null)}>
+      <Dialog open={!!casaDetalles} onOpenChange={(o) => !o && setCasaDetalles(null)}>
         {!!casaDetalles && (
           <DialogContent className="max-w-3xl">
             <DialogHeader>
@@ -2518,7 +2506,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       </Dialog>
 
       <Dialog open={showNuevoUsuarioDialog} onOpenChange={setShowNuevoUsuarioDialog}>
-        {showNuevoUsuarioDialog && ( 
+        {showNuevoUsuarioDialog && (
           <Suspense fallback={<div className="p-6 text-center">Cargando formulario...</div>}>
             <NuevoUsuarioDialogContent
               nuevoUsuarioForm={nuevoUsuarioForm}
@@ -2537,7 +2525,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       </Dialog>
 
       <Dialog open={!!usuarioAEliminar} onOpenChange={(open) => !open && setUsuarioAEliminar(null)}>
-        {!!usuarioAEliminar && ( 
+        {!!usuarioAEliminar && (
           <Suspense fallback={<div className="p-6 text-center">Cargando confirmación...</div>}>
             <ConfirmarEliminarDialogContent
               usuarioAEliminar={usuarioAEliminar}
@@ -2554,7 +2542,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
           <DetallesUsuarioDialog
             usuarioSeleccionado={usuarioSeleccionado}
             showDialog={showDetallesUsuarioDialog}
-            onClose={cerrarModal} 
+            onClose={cerrarModal}
             getResidencialNombre={getResidencialNombre}
             getEstadoBadge={getEstadoBadge}
             getRolBadge={getRolBadge}
@@ -2590,5 +2578,5 @@ const getTituloTabla = (activeTab: string) => {
     default:
       return 'Usuarios';
   }
-}; 
+};
 

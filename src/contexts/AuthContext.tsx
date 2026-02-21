@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { onAuthStateChangedSafe, getRedirectResultSafe } from '@/lib/firebase/config';
 import { AuthService } from '@/lib/services/auth-service';
 import { UserModel, UserRole } from '@/types/models';
@@ -52,26 +52,34 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+const DEFER_AUTH_PATHS = ['/', '/precios', '/acerca-de', '/contacto', '/blog', '/ayuda', '/seguridad', '/terms', '/privacy'];
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<any | null>(null);
   const [userData, setUserData] = useState<UserModel | null>(null);
   const [userClaims, setUserClaims] = useState<UserClaims | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
 
     const initializeAuth = async () => {
+      if (cancelled) return;
       try {
         // Intentar obtener el resultado de un redirect de Google (o Apple) al cargar la app
         const redirectResult = await getRedirectResultSafe();
         if (redirectResult && redirectResult.user) {
           console.error('[AuthContext] Usuario autenticado por redirect:', redirectResult.user);
           setUser(redirectResult.user);
-          // Obtener datos del usuario desde Firestore
+          // Obtener datos del usuario desde Firestore con caché
           try {
-            const userData = await AuthService.getUserData(redirectResult.user.uid);
+            const { getCachedUserData } = await import('@/lib/cache/firebase-cache');
+            const userData = await getCachedUserData(
+              redirectResult.user.uid,
+              () => AuthService.getUserData(redirectResult.user.uid)
+            );
             if (userData) {
               setUserData(userData);
               setUserClaims({
@@ -88,24 +96,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return;
         }
         unsubscribe = await onAuthStateChangedSafe(async (currentUser: any) => {
-      console.log(`[AuthContext] Auth state change detected. User: ${currentUser?.uid || 'none'}`);
-      
-      if (currentUser) {
+          console.log(`[AuthContext] Auth state change detected. User: ${currentUser?.uid || 'none'}`);
+
+          if (currentUser) {
             setUser(currentUser);
-            
-            // Obtener datos del usuario desde Firestore
+
+            // Obtener datos del usuario desde Firestore con caché
             try {
-              const userData = await AuthService.getUserData(currentUser.uid);
+              const { getCachedUserData } = await import('@/lib/cache/firebase-cache');
+              const userData = await getCachedUserData(
+                currentUser.uid,
+                () => AuthService.getUserData(currentUser.uid)
+              );
+
               if (userData) {
                 setUserData(userData);
-                
+
                 // Determinar si es administrador de residencial
                 const isGlobalAdmin = userData.isGlobalAdmin || false;
-                const isResidencialAdmin = userData.role === UserRole.Admin && 
-                                         !isGlobalAdmin && 
-                                         userData.residencialId && 
-                                         userData.residencialId.trim() !== '';
-                
+                const isResidencialAdmin = Boolean(userData.role === UserRole.Admin &&
+                  !isGlobalAdmin &&
+                  userData.residencialId &&
+                  userData.residencialId.trim() !== '');
+
                 setUserClaims({
                   role: userData.role,
                   residencialId: userData.residencialId,
@@ -114,7 +127,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                   managedResidencialId: isResidencialAdmin ? userData.residencialId : undefined,
                   managedResidencials: userData.managedResidencials || []
                 });
-                
+
                 console.log('[AuthContext] UserClaims configurados:', {
                   role: userData.role,
                   isGlobalAdmin,
@@ -131,7 +144,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUserData(null);
             setUserClaims(null);
           }
-          
+
           setLoading(false);
         });
       } catch (error) {
@@ -140,20 +153,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
 
-    initializeAuth();
+    // En landing y páginas públicas: diferir Auth para no bloquear LCP (~13s de ahorro)
+    // pathname puede ser null en SSR/hidratación inicial - en ese caso diferir por precaución
+    const isPublicPath = !pathname || DEFER_AUTH_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'));
+    const shouldDefer = isPublicPath;
+    let handle: number | undefined;
+    let usedIdleCallback = false;
+    if (shouldDefer) {
+      usedIdleCallback = typeof requestIdleCallback !== 'undefined';
+      handle = usedIdleCallback
+        ? requestIdleCallback(() => initializeAuth(), { timeout: 3500 })
+        : window.setTimeout(() => initializeAuth(), 2500);
+    } else {
+      void initializeAuth();
+    }
 
     return () => {
-      if (unsubscribe) {
-        unsubscribe();
+      cancelled = true;
+      if (handle !== undefined) {
+        usedIdleCallback ? cancelIdleCallback(handle) : clearTimeout(handle);
       }
+      if (unsubscribe) unsubscribe();
     };
-  }, []);
+  }, [pathname]);
 
   // Efecto adicional para forzar redirección si el usuario está autenticado pero en página de login
   useEffect(() => {
     if (!loading && user && userData && userClaims) {
       const currentPath = window.location.pathname;
-      
+
       // VALIDACIÓN CRÍTICA: Solo administradores y guardias pueden acceder a la plataforma web
       if (userData.role === UserRole.Resident) {
         console.log(`[AuthContext] 🚫 ACCESO DENEGADO: Usuario residente intentando acceder a plataforma web`);
@@ -168,14 +196,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         router.push('/access-denied');
         return;
       }
-      
+
       // Solo permitir admin y guard en la plataforma web
       if (userData.role !== UserRole.Admin && userData.role !== UserRole.Guard) {
         console.log(`[AuthContext] 🚫 ACCESO DENEGADO: Rol no autorizado (${userData.role}) para plataforma web`);
         router.push('/access-denied');
         return;
       }
-      
+
       // Redirección para usuarios autorizados
       if (currentPath === '/login' || currentPath === '/login/' || currentPath === '/register' || currentPath === '/register/') {
         console.log(`[AuthContext] Usuario autorizado (${userData.role}) redirigiendo desde ${currentPath}`);

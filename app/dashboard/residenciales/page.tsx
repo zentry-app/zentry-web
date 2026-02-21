@@ -90,6 +90,7 @@ const residencialSchema = z.object({
   estado: z.string().min(3, "El estado debe tener al menos 3 caracteres"),
   codigoPostal: z.string().min(5, "El código postal debe tener al menos 5 caracteres"),
   cuotaMantenimiento: z.coerce.number().min(0, "La cuota debe ser un número positivo"),
+  maxCodigosQRMorosos: z.coerce.number().min(1, "El límite debe ser al menos 1").max(100, "El límite no puede ser mayor a 100").optional(),
   calles: z.array(z.string()).optional(),
   cuentaPago: z.object({
     banco: z.string().min(3, "El banco debe tener al menos 3 caracteres").optional().or(z.literal("")),
@@ -124,6 +125,7 @@ export default function ResidencialesPage() {
       estado: "",
       codigoPostal: "",
       cuotaMantenimiento: 0,
+      maxCodigosQRMorosos: 5,
       calles: [],
       cuentaPago: {
         banco: "",
@@ -190,6 +192,7 @@ export default function ResidencialesPage() {
         estado: "",
         codigoPostal: "",
         cuotaMantenimiento: 0,
+        maxCodigosQRMorosos: 5,
         calles: [],
         cuentaPago: {
           banco: "",
@@ -208,6 +211,7 @@ export default function ResidencialesPage() {
         estado: residencialSeleccionado.estado,
         codigoPostal: residencialSeleccionado.codigoPostal,
         cuotaMantenimiento: residencialSeleccionado.cuotaMantenimiento,
+        maxCodigosQRMorosos: residencialSeleccionado.maxCodigosQRMorosos || 5,
         calles: residencialSeleccionado.calles || [],
         cuentaPago: residencialSeleccionado.cuentaPago || {
           banco: "",
@@ -273,6 +277,7 @@ export default function ResidencialesPage() {
         estado: values.estado,
         codigoPostal: values.codigoPostal,
         cuotaMantenimiento: values.cuotaMantenimiento,
+        maxCodigosQRMorosos: values.maxCodigosQRMorosos,
         calles: values.calles || [],
       };
   
@@ -300,6 +305,7 @@ export default function ResidencialesPage() {
           estado: values.estado,
           codigoPostal: values.codigoPostal,
           cuotaMantenimiento: values.cuotaMantenimiento,
+          maxCodigosQRMorosos: values.maxCodigosQRMorosos,
           calles: values.calles || [],
           fechaRegistro: null,
           fechaActualizacion: null,
@@ -333,6 +339,7 @@ export default function ResidencialesPage() {
               estado: values.estado,
               codigoPostal: values.codigoPostal,
               cuotaMantenimiento: values.cuotaMantenimiento,
+              maxCodigosQRMorosos: values.maxCodigosQRMorosos,
               calles: values.calles || [],
             };
             
@@ -462,8 +469,8 @@ export default function ResidencialesPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
                 {residencialesFiltrados.map((residencial) => (
-                  <Card key={residencial.id} className="overflow-hidden">
-                    <CardHeader className="p-4 pb-2 bg-gradient-to-r from-primary-50 to-accent-50">
+                  <Card key={residencial.id} className="overflow-hidden border-border/40">
+                    <CardHeader className="p-4 pb-2 bg-gradient-to-r from-primary/10 to-accent/10 dark:from-primary/20 dark:to-accent/20">
                       <div className="flex justify-between items-start">
                         <CardTitle className="text-lg">{residencial.nombre}</CardTitle>
                         <Badge variant="outline" className="font-mono">
@@ -693,6 +700,34 @@ export default function ResidencialesPage() {
                               <Input {...field} type="number" step="0.01" min="0" className="pl-8" />
                             </div>
                           </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="maxCodigosQRMorosos"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Límite de Códigos QR para Morosos</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              min="1" 
+                              max="100" 
+                              placeholder="5"
+                              value={field.value ?? ''}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                field.onChange(value ? parseInt(value, 10) : undefined);
+                              }}
+                              onBlur={field.onBlur}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Número máximo de códigos QR diarios que pueden generar los usuarios marcados como morosos. Si no se especifica, se usará el valor por defecto de 5.
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}

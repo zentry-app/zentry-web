@@ -43,10 +43,10 @@ export class UnifiedPaymentsService {
       currency: payment.currency,
       userName: payment.userName,
       userEmail: payment.userEmail,
-      houseAddress: payment.userAddress?.calle,
-      houseNumber: payment.userAddress?.houseNumber,
+      houseAddress: payment.userAddress?.calle || '',
+      houseNumber: payment.userAddress?.houseNumber || '',
       numeroMovimiento: payment.numeroMovimiento,
-      imageUrl: payment.imageUrl,
+      imageUrl: payment.comprobanteUrl || '',
       residencialId: payment.residencialId,
       userId: payment.userId,
     };
@@ -57,7 +57,7 @@ export class UnifiedPaymentsService {
    */
   static convertCashToUnified(payment: CashPayment): UnifiedPayment {
     return {
-      id: payment.id,
+      id: payment.id || '',
       type: 'cash',
       status: payment.status,
       fechaPago: payment.fechaPago,
@@ -66,12 +66,12 @@ export class UnifiedPaymentsService {
       currency: payment.currency,
       userName: payment.userName,
       userEmail: payment.userEmail,
-      houseAddress: payment.userAddress?.calle,
-      houseNumber: payment.userAddress?.houseNumber,
+      houseAddress: payment.userAddress?.calle || '',
+      houseNumber: payment.userAddress?.houseNumber || '',
       registradoPor: payment.registradoPor,
       residencialId: payment.residencialId,
       userId: payment.userId,
-      casaId: payment.casaId,
+      casaId: (payment as any).houseId || (payment as any).casaId,
     };
   }
 
@@ -79,10 +79,16 @@ export class UnifiedPaymentsService {
    * Convierte un AllPayment a UnifiedPayment
    */
   static convertAllPaymentToUnified(payment: AllPayment): UnifiedPayment {
+    // Normalizar estado
+    let normalizedStatus = payment.status;
+    if (normalizedStatus === 'pendingValidation') {
+      normalizedStatus = 'pending_validation';
+    }
+
     return {
       id: payment.id,
       type: payment.paymentMethod === 'cash' ? 'cash' : 'transfer',
-      status: payment.status,
+      status: normalizedStatus,
       fechaPago: payment.fechaPago,
       amount: payment.amount,
       concept: payment.concept,
@@ -97,7 +103,7 @@ export class UnifiedPaymentsService {
       registradoPor: payment.registradoPor,
       residencialId: payment.residencialId,
       userId: payment.userId,
-      casaId: payment.casaId,
+      casaId: (payment as any).houseId || (payment as any).casaId,
     };
   }
 
@@ -113,9 +119,9 @@ export class UnifiedPaymentsService {
 
       // Obtener todos los pagos usando AllPaymentsService
       const allPayments = await AllPaymentsService.getAllPayments(residencialId);
-      
+
       // Convertir a formato unificado
-      const unifiedPayments = allPayments.map(payment => 
+      const unifiedPayments = allPayments.map(payment =>
         this.convertAllPaymentToUnified(payment)
       );
 
@@ -175,7 +181,7 @@ export class UnifiedPaymentsService {
       const now = new Date();
       filtered = filtered.filter(payment => {
         const paymentDate = payment.fechaPago?.toDate ? payment.fechaPago.toDate() : new Date(payment.fechaPago);
-        
+
         switch (filters.dateFilter) {
           case 'today':
             return paymentDate.toDateString() === now.toDateString();
@@ -183,8 +189,8 @@ export class UnifiedPaymentsService {
             const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
             return paymentDate >= weekAgo;
           case 'this_month':
-            return paymentDate.getMonth() === now.getMonth() && 
-                   paymentDate.getFullYear() === now.getFullYear();
+            return paymentDate.getMonth() === now.getMonth() &&
+              paymentDate.getFullYear() === now.getFullYear();
           case 'last_month':
             const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
             const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);

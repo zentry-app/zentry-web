@@ -13,7 +13,6 @@ export interface Survey {
     pregunta: string;
     tipo: string;
     opciones?: string[];
-    matrizOpciones?: Record<string, string[]>;
     minValue?: number;
     maxValue?: number;
     escalaMax?: number;
@@ -38,7 +37,6 @@ export interface CreateSurveyData {
     pregunta: string;
     tipo: string;
     opciones?: string[];
-    matrizOpciones?: Record<string, string[]>;
     minValue?: number;
     maxValue?: number;
     escalaMax?: number;

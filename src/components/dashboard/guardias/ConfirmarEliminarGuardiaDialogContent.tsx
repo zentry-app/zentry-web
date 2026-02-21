@@ -25,19 +25,36 @@ const ConfirmarEliminarGuardiaDialogContent: React.FC<ConfirmarEliminarGuardiaDi
   getUsuarioNombre,
 }) => {
   return (
-    <DialogContent className="sm:max-w-[425px]">
-      <DialogHeader>
-        <DialogTitle>Confirmar eliminación</DialogTitle>
-        <DialogDescription>
-          {`¿Estás seguro de que quieres eliminar el guardia ${currentGuardia ? getUsuarioNombre(currentGuardia.usuarioId) : ''}? 
-          Esta acción no se puede deshacer.`}
+    <DialogContent className="sm:max-w-[500px] rounded-[2rem] border-none shadow-2xl bg-white/95 backdrop-blur-3xl">
+      <DialogHeader className="space-y-3 pb-6 border-b border-slate-100">
+        <DialogTitle className="text-3xl font-black text-slate-900 flex items-center gap-3">
+          <span className="text-4xl">⚠️</span>
+          Confirmar eliminación
+        </DialogTitle>
+        <DialogDescription className="text-base text-slate-600 font-medium leading-relaxed">
+          ¿Estás seguro de que quieres eliminar al guardia{' '}
+          <span className="font-black text-slate-900">
+            {currentGuardia ? getUsuarioNombre(currentGuardia.usuarioId) : ''}
+          </span>
+          ?
+          <br />
+          <span className="text-red-600 font-bold">Esta acción no se puede deshacer.</span>
         </DialogDescription>
       </DialogHeader>
-      <DialogFooter>
-        <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
+      <DialogFooter className="gap-3 pt-6 border-t border-slate-100">
+        <Button
+          variant="outline"
+          onClick={() => setDeleteConfirmOpen(false)}
+          className="rounded-xl h-12 px-6 font-bold border-slate-200"
+        >
           Cancelar
         </Button>
-        <Button variant="destructive" onClick={handleDelete} disabled={loading}>
+        <Button
+          variant="destructive"
+          onClick={handleDelete}
+          disabled={loading}
+          className="rounded-xl h-12 px-8 font-bold shadow-lg"
+        >
           {loading ? (
             <>
               <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

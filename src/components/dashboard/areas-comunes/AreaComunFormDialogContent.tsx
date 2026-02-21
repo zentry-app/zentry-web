@@ -19,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, X, Settings, Clock, Users, CreditCard, CalendarDays, ChevronLeft, ChevronRight, RotateCcw, Info, Plus, Trash2 } from "lucide-react";
+import { CalendarIcon, X, Settings, Clock, Users, CreditCard, CalendarDays, ChevronLeft, ChevronRight, RotateCcw, Info, Plus, Trash2, Edit, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { UserClaims } from "@/contexts/AuthContext";
@@ -44,8 +44,21 @@ interface Reglamento {
   diasDeshabilitados: string[];
   diasSemanaDeshabilitados: string[];
   diasDesactivadosEspecificos: string[]; // Nuevos días desactivados específicos
-  tipoReservas: 'bloques' | 'traslapes' | 'horarios_fijos';
+  tipoReservas: 'bloques' | 'traslapes' | 'horarios_fijos' | 'hibrida';
   permiteTraslapes: boolean;
+  // 🆕 PROPIEDADES PARA RESERVAS HÍBRIDAS
+  maxHorasGratuitas?: number;
+  maxHorasPago?: number;
+  maxPersonasGratuitas?: number;
+  maxPersonasPago?: number;
+  antelacionMinimaPago?: number; // días
+  antelacionMinimaGratuita?: number; // horas
+  permiteReservasPagoSimultaneas?: boolean;
+  maxReservasPagoPorDia?: number;
+  ventanaHorarioPago?: {
+    inicio: string; // formato "HH:MM"
+    fin: string;   // formato "HH:MM"
+  };
   // 🆕 NUEVA PROPIEDAD PARA HORARIOS FIJOS
   ventanasHorariosFijos?: {
     dia: string; // día de la semana
@@ -149,20 +162,20 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
     horario: { apertura: string; cierre: string };
     bloques: { inicio: string; fin: string }[];
   } | null>(null);
-  
+
   // Estado para navegación de calendario
   const [fechaCalendario, setFechaCalendario] = useState(new Date());
-  
+
   // Estado para días desactivados específicos - se inicializa desde formData
   const [diasDesactivadosEspecificos, setDiasDesactivadosEspecificos] = useState<Set<string>>(
     new Set(formData.reglamento?.diasDesactivadosEspecificos || [])
   );
-  
+
   // Sincronizar estado local cuando cambie formData (ej: al cargar área existente)
   useEffect(() => {
     setDiasDesactivadosEspecificos(new Set(formData.reglamento?.diasDesactivadosEspecificos || []));
   }, [formData.reglamento?.diasDesactivadosEspecificos]);
-  
+
   // 🆕 NUEVO: Sincronizar horarios individuales cuando se carga un área existente
   useEffect(() => {
     if (currentArea && currentArea.reglamento?.horarios) {
@@ -177,7 +190,7 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
         sabado: horariosExistentes.sabado || { apertura: "09:00", cierre: "23:00" },
         domingo: horariosExistentes.domingo || { apertura: "09:00", cierre: "23:00" }
       };
-      
+
       // Actualizar formData con horarios completos
       setFormData(prev => ({
         ...prev,
@@ -189,11 +202,11 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
           }
         }
       }));
-      
+
       console.log('🔄 [SYNC] Horarios individuales sincronizados:', horariosCompletos);
     }
   }, [currentArea, setFormData]);
-  
+
   // Funciones para navegación de calendario
   const irMesAnterior = () => {
     setFechaCalendario(prev => {
@@ -202,7 +215,7 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
       return nuevaFecha;
     });
   };
-  
+
   const irMesSiguiente = () => {
     setFechaCalendario(prev => {
       const nuevaFecha = new Date(prev);
@@ -210,15 +223,15 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
       return nuevaFecha;
     });
   };
-  
+
   const irMesActual = () => {
     setFechaCalendario(new Date());
   };
-  
+
   // Función para alternar estado de días específicos
   const alternarDiaEspecifico = (fecha: Date) => {
     const fechaString = fecha.toISOString().split('T')[0]; // Formato YYYY-MM-DD
-    
+
     setDiasDesactivadosEspecificos(prev => {
       const nuevoSet = new Set(prev);
       if (nuevoSet.has(fechaString)) {
@@ -226,7 +239,7 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
       } else {
         nuevoSet.add(fechaString);
       }
-      
+
       // Actualizar también el formData para persistir en la base de datos
       setFormData(prevFormData => ({
         ...prevFormData,
@@ -235,11 +248,11 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
           diasDesactivadosEspecificos: Array.from(nuevoSet)
         }
       }));
-      
+
       return nuevoSet;
     });
   };
-  
+
   // Validar que reglamento existe
   const reglamento = formData.reglamento || {
     maxHorasPorReserva: 4,
@@ -301,32 +314,32 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
   // Función para actualizar horario individual
   const actualizarHorarioIndividual = (dia: string, campo: 'apertura' | 'cierre', valor: string) => {
     console.log(`🕐 [HORARIO] Actualizando ${dia}.${campo} = ${valor}`);
-    
+
     setFormData(prev => {
       const nuevoFormData = {
-      ...prev,
-      reglamento: {
-        ...(prev.reglamento || {}),
-        horarios: {
-          ...(prev.reglamento?.horarios || {}),
-          individuales: {
-            ...(prev.reglamento?.horarios?.individuales || {}),
-            [dia]: {
-              ...(prev.reglamento?.horarios?.individuales?.[dia] || { apertura: "08:00", cierre: "22:00" }),
-              [campo]: valor
+        ...prev,
+        reglamento: {
+          ...(prev.reglamento || {}),
+          horarios: {
+            ...(prev.reglamento?.horarios || {}),
+            individuales: {
+              ...(prev.reglamento?.horarios?.individuales || {}),
+              [dia]: {
+                ...(prev.reglamento?.horarios?.individuales?.[dia] || { apertura: "08:00", cierre: "22:00" }),
+                [campo]: valor
+              }
             }
-          }
           }
         }
       };
-      
+
       console.log(`✅ [HORARIO] ${dia}.${campo} actualizado a ${valor}`);
       console.log(`📊 [HORARIO] Horarios individuales completos:`, nuevoFormData.reglamento?.horarios?.individuales);
-      
+
       return nuevoFormData;
     });
   };
-  
+
   // 🆕 NUEVO: Función para asegurar que todos los horarios individuales estén completos
   const asegurarHorariosCompletos = () => {
     const horariosActuales = formData.reglamento?.horarios?.individuales || {};
@@ -339,7 +352,7 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
       sabado: horariosActuales.sabado || { apertura: "09:00", cierre: "23:00" },
       domingo: horariosActuales.domingo || { apertura: "09:00", cierre: "23:00" }
     };
-    
+
     // Actualizar formData con horarios completos
     setFormData(prev => ({
       ...prev,
@@ -351,7 +364,7 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
         }
       }
     }));
-    
+
     console.log('🔒 [HORARIOS] Horarios completos asegurados:', horariosCompletos);
     return horariosCompletos;
   };
@@ -388,42 +401,42 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
     const ultimoDia = new Date(año, mes + 1, 0);
     const diasEnMes = ultimoDia.getDate();
     const primerDiaSemana = primerDia.getDay(); // 0 = Domingo, 1 = Lunes, etc.
-    
+
     const dias = [];
-    
+
     // Agregar días vacíos al inicio si el mes no empieza en lunes
     for (let i = 0; i < (primerDiaSemana === 0 ? 6 : primerDiaSemana - 1); i++) {
-      dias.push({ 
-        numero: null, 
-        diaSemana: null, 
-        estaDeshabilitado: false, 
+      dias.push({
+        numero: null,
+        diaSemana: null,
+        estaDeshabilitado: false,
         horario: null,
         estado: 'vacio'
       });
     }
-    
+
     // Agregar todos los días del mes
     for (let dia = 1; dia <= diasEnMes; dia++) {
       const fechaDia = new Date(año, mes, dia);
       const diaSemana = fechaDia.getDay();
       const nombreDiaSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'][diaSemana];
       const horario = horariosSeguros[nombreDiaSemana as keyof typeof horariosSeguros];
-      
+
       // Verificar si el día está deshabilitado por configuración
       const deshabilitadoPorConfiguracion = reglamento.diasSemanaDeshabilitados?.includes(nombreDiaSemana) || false;
-      
+
       // Verificar si el día está desactivado específicamente
       const fechaString = fechaDia.toISOString().split('T')[0];
       const desactivadoEspecificamente = diasDesactivadosEspecificos.has(fechaString);
-      
+
       // Calcular estado del día según los parámetros
       let estado = 'disponible';
       let estaDeshabilitado = deshabilitadoPorConfiguracion || desactivadoEspecificamente;
-      
+
       // Verificar si ya pasó
       const fechaHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
       const fechaComparar = new Date(año, mes, dia);
-      
+
       if (fechaComparar < fechaHoy) {
         estado = 'pasado';
         estaDeshabilitado = true;
@@ -433,7 +446,7 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
       } else {
         // Verificar antelación mínima (no se puede reservar aún)
         const diasDeDiferencia = Math.ceil((fechaComparar.getTime() - fechaHoy.getTime()) / (1000 * 60 * 60 * 24));
-        
+
         if (diasDeDiferencia < (reglamento.antelacionMinima || 0)) {
           estado = 'muy_temprano';
           estaDeshabilitado = true;
@@ -446,7 +459,7 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
           estaDeshabilitado = true;
         }
       }
-      
+
       dias.push({
         numero: dia,
         diaSemana: nombreDiaSemana,
@@ -456,7 +469,7 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
         fecha: fechaDia
       });
     }
-    
+
     return dias;
   };
 
@@ -471,21 +484,21 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
     while (horaActual < cierre) {
       const horaFin = new Date(horaActual.getTime() + (duracion * 60 * 60 * 1000));
       if (horaFin > cierre) break;
-      
+
       bloques.push({
         inicio: horaActual.toTimeString().slice(0, 5),
         fin: horaFin.toTimeString().slice(0, 5)
       });
-      
+
       horaActual = horaFin;
     }
-    
+
     // Si no hay bloques completos, crear al menos uno parcial
     if (bloques.length === 0 && apertura < cierre) {
       const tiempoDisponible = cierre.getTime() - apertura.getTime();
       const horasDisponibles = Math.floor(tiempoDisponible / (60 * 60 * 1000));
       const minutosDisponibles = Math.floor((tiempoDisponible % (60 * 60 * 1000)) / (60 * 1000));
-      
+
       if (horasDisponibles > 0 || minutosDisponibles > 0) {
         bloques.push({
           inicio: horario.apertura,
@@ -493,14 +506,14 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
         });
       }
     }
-    
+
     return bloques;
   };
 
   // Función para mostrar modal de bloques
   const mostrarModalBloques = (dia: any) => {
     if (dia.estaDeshabilitado) return;
-    
+
     const bloques = calcularBloquesDelDia(dia.horario, reglamento.maxHorasPorReserva);
     setSelectedDay({
       numero: dia.numero,
@@ -512,22 +525,30 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
   };
 
   return (
-    <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
-      <DialogHeader>
-        <DialogTitle>{currentArea ? "Editar Área Común" : "Añadir Área Común"}</DialogTitle>
-        <DialogDescription>
-          {currentArea ? "Modifica los detalles del área común." : `Añadiendo para ${selectedResidencialId ? (residenciales.find(r=>r.id === selectedResidencialId)?.nombre || 'residencial sel.') : 'selecciona un residencial'}`}
-        </DialogDescription>
-      </DialogHeader>
-      
-      <div className="py-4">
+    <DialogContent className="max-w-[95vw] md:max-w-5xl max-h-[90vh] p-0 overflow-hidden bg-white/95 backdrop-blur-2xl rounded-[2.5rem] border-none shadow-2xl flex flex-col ring-1 ring-white/50">
+      <div className="relative bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-8 pb-10 shadow-lg shrink-0 z-10">
+        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+          <Settings className="w-40 h-40 text-white" />
+        </div>
+        <div className="relative z-10 flex flex-col gap-2">
+          <h2 className="text-3xl font-black text-white tracking-tight flex items-center gap-3 drop-shadow-md">
+            {currentArea ? <Edit className="h-8 w-8 text-indigo-400" /> : <Plus className="h-8 w-8 text-emerald-400" />}
+            {currentArea ? "Configuración de Amenidad" : "Nueva Amenidad"}
+          </h2>
+          <p className="text-indigo-200/80 font-medium text-lg max-w-2xl">
+            {currentArea ? "Ajusta los parámetros, reglas y horarios." : `Crea un nuevo espacio compartido para ${selectedResidencialId ? (residenciales.find(r => r.id === selectedResidencialId)?.nombre) : 'tu comunidad'}.`}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 bg-slate-50/50 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
         {/* Residencial Selector */}
         {userClaims?.isGlobalAdmin && !esAdminDeResidencial && !currentArea && (
           <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
             <Label htmlFor="residencialParaCrear" className="text-sm font-medium text-blue-800">Residencial</Label>
-            <Select 
-              value={selectedResidencialId} 
-              onValueChange={(value) => setSelectedResidencialId(value)} 
+            <Select
+              value={selectedResidencialId}
+              onValueChange={(value) => setSelectedResidencialId(value)}
             >
               <SelectTrigger className="mt-2">
                 <SelectValue placeholder="Selecciona un residencial" />
@@ -569,141 +590,264 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
           {/* Tab 1: General */}
           <TabsContent value="general" className="space-y-6">
             <div className="space-y-6">
-        {/* Información Básica */}
-        <div className="space-y-4">
+              {/* 🆕 Selector de Tipo de Reserva - PRIMERO */}
+              <div className="space-y-4 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border-2 border-purple-200">
+                <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-purple-600" />
+                  Seleccionar Tipo de Reserva
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Elige el tipo de sistema de reservas para esta área. Las opciones de configuración cambiarán según tu selección.
+                </p>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Tipo de Sistema de Reservas</Label>
+                  <Select
+                    value={reglamento.tipoReservas || 'bloques'}
+                    onValueChange={(value) => setFormData(prev => ({
+                      ...prev,
+                      reglamento: {
+                        ...(prev.reglamento || {}),
+                        tipoReservas: value as 'bloques' | 'traslapes' | 'horarios_fijos' | 'hibrida',
+                        permiteTraslapes: value === 'traslapes',
+                        // Inicializar valores por defecto para tipo híbrida
+                        ...(value === 'hibrida' && {
+                          maxHorasGratuitas: prev.reglamento?.maxHorasGratuitas || 3,
+                          maxHorasPago: prev.reglamento?.maxHorasPago || 5,
+                          maxPersonasGratuitas: prev.reglamento?.maxPersonasGratuitas || 6,
+                          maxPersonasPago: prev.reglamento?.maxPersonasPago || 50,
+                          antelacionMinimaPago: prev.reglamento?.antelacionMinimaPago || 7,
+                          antelacionMinimaGratuita: prev.reglamento?.antelacionMinimaGratuita || 0,
+                          permiteReservasPagoSimultaneas: prev.reglamento?.permiteReservasPagoSimultaneas ?? false,
+                          maxReservasPagoPorDia: prev.reglamento?.maxReservasPagoPorDia ?? 1,
+                        })
+                      }
+                    }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bloques">Por Bloques (horarios fijos)</SelectItem>
+                      <SelectItem value="traslapes">Con Traslapes (horarios flexibles)</SelectItem>
+                      <SelectItem value="horarios_fijos">Horarios Fijos (ventanas específicas)</SelectItem>
+                      <SelectItem value="hibrida">Híbrida (Gratuita + Pago)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Información de ayuda */}
+                <div className="bg-white/60 border border-purple-200 rounded-lg p-3 mt-3">
+                  <div className="text-xs text-gray-700 space-y-1">
+                    {reglamento.tipoReservas === 'bloques' && (
+                      <p><strong>Por Bloques:</strong> Horarios fijos basados en la duración máxima. Ej: bloques de 4 horas (8:00-12:00, 12:00-16:00, etc.)</p>
+                    )}
+                    {reglamento.tipoReservas === 'traslapes' && (
+                      <p><strong>Con Traslapes:</strong> Horarios flexibles por hora. Permite múltiples reservas simultáneas según configuración.</p>
+                    )}
+                    {reglamento.tipoReservas === 'horarios_fijos' && (
+                      <p><strong>Horarios Fijos:</strong> Ventanas de tiempo específicas donde los usuarios eligen cuándo empezar. Ej: Mañana (9:00-12:00) y Tarde (15:00-20:00)</p>
+                    )}
+                    {reglamento.tipoReservas === 'hibrida' && (
+                      <p><strong>Híbrida:</strong> Permite reservas gratuitas (horas limitadas, personas limitadas) y de pago (más horas, más personas). Las reservas de pago cancelan automáticamente las gratuitas del mismo día.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Información Básica */}
+              <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
                   <Settings className="w-5 h-5 text-blue-600" />
                   Información Básica
                 </h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="nombre" className="text-sm font-medium">Nombre del Área</Label>
-              <Input 
-                id="nombre" 
-                name="nombre" 
-                value={formData.nombre} 
-                onChange={handleInputChange}
-                placeholder="Ej: Casa Club, Alberca, Gimnasio"
-              />
+                  <div className="space-y-2">
+                    <Label htmlFor="nombre" className="text-sm font-medium">Nombre del Área</Label>
+                    <Input
+                      id="nombre"
+                      name="nombre"
+                      value={formData.nombre}
+                      onChange={handleInputChange}
+                      placeholder="Ej: Casa Club, Alberca, Gimnasio"
+                    />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="capacidad" className="text-sm font-medium">Capacidad Máxima</Label>
-                    <Input 
-                      id="capacidad" 
-                      name="capacidad" 
-                      type="number" 
-                      value={formData.capacidad} 
+                    <Input
+                      id="capacidad"
+                      name="capacidad"
+                      type="number"
+                      value={formData.capacidad}
                       onChange={handleInputChange}
                       placeholder="50"
                     />
                   </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="descripcion" className="text-sm font-medium">Descripción</Label>
-              <Textarea 
-                id="descripcion" 
-                name="descripcion" 
-                value={formData.descripcion} 
-                onChange={handleInputChange}
-                placeholder="Describe las características del área"
-                rows={3}
-              />
-            </div>
-            
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="activa" className="text-sm font-medium">Estado del Área</Label>
-                <Select 
-                  value={formData.activa ? "true" : "false"} 
-                  onValueChange={(value) => handleSelectChange("activa", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="true">Activa</SelectItem>
-                    <SelectItem value="false">Inactiva</SelectItem>
-                  </SelectContent>
-                </Select>
-            </div>
-          </div>
-        </div>
+                </div>
 
-        {/* Configuración de Pago */}
-        <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-green-600" />
-                  Configuración de Pago
-                </h3>
-                
+                <div className="space-y-2">
+                  <Label htmlFor="descripcion" className="text-sm font-medium">Descripción</Label>
+                  <Textarea
+                    id="descripcion"
+                    name="descripcion"
+                    value={formData.descripcion}
+                    onChange={handleInputChange}
+                    placeholder="Describe las características del área"
+                    rows={3}
+                  />
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="esDePago" className="text-sm font-medium">¿Es de Pago?</Label>
-              <Select 
-                value={formData.esDePago ? "true" : "false"} 
-                onValueChange={(value) => handleSelectChange("esDePago", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">Sí, requiere pago</SelectItem>
-                  <SelectItem value="false">No, es gratuita</SelectItem>
-                </SelectContent>
-              </Select>
+                  <div className="space-y-2">
+                    <Label htmlFor="activa" className="text-sm font-medium">Estado del Área</Label>
+                    <Select
+                      value={formData.activa ? "true" : "false"}
+                      onValueChange={(value) => handleSelectChange("activa", value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="true">Activa</SelectItem>
+                        <SelectItem value="false">Inactiva</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Configuración de Pago */}
+              {reglamento.tipoReservas !== 'hibrida' ? (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                    <CreditCard className="w-5 h-5 text-green-600" />
+                    Configuración de Pago
+                  </h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="esDePago" className="text-sm font-medium">¿Es de Pago?</Label>
+                      <Select
+                        value={formData.esDePago ? "true" : "false"}
+                        onValueChange={(value) => handleSelectChange("esDePago", value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="true">Sí, requiere pago</SelectItem>
+                          <SelectItem value="false">No, es gratuita</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {formData.esDePago && (
+                      <div className="space-y-2">
+                        <Label htmlFor="precio" className="text-sm font-medium">Precio por Reserva</Label>
+                        <Input
+                          id="precio"
+                          name="precio"
+                          type="number"
+                          value={formData.precio || 0}
+                          onChange={handleInputChange}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    )}
+
+                    {formData.esDePago && (
+                      <div className="space-y-2">
+                        <Label htmlFor="requiereDeposito" className="text-sm font-medium">¿Requiere Depósito?</Label>
+                        <Select
+                          value={formData.requiereDeposito ? "true" : "false"}
+                          onValueChange={(value) => handleSelectChange("requiereDeposito", value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="true">Sí, requiere depósito</SelectItem>
+                            <SelectItem value="false">No, no requiere depósito</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {formData.esDePago && formData.requiereDeposito && (
+                      <div className="space-y-2">
+                        <Label htmlFor="deposito" className="text-sm font-medium">Monto del Depósito</Label>
+                        <Input
+                          id="deposito"
+                          name="deposito"
+                          type="number"
+                          value={formData.deposito || 0}
+                          onChange={handleInputChange}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                    <CreditCard className="w-5 h-5 text-blue-600" />
+                    Configuración de Pago (Solo para Reservas de Pago)
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Esta configuración aplica únicamente a las reservas de pago. Las reservas gratuitas no tienen costo.
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="precio" className="text-sm font-medium">Precio por Reserva de Pago</Label>
+                      <Input
+                        id="precio"
+                        name="precio"
+                        type="number"
+                        value={formData.precio || 0}
+                        onChange={handleInputChange}
+                        placeholder="0.00"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="requiereDeposito" className="text-sm font-medium">¿Requiere Depósito?</Label>
+                      <Select
+                        value={formData.requiereDeposito ? "true" : "false"}
+                        onValueChange={(value) => handleSelectChange("requiereDeposito", value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="true">Sí, requiere depósito</SelectItem>
+                          <SelectItem value="false">No, no requiere depósito</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {formData.requiereDeposito && (
+                      <div className="space-y-2">
+                        <Label htmlFor="deposito" className="text-sm font-medium">Monto del Depósito</Label>
+                        <Input
+                          id="deposito"
+                          name="deposito"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.deposito ?? 0}
+                          onChange={handleInputChange}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-            
-            {formData.esDePago && (
-              <div className="space-y-2">
-                <Label htmlFor="precio" className="text-sm font-medium">Precio por Reserva</Label>
-                <Input 
-                  id="precio" 
-                  name="precio" 
-                  type="number" 
-                  value={formData.precio || 0} 
-                  onChange={handleInputChange}
-                  placeholder="0.00"
-                />
-              </div>
-            )}
-            
-            {formData.esDePago && (
-              <div className="space-y-2">
-                <Label htmlFor="requiereDeposito" className="text-sm font-medium">¿Requiere Depósito?</Label>
-                <Select 
-                  value={formData.requiereDeposito ? "true" : "false"} 
-                  onValueChange={(value) => handleSelectChange("requiereDeposito", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="true">Sí, requiere depósito</SelectItem>
-                    <SelectItem value="false">No, no requiere depósito</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            
-            {formData.esDePago && formData.requiereDeposito && (
-              <div className="space-y-2">
-                <Label htmlFor="deposito" className="text-sm font-medium">Monto del Depósito</Label>
-                <Input 
-                  id="deposito" 
-                  name="deposito" 
-                  type="number" 
-                  value={formData.deposito || 0} 
-                  onChange={handleInputChange}
-                  placeholder="0.00"
-                />
-              </div>
-            )}
-          </div>
-        </div>
-          </div>
           </TabsContent>
 
           {/* Tab 2: Reservas */}
@@ -713,195 +857,296 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                 <CalendarIcon className="w-5 h-5 text-blue-600" />
                 Reglas de Reserva
               </h3>
-          
-          {/* Límites de Reservas */}
-          <div className="space-y-4">
-                <h4 className="text-md font-medium text-gray-700">Límites de Reservas</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="maxHorasPorReserva" className="text-sm font-medium">Máximo Horas por Reserva</Label>
-                <Input 
-                  id="maxHorasPorReserva" 
-                  name="maxHorasPorReserva" 
-                  type="number" 
-                  value={reglamento.maxHorasPorReserva} 
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    reglamento: { 
-                      ...(prev.reglamento || {}), 
-                      maxHorasPorReserva: parseInt(e.target.value) 
-                    } 
-                  }))} 
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="maxReservasPorDia" className="text-sm font-medium">Máximo Reservas por Día por Casa</Label>
-                <Input 
-                  id="maxReservasPorDia" 
-                  name="maxReservasPorDia" 
-                  type="number" 
-                  value={reglamento.maxReservasPorDia} 
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    reglamento: { 
-                      ...(prev.reglamento || {}), 
-                      maxReservasPorDia: parseInt(e.target.value) 
-                    } 
-                  }))} 
-                />
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="maxReservasPorSemana" className="text-sm font-medium">Máximo Reservas por Semana</Label>
-                <Input 
-                  id="maxReservasPorSemana" 
-                  name="maxReservasPorSemana" 
-                  type="number" 
-                  value={reglamento.maxReservasPorSemana} 
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    reglamento: { 
-                      ...(prev.reglamento || {}), 
-                      maxReservasPorSemana: parseInt(e.target.value) 
-                    } 
-                  }))} 
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="maxReservasPorMes" className="text-sm font-medium">Máximo Reservas por Mes</Label>
-                <Input 
-                  id="maxReservasPorMes" 
-                  name="maxReservasPorMes" 
-                  type="number" 
-                  value={reglamento.maxReservasPorMes} 
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    reglamento: { 
-                      ...(prev.reglamento || {}), 
-                      maxReservasPorMes: parseInt(e.target.value) 
-                    } 
-                  }))} 
-                />
-              </div>
-            </div>
-          </div>
-          
-              {/* Configuración de Reservas */}
-          <div className="space-y-4">
-                <h4 className="text-md font-medium text-gray-700">Configuración de Reservas</h4>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                    <Label htmlFor="antelacionMinima" className="text-sm font-medium">Reservar desde (días antes)</Label>
-                <Input 
-                  id="antelacionMinima" 
-                  name="antelacionMinima" 
-                  type="number" 
-                      placeholder="1"
-                  value={reglamento.antelacionMinima} 
-                      onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      reglamento: { 
-                        ...(prev.reglamento || {}), 
-                          antelacionMinima: parseInt(e.target.value) 
-                      } 
-                      }))} 
-                />
-                    <p className="text-xs text-gray-500">Ej: 1 = reservar desde mañana</p>
-              </div>
-              <div className="space-y-2">
-                    <Label htmlFor="ventanaReservas" className="text-sm font-medium">Mostrar calendario (días)</Label>
-                <Input 
-                  id="ventanaReservas" 
-                  name="ventanaReservas" 
-                  type="number" 
-                      placeholder="30"
-                  value={reglamento.antelacionMaxima} 
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    reglamento: { 
-                      ...(prev.reglamento || {}), 
-                      antelacionMaxima: parseInt(e.target.value) 
-                    } 
-                  }))} 
-                />
-                    <p className="text-xs text-gray-500">Ej: 30 = mostrar 30 días</p>
-              </div>
-              <div className="space-y-2">
-                    <Label htmlFor="cancelacionHasta" className="text-sm font-medium">Cancelar hasta (horas antes)</Label>
-                <Input 
-                  id="cancelacionHasta" 
-                  name="cancelacionHasta" 
-                  type="number" 
-                      placeholder="2"
-                  value={reglamento.cancelacionMinima} 
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    reglamento: { 
-                      ...(prev.reglamento || {}), 
-                      cancelacionMinima: parseInt(e.target.value) 
-                    } 
-                  }))} 
-                />
-                    <p className="text-xs text-gray-500">Ej: 2 = cancelar hasta 2h antes</p>
-              </div>
-            </div>
-          </div>
-          
-              {/* Tipo de Reservas */}
-          <div className="space-y-4">
-                <h4 className="text-md font-medium text-gray-700">Tipo de Reservas</h4>
-            
-            {/* Información de ayuda */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <div className="text-xs text-blue-700 space-y-1">
-                    <p><strong>Por Bloques:</strong> Horarios fijos basados en la duración máxima. Ej: bloques de 4 horas (8:00-12:00, 12:00-16:00, etc.)</p>
-                    <p><strong>Con Traslapes:</strong> Horarios flexibles por hora. Permite múltiples reservas simultáneas según configuración.</p>
-                    <p><strong>Horarios Fijos:</strong> Ventanas de tiempo específicas donde los usuarios eligen cuándo empezar. Ej: Mañana (9:00-12:00) y Tarde (15:00-20:00)</p>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-                  <Label className="text-sm font-medium">Seleccionar Tipo</Label>
-              <Select 
-                value={reglamento.tipoReservas || 'bloques'} 
-                onValueChange={(value) => setFormData(prev => ({ 
-                  ...prev, 
-                  reglamento: { 
-                    ...(prev.reglamento || {}), 
-                        tipoReservas: value as 'bloques' | 'traslapes' | 'horarios_fijos',
-                        // Automáticamente establecer permiteTraslapes basado en la selección
-                        permiteTraslapes: value === 'traslapes'
-                  } 
-                }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                      <SelectItem value="bloques">Por Bloques (horarios fijos)</SelectItem>
-                      <SelectItem value="traslapes">Con Traslapes (horarios flexibles)</SelectItem>
-                      <SelectItem value="horarios_fijos">Horarios Fijos (ventanas específicas)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-                {/* Información adicional para traslapes */}
-            {reglamento.tipoReservas === 'traslapes' && (
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center space-x-2">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-sm font-medium text-green-800">
-                        ✅ Traslapes Automáticamente Habilitados
-                      </span>
+
+              {/* Límites de Reservas - Diferentes según tipo */}
+              {reglamento.tipoReservas !== 'hibrida' ? (
+                <div className="space-y-4">
+                  <h4 className="text-md font-medium text-gray-700">Límites de Reservas</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="maxHorasPorReserva" className="text-sm font-medium">Máximo Horas por Reserva</Label>
+                      <Input
+                        id="maxHorasPorReserva"
+                        name="maxHorasPorReserva"
+                        type="number"
+                        value={reglamento.maxHorasPorReserva}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          reglamento: {
+                            ...(prev.reglamento || {}),
+                            maxHorasPorReserva: parseInt(e.target.value)
+                          }
+                        }))}
+                      />
                     </div>
-                    <p className="text-xs text-green-700 mt-2">
-                      Al seleccionar "Con Traslapes", el sistema automáticamente permite que múltiples reservas se superpongan en tiempo según la configuración de "Reservas Simultáneas por Casa".
+                    <div className="space-y-2">
+                      <Label htmlFor="maxReservasPorDia" className="text-sm font-medium">Máximo Reservas por Día por Casa</Label>
+                      <Input
+                        id="maxReservasPorDia"
+                        name="maxReservasPorDia"
+                        type="number"
+                        value={reglamento.maxReservasPorDia}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          reglamento: {
+                            ...(prev.reglamento || {}),
+                            maxReservasPorDia: parseInt(e.target.value)
+                          }
+                        }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="maxReservasPorSemana" className="text-sm font-medium">Máximo Reservas por Semana</Label>
+                      <Input
+                        id="maxReservasPorSemana"
+                        name="maxReservasPorSemana"
+                        type="number"
+                        value={reglamento.maxReservasPorSemana}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          reglamento: {
+                            ...(prev.reglamento || {}),
+                            maxReservasPorSemana: parseInt(e.target.value)
+                          }
+                        }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="maxReservasPorMes" className="text-sm font-medium">Máximo Reservas por Mes</Label>
+                      <Input
+                        id="maxReservasPorMes"
+                        name="maxReservasPorMes"
+                        type="number"
+                        value={reglamento.maxReservasPorMes}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          reglamento: {
+                            ...(prev.reglamento || {}),
+                            maxReservasPorMes: parseInt(e.target.value)
+                          }
+                        }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                  <h4 className="text-md font-medium text-gray-700">Límites de Reservas (Solo para Reservas Gratuitas)</h4>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Estos límites aplican únicamente a las reservas gratuitas. Los límites para reservas de pago se configuran más abajo.
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="maxReservasPorDia" className="text-sm font-medium">Máximo Reservas Gratuitas por Día por Casa</Label>
+                      <Input
+                        id="maxReservasPorDia"
+                        name="maxReservasPorDia"
+                        type="number"
+                        value={reglamento.maxReservasPorDia}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          reglamento: {
+                            ...(prev.reglamento || {}),
+                            maxReservasPorDia: parseInt(e.target.value)
+                          }
+                        }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="maxReservasPorSemana" className="text-sm font-medium">Máximo Reservas Gratuitas por Semana</Label>
+                      <Input
+                        id="maxReservasPorSemana"
+                        name="maxReservasPorSemana"
+                        type="number"
+                        value={reglamento.maxReservasPorSemana}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          reglamento: {
+                            ...(prev.reglamento || {}),
+                            maxReservasPorSemana: parseInt(e.target.value)
+                          }
+                        }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Configuración de Reservas - Diferente según tipo */}
+              {reglamento.tipoReservas !== 'hibrida' ? (
+                <div className="space-y-4">
+                  <h4 className="text-md font-medium text-gray-700">Configuración de Reservas</h4>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="antelacionMinima" className="text-sm font-medium">Reservar desde (días antes)</Label>
+                      <Input
+                        id="antelacionMinima"
+                        name="antelacionMinima"
+                        type="number"
+                        placeholder="1"
+                        value={reglamento.antelacionMinima}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          reglamento: {
+                            ...(prev.reglamento || {}),
+                            antelacionMinima: parseInt(e.target.value)
+                          }
+                        }))}
+                      />
+                      <p className="text-xs text-gray-500">Ej: 1 = reservar desde mañana</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="ventanaReservas" className="text-sm font-medium">Mostrar calendario (días)</Label>
+                      <Input
+                        id="ventanaReservas"
+                        name="ventanaReservas"
+                        type="number"
+                        placeholder="30"
+                        value={reglamento.antelacionMaxima}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          reglamento: {
+                            ...(prev.reglamento || {}),
+                            antelacionMaxima: parseInt(e.target.value)
+                          }
+                        }))}
+                      />
+                      <p className="text-xs text-gray-500">Ej: 30 = mostrar 30 días</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cancelacionHasta" className="text-sm font-medium">Cancelar hasta (horas antes)</Label>
+                      <Input
+                        id="cancelacionHasta"
+                        name="cancelacionHasta"
+                        type="number"
+                        placeholder="2"
+                        value={reglamento.cancelacionMinima}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          reglamento: {
+                            ...(prev.reglamento || {}),
+                            cancelacionMinima: parseInt(e.target.value)
+                          }
+                        }))}
+                      />
+                      <p className="text-xs text-gray-500">Ej: 2 = cancelar hasta 2h antes</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                  <h4 className="text-md font-medium text-gray-700">Anticipación Mínima para Reservas</h4>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Configura cuánto tiempo antes deben hacerse las reservas. Cada tipo de reserva tiene su propia anticipación.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="antelacionMinimaGratuita" className="text-sm font-medium">
+                        Reservas Gratuitas
+                        <span className="text-xs text-gray-500 block mt-1">(en días)</span>
+                      </Label>
+                      <Input
+                        id="antelacionMinimaGratuita"
+                        name="antelacionMinimaGratuita"
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={reglamento.antelacionMinimaGratuita ?? 0}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
+                          setFormData(prev => ({
+                            ...prev,
+                            reglamento: {
+                              ...(prev.reglamento || {}),
+                              antelacionMinimaGratuita: value
+                            }
+                          }));
+                        }}
+                      />
+                      <p className="text-xs text-gray-500">
+                        <strong>0 días</strong> = reservar el mismo día<br />
+                        <strong>1 día</strong> = reservar desde mañana
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="antelacionMinimaPago" className="text-sm font-medium">
+                        Reservas de Pago
+                        <span className="text-xs text-gray-500 block mt-1">(en días)</span>
+                      </Label>
+                      <Input
+                        id="antelacionMinimaPago"
+                        name="antelacionMinimaPago"
+                        type="number"
+                        min="0"
+                        placeholder="7"
+                        value={reglamento.antelacionMinimaPago ?? 7}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
+                          setFormData(prev => ({
+                            ...prev,
+                            reglamento: {
+                              ...(prev.reglamento || {}),
+                              antelacionMinimaPago: value
+                            }
+                          }));
+                        }}
+                      />
+                      <p className="text-xs text-gray-500">
+                        <strong>0 días</strong> = reservar el mismo día<br />
+                        <strong>7 días</strong> = reservar con 1 semana de anticipación
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-purple-100 border border-purple-300 rounded-lg p-3 mt-4">
+                    <p className="text-xs text-purple-800">
+                      <strong>💡 Ejemplo:</strong> Si configuras 0 días para gratuitas y 7 días para pago, los usuarios podrán reservar gratuitamente el mismo día, pero las reservas de pago requerirán 7 días de anticipación.
                     </p>
                   </div>
-                )}
-              </div>
+
+                  <div className="space-y-2 mt-4">
+                    <Label htmlFor="ventanaReservas" className="text-sm font-medium">Mostrar calendario (días)</Label>
+                    <Input
+                      id="ventanaReservas"
+                      name="ventanaReservas"
+                      type="number"
+                      placeholder="30"
+                      value={reglamento.antelacionMaxima}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        reglamento: {
+                          ...(prev.reglamento || {}),
+                          antelacionMaxima: parseInt(e.target.value)
+                        }
+                      }))}
+                    />
+                    <p className="text-xs text-gray-500">Ej: 30 = mostrar 30 días hacia adelante</p>
+                  </div>
+
+                  <div className="space-y-2 mt-4">
+                    <Label htmlFor="cancelacionHasta" className="text-sm font-medium">Cancelar hasta (horas antes)</Label>
+                    <Input
+                      id="cancelacionHasta"
+                      name="cancelacionHasta"
+                      type="number"
+                      placeholder="2"
+                      value={reglamento.cancelacionMinima}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        reglamento: {
+                          ...(prev.reglamento || {}),
+                          cancelacionMinima: parseInt(e.target.value)
+                        }
+                      }))}
+                    />
+                    <p className="text-xs text-gray-500">Ej: 2 = cancelar hasta 2h antes</p>
+                  </div>
+                </div>
+              )}
 
               {/* Configuración de Horarios Fijos */}
               {reglamento.tipoReservas === 'horarios_fijos' && (
@@ -913,26 +1158,170 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                     </span>
                   </div>
                   <p className="text-xs text-blue-700 mt-2">
-                    La configuración de ventanas de tiempo se encuentra en la pestaña <strong>"Horarios"</strong>. 
+                    La configuración de ventanas de tiempo se encuentra en la pestaña <strong>"Horarios"</strong>.
                     Allí podrás configurar las ventanas específicas por día de la semana.
                   </p>
                 </div>
               )}
 
-                            {/* Reservas Simultáneas */}
+              {/* Configuración de Reservas Híbridas */}
+              {reglamento.tipoReservas === 'hibrida' && (
+                <div className="space-y-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                  <div className="flex items-center space-x-2 mb-3">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-purple-800">
+                      ⚙️ Configuración de Reservas Híbridas
+                    </span>
+                  </div>
+                  <p className="text-xs text-purple-700 mb-4">
+                    Configura los límites para reservas gratuitas y de pago. Las reservas de pago con la antelación mínima requerida cancelarán automáticamente las reservas gratuitas del mismo día.
+                  </p>
+
+                  <div className="space-y-4">
+                    <div className="border-b border-purple-200 pb-3">
+                      <h5 className="text-sm font-semibold text-purple-900 mb-3">Reservas Gratuitas</h5>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="maxHorasGratuitas" className="text-xs font-medium">Máximo Horas</Label>
+                          <Input
+                            id="maxHorasGratuitas"
+                            type="number"
+                            value={reglamento.maxHorasGratuitas || 3}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              reglamento: {
+                                ...(prev.reglamento || {}),
+                                maxHorasGratuitas: parseInt(e.target.value) || 3
+                              }
+                            }))}
+                            min="1"
+                            max="24"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="maxPersonasGratuitas" className="text-xs font-medium">Máximo Personas</Label>
+                          <Input
+                            id="maxPersonasGratuitas"
+                            type="number"
+                            value={reglamento.maxPersonasGratuitas || 6}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              reglamento: {
+                                ...(prev.reglamento || {}),
+                                maxPersonasGratuitas: parseInt(e.target.value) || 6
+                              }
+                            }))}
+                            min="1"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-b border-purple-200 pb-3">
+                      <h5 className="text-sm font-semibold text-purple-900 mb-3">Reservas de Pago</h5>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="maxHorasPago" className="text-xs font-medium">Máximo Horas</Label>
+                          <Input
+                            id="maxHorasPago"
+                            type="number"
+                            value={reglamento.maxHorasPago || 5}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              reglamento: {
+                                ...(prev.reglamento || {}),
+                                maxHorasPago: parseInt(e.target.value) || 5
+                              }
+                            }))}
+                            min="1"
+                            max="24"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="maxPersonasPago" className="text-xs font-medium">Máximo Personas</Label>
+                          <Input
+                            id="maxPersonasPago"
+                            type="number"
+                            value={reglamento.maxPersonasPago || 50}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              reglamento: {
+                                ...(prev.reglamento || {}),
+                                maxPersonasPago: parseInt(e.target.value) || 50
+                              }
+                            }))}
+                            min="1"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-b border-purple-200 pb-3">
+                      <h5 className="text-sm font-semibold text-purple-900 mb-3">Reservas de Pago por Día</h5>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="permiteReservasPagoSimultaneas" className="text-xs font-medium">¿Permite Múltiples Reservas de Pago por Día?</Label>
+                          <Select
+                            value={reglamento.permiteReservasPagoSimultaneas ? "true" : "false"}
+                            onValueChange={(value) => setFormData(prev => ({
+                              ...prev,
+                              reglamento: {
+                                ...(prev.reglamento || {}),
+                                permiteReservasPagoSimultaneas: value === "true",
+                                maxReservasPagoPorDia: value === "true" ? (prev.reglamento?.maxReservasPagoPorDia || 1) : 1
+                              }
+                            }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="true">Sí, permite múltiples reservas de pago</SelectItem>
+                              <SelectItem value="false">No, solo 1 reserva de pago por día</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {reglamento.permiteReservasPagoSimultaneas && (
+                          <div className="space-y-2">
+                            <Label htmlFor="maxReservasPagoPorDia" className="text-xs font-medium">Máximo Reservas de Pago por Día</Label>
+                            <Input
+                              id="maxReservasPagoPorDia"
+                              type="number"
+                              value={reglamento.maxReservasPagoPorDia || 1}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                reglamento: {
+                                  ...(prev.reglamento || {}),
+                                  maxReservasPagoPorDia: parseInt(e.target.value) || 1
+                                }
+                              }))}
+                              min="1"
+                              placeholder="1"
+                            />
+                            <p className="text-xs text-purple-600">Máximo número de reservas de pago que se pueden hacer en el mismo día.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Reservas Simultáneas */}
               <div className="space-y-4">
                 <h4 className="text-md font-medium text-gray-700">Reservas Simultáneas por Casa</h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="permiteReservasSimultaneas" className="text-sm font-medium">¿Permite Reservas Simultáneas?</Label>
-                    <Select 
-                      value={reglamento.permiteReservasSimultaneas ? "true" : "false"} 
-                      onValueChange={(value) => setFormData(prev => ({ 
-                        ...prev, 
-                        reglamento: { 
-                          ...(prev.reglamento || {}), 
-                          permiteReservasSimultaneas: value === "true" 
-                        } 
+                    <Select
+                      value={reglamento.permiteReservasSimultaneas ? "true" : "false"}
+                      onValueChange={(value) => setFormData(prev => ({
+                        ...prev,
+                        reglamento: {
+                          ...(prev.reglamento || {}),
+                          permiteReservasSimultaneas: value === "true"
+                        }
                       }))}
                     >
                       <SelectTrigger>
@@ -944,195 +1333,423 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                       </SelectContent>
                     </Select>
                   </div>
-                  
+
                   {reglamento.permiteReservasSimultaneas && (
                     <div className="space-y-2">
                       <Label htmlFor="maxCasasSimultaneas" className="text-sm font-medium">Máximo Casas Simultáneas</Label>
-                      <Input 
-                        id="maxCasasSimultaneas" 
-                        name="maxCasasSimultaneas" 
-                        type="number" 
-                        value={reglamento.maxCasasSimultaneas} 
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      reglamento: { 
-                        ...(prev.reglamento || {}), 
-                            maxCasasSimultaneas: parseInt(e.target.value) 
-                      } 
-                    }))}
+                      <Input
+                        id="maxCasasSimultaneas"
+                        name="maxCasasSimultaneas"
+                        type="number"
+                        value={reglamento.maxCasasSimultaneas}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          reglamento: {
+                            ...(prev.reglamento || {}),
+                            maxCasasSimultaneas: parseInt(e.target.value)
+                          }
+                        }))}
                         placeholder="Ej: 5 para alberca"
                       />
-              </div>
-            )}
-          </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </TabsContent>
 
-                      {/* Tab 3: Horarios */}
-            <TabsContent value="horarios" className="space-y-6">
-              {reglamento.tipoReservas === 'horarios_fijos' ? (
-                // 🆕 UI SIMPLE PARA HORARIOS FIJOS
-                <div className="space-y-6">
-                  <div className="text-center">
-                    <h3 className="text-lg font-semibold text-gray-800 flex items-center justify-center gap-2">
-                      <Clock className="w-5 h-5 text-purple-600" />
-                      Configuración de Horarios Especiales
-                    </h3>
-                    <p className="text-sm text-gray-600 mt-2">
-                      Define los períodos donde los usuarios pueden hacer reservas
-                    </p>
-                  </div>
+          {/* Tab 3: Horarios */}
+          <TabsContent value="horarios" className="space-y-6">
+            {reglamento.tipoReservas === 'hibrida' ? (
+              // 🆕 UI PARA HORARIOS HÍBRIDOS
+              <div className="space-y-6">
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-gray-800 flex items-center justify-center gap-2">
+                    <Clock className="w-5 h-5 text-purple-600" />
+                    Configuración de Horarios Híbridos
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-2">
+                    Configura los horarios para reservas gratuitas (por bloques) y reservas de pago (ventana de tiempo)
+                  </p>
+                </div>
 
-                  {/* Configuración Simple */}
-                  <div className="max-w-4xl mx-auto space-y-6">
-                    {/* Intervalos */}
+                {/* Sección 1: Horarios para Reservas Gratuitas (Bloques) */}
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <h4 className="text-md font-semibold text-green-900 mb-3 flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    Horarios para Reservas Gratuitas (Por Bloques)
+                  </h4>
+                  <p className="text-xs text-green-700 mb-4">
+                    Los bloques de horarios se generan automáticamente basados en la duración máxima de reservas gratuitas ({reglamento.maxHorasGratuitas || 3} horas).
+                  </p>
+
+                  {/* UI de horarios normales para bloques gratuitos */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-sm font-medium text-gray-700">Horarios por Día (Para Bloques Gratuitos)</h5>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const horarioBase = { apertura: "08:00", cierre: "22:00" };
+                          setFormData(prev => ({
+                            ...prev,
+                            reglamento: {
+                              ...(prev.reglamento || {}),
+                              horarios: {
+                                ...(prev.reglamento?.horarios || {}),
+                                entreSemana: horarioBase,
+                                finDeSemana: horarioBase,
+                                diasDisponibles: ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"],
+                                individuales: {
+                                  lunes: horarioBase,
+                                  martes: horarioBase,
+                                  miercoles: horarioBase,
+                                  jueves: horarioBase,
+                                  viernes: horarioBase,
+                                  sabado: { apertura: "09:00", cierre: "23:00" },
+                                  domingo: { apertura: "09:00", cierre: "23:00" }
+                                }
+                              }
+                            }
+                          }));
+                          toast.success("Horario base aplicado a todos los días");
+                        }}
+                        className="text-xs"
+                      >
+                        🚀 Aplicar a todos
+                      </Button>
+                    </div>
+
+                    {/* Grid de Horarios por Día - Reutilizar el código existente pero solo para bloques gratuitos */}
+                    <div className="space-y-3">
+                      {['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'].map((dia) => (
+                        <div key={dia} className="flex items-center gap-4 p-3 bg-white rounded-lg border border-green-200">
+                          <div className="w-24 text-sm font-medium text-gray-700 capitalize">{dia}</div>
+
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs text-gray-600">Apertura</Label>
+                            <Select
+                              value={horariosSeguros[dia as keyof typeof horariosSeguros].apertura}
+                              onValueChange={(value) => actualizarHorarioIndividual(dia as any, 'apertura', value)}
+                            >
+                              <SelectTrigger className="w-24 h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {opcionesHora.map(opc => (
+                                  <SelectItem key={opc.valor} value={opc.valor}>
+                                    {opc.etiqueta}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="text-gray-400">─</div>
+
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs text-gray-600">Cierre</Label>
+                            <Select
+                              value={horariosSeguros[dia as keyof typeof horariosSeguros].cierre}
+                              onValueChange={(value) => actualizarHorarioIndividual(dia as any, 'cierre', value)}
+                            >
+                              <SelectTrigger className="w-24 h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {opcionesHora.map(opc => (
+                                  <SelectItem key={opc.valor} value={opc.valor}>
+                                    {opc.etiqueta}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="flex items-center gap-2 ml-auto">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={reglamento.diasSemanaDeshabilitados?.includes(dia) || false}
+                                onChange={(e) => {
+                                  const diasActuales = reglamento.diasSemanaDeshabilitados || [];
+                                  let nuevosDias;
+
+                                  if (e.target.checked) {
+                                    nuevosDias = [...diasActuales, dia];
+                                  } else {
+                                    nuevosDias = diasActuales.filter(d => d !== dia);
+                                  }
+
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    reglamento: {
+                                      ...(prev.reglamento || {}),
+                                      diasSemanaDeshabilitados: nuevosDias
+                                    }
+                                  }));
+                                }}
+                                className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                              />
+                              <Label className="text-xs text-red-600 cursor-pointer">
+                                Deshabilitar
+                              </Label>
+                            </div>
+                            <div className={`w-2 h-2 rounded-full ${reglamento.diasSemanaDeshabilitados?.includes(dia) ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="bg-green-100 border border-green-300 rounded-lg p-3 mt-4">
+                      <p className="text-xs text-green-800">
+                        <strong>Nota:</strong> Los bloques se generarán automáticamente. Ejemplo: Si la apertura es 9:00 y cierre es 18:00 con duración máxima de {reglamento.maxHorasGratuitas || 3} horas,
+                        los bloques serán: 9:00-12:00, 12:00-15:00, 15:00-18:00
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sección 2: Ventana de Tiempo para Reservas de Pago */}
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="text-md font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    Ventana de Tiempo para Reservas de Pago
+                  </h4>
+                  <p className="text-xs text-blue-700 mb-4">
+                    Define el rango de horas durante el cual se pueden hacer reservas de pago. Los usuarios podrán elegir cualquier horario dentro de esta ventana.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium">Frecuencia de Horarios</Label>
-                      <Select 
-                        value={(reglamento.intervalosDisponibles || 30).toString()} 
-                        onValueChange={(value) => setFormData(prev => ({ 
-                          ...prev, 
-                          reglamento: { 
-                            ...(prev.reglamento || {}), 
-                            intervalosDisponibles: parseInt(value)
-                          } 
+                      <Label htmlFor="ventanaHorarioPagoInicio" className="text-sm font-medium">Hora de Inicio</Label>
+                      <Select
+                        value={reglamento.ventanaHorarioPago?.inicio || "09:00"}
+                        onValueChange={(value) => setFormData(prev => ({
+                          ...prev,
+                          reglamento: {
+                            ...(prev.reglamento || {}),
+                            ventanaHorarioPago: {
+                              inicio: value,
+                              fin: prev.reglamento?.ventanaHorarioPago?.fin || "22:00"
+                            }
+                          }
                         }))}
                       >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="60">Cada hora (ej: 3:00, 4:00, 5:00)</SelectItem>
-                          <SelectItem value="30">Cada 30 minutos</SelectItem>
-                          <SelectItem value="15">Cada 15 minutos</SelectItem>
+                          {opcionesHora.map(opc => (
+                            <SelectItem key={opc.valor} value={opc.valor}>
+                              {opc.etiqueta}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-gray-500">Define cada cuánto tiempo se pueden hacer reservas</p>
                     </div>
 
-                    {/* Configuración por Día */}
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm font-medium">Configuración por Día</Label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            // Aplicar configuración base a todos los días
-                            const diasSemana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
-                            const nuevasVentanas = diasSemana.map(dia => ({
-                              dia,
-                              ventanas: [{
-                                nombre: 'Mañana',
-                                inicio: '09:00',
-                                fin: '12:00',
-                                duracionMaxima: 3
-                              }]
-                            }));
-                            setFormData(prev => ({ 
-                              ...prev, 
-                              reglamento: { 
-                                ...(prev.reglamento || {}), 
-                                ventanasHorariosFijos: nuevasVentanas
-                              } 
-                            }));
-                            toast.success("Configuración base aplicada a todos los días");
-                          }}
-                        >
-                          🚀 Aplicar a todos
-                        </Button>
-                      </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="ventanaHorarioPagoFin" className="text-sm font-medium">Hora de Fin</Label>
+                      <Select
+                        value={reglamento.ventanaHorarioPago?.fin || "22:00"}
+                        onValueChange={(value) => setFormData(prev => ({
+                          ...prev,
+                          reglamento: {
+                            ...(prev.reglamento || {}),
+                            ventanaHorarioPago: {
+                              inicio: prev.reglamento?.ventanaHorarioPago?.inicio || "09:00",
+                              fin: value
+                            }
+                          }
+                        }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {opcionesHora.map(opc => (
+                            <SelectItem key={opc.valor} value={opc.valor}>
+                              {opc.etiqueta}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
 
-                      {/* Grid de días */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'].map((dia) => (
-                          <div key={dia} className="border border-gray-200 rounded-lg p-4 space-y-3">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="checkbox"
-                                  id={`disable-${dia}`}
-                                  checked={!reglamento.diasSemanaDeshabilitados?.includes(dia)}
-                                  onChange={(e) => {
-                                    const diasDeshabilitados = [...(reglamento.diasSemanaDeshabilitados || [])];
-                                    if (e.target.checked) {
-                                      // Habilitar día - remover de la lista de deshabilitados
-                                      const index = diasDeshabilitados.indexOf(dia);
-                                      if (index > -1) {
-                                        diasDeshabilitados.splice(index, 1);
-                                      }
-                                    } else {
-                                      // Deshabilitar día - agregar a la lista
-                                      if (!diasDeshabilitados.includes(dia)) {
-                                        diasDeshabilitados.push(dia);
-                                      }
+                  <div className="bg-blue-100 border border-blue-300 rounded-lg p-3 mt-4">
+                    <p className="text-xs text-blue-800">
+                      <strong>Ejemplo:</strong> Si configuras de 15:00 a 23:00, los usuarios podrán reservar cualquier horario dentro de este rango
+                      (ej: 15:00-20:00, 16:00-21:00, etc.) hasta el máximo de {reglamento.maxHorasPago || 5} horas permitidas.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : reglamento.tipoReservas === 'horarios_fijos' ? (
+              // 🆕 UI SIMPLE PARA HORARIOS FIJOS
+              <div className="space-y-6">
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-gray-800 flex items-center justify-center gap-2">
+                    <Clock className="w-5 h-5 text-purple-600" />
+                    Configuración de Horarios Especiales
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-2">
+                    Define los períodos donde los usuarios pueden hacer reservas
+                  </p>
+                </div>
+
+                {/* Configuración Simple */}
+                <div className="max-w-4xl mx-auto space-y-6">
+                  {/* Intervalos */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Frecuencia de Horarios</Label>
+                    <Select
+                      value={(reglamento.intervalosDisponibles || 30).toString()}
+                      onValueChange={(value) => setFormData(prev => ({
+                        ...prev,
+                        reglamento: {
+                          ...(prev.reglamento || {}),
+                          intervalosDisponibles: parseInt(value)
+                        }
+                      }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="60">Cada hora (ej: 3:00, 4:00, 5:00)</SelectItem>
+                        <SelectItem value="30">Cada 30 minutos</SelectItem>
+                        <SelectItem value="15">Cada 15 minutos</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500">Define cada cuánto tiempo se pueden hacer reservas</p>
+                  </div>
+
+                  {/* Configuración por Día */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">Configuración por Día</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // Aplicar configuración base a todos los días
+                          const diasSemana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+                          const nuevasVentanas = diasSemana.map(dia => ({
+                            dia,
+                            ventanas: [{
+                              nombre: 'Mañana',
+                              inicio: '09:00',
+                              fin: '12:00',
+                              duracionMaxima: 3
+                            }]
+                          }));
+                          setFormData(prev => ({
+                            ...prev,
+                            reglamento: {
+                              ...(prev.reglamento || {}),
+                              ventanasHorariosFijos: nuevasVentanas
+                            }
+                          }));
+                          toast.success("Configuración base aplicada a todos los días");
+                        }}
+                      >
+                        🚀 Aplicar a todos
+                      </Button>
+                    </div>
+
+                    {/* Grid de días */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'].map((dia) => (
+                        <div key={dia} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id={`disable-${dia}`}
+                                checked={!reglamento.diasSemanaDeshabilitados?.includes(dia)}
+                                onChange={(e) => {
+                                  const diasDeshabilitados = [...(reglamento.diasSemanaDeshabilitados || [])];
+                                  if (e.target.checked) {
+                                    // Habilitar día - remover de la lista de deshabilitados
+                                    const index = diasDeshabilitados.indexOf(dia);
+                                    if (index > -1) {
+                                      diasDeshabilitados.splice(index, 1);
                                     }
-                                    setFormData(prev => ({ 
-                                      ...prev, 
-                                      reglamento: { 
-                                        ...(prev.reglamento || {}), 
-                                        diasSemanaDeshabilitados: diasDeshabilitados
-                                      } 
-                                    }));
-                                  }}
-                                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                                />
-                                <Label 
-                                  htmlFor={`disable-${dia}`} 
-                                  className={`text-sm font-medium capitalize ${!reglamento.diasSemanaDeshabilitados?.includes(dia) ? 'text-gray-800' : 'text-gray-400 line-through'}`}
-                                >
-                                  {dia}
-                                </Label>
-                              </div>
-                              {!reglamento.diasSemanaDeshabilitados?.includes(dia) && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    const diaActual = reglamento.ventanasHorariosFijos?.find(v => v.dia === dia);
-                                    const ventanasActuales = diaActual?.ventanas || [];
-                                                              const nuevasVentanas = [...ventanasActuales, {
-                            nombre: `Horario ${ventanasActuales.length + 1}`,
-                            inicio: '09:00',
-                            fin: '12:00',
-                            duracionMaxima: 3
-                          }];
-                                    
-                                    const todasLasVentanas = [...(reglamento.ventanasHorariosFijos || [])];
-                                    const indexDia = todasLasVentanas.findIndex(v => v.dia === dia);
-                                    
-                                    if (indexDia >= 0) {
-                                      todasLasVentanas[indexDia] = { dia, ventanas: nuevasVentanas };
-                                    } else {
-                                      todasLasVentanas.push({ dia, ventanas: nuevasVentanas });
+                                  } else {
+                                    // Deshabilitar día - agregar a la lista
+                                    if (!diasDeshabilitados.includes(dia)) {
+                                      diasDeshabilitados.push(dia);
                                     }
-                                    
-                                    setFormData(prev => ({ 
-                                      ...prev, 
-                                      reglamento: { 
-                                        ...(prev.reglamento || {}), 
-                                        ventanasHorariosFijos: todasLasVentanas
-                                      } 
-                                    }));
-                                  }}
-                                >
-                                                                  <Plus className="w-4 h-4 mr-1" />
-                                Agregar Horario
-                                </Button>
-                              )}
+                                  }
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    reglamento: {
+                                      ...(prev.reglamento || {}),
+                                      diasSemanaDeshabilitados: diasDeshabilitados
+                                    }
+                                  }));
+                                }}
+                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                              />
+                              <Label
+                                htmlFor={`disable-${dia}`}
+                                className={`text-sm font-medium capitalize ${!reglamento.diasSemanaDeshabilitados?.includes(dia) ? 'text-gray-800' : 'text-gray-400 line-through'}`}
+                              >
+                                {dia}
+                              </Label>
                             </div>
-
-                            {/* Horarios del día */}
                             {!reglamento.diasSemanaDeshabilitados?.includes(dia) && (
-                              <div className="space-y-2">
-                                {(reglamento.ventanasHorariosFijos?.find(v => v.dia === dia)?.ventanas || []).map((ventana, index) => (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const diaActual = reglamento.ventanasHorariosFijos?.find(v => v.dia === dia);
+                                  const ventanasActuales = diaActual?.ventanas || [];
+                                  const nuevasVentanas = [...ventanasActuales, {
+                                    nombre: `Horario ${ventanasActuales.length + 1}`,
+                                    inicio: '09:00',
+                                    fin: '12:00',
+                                    duracionMaxima: 3
+                                  }];
+
+                                  const todasLasVentanas = [...(reglamento.ventanasHorariosFijos || [])];
+                                  const indexDia = todasLasVentanas.findIndex(v => v.dia === dia);
+
+                                  if (indexDia >= 0) {
+                                    todasLasVentanas[indexDia] = { dia, ventanas: nuevasVentanas };
+                                  } else {
+                                    todasLasVentanas.push({ dia, ventanas: nuevasVentanas });
+                                  }
+
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    reglamento: {
+                                      ...(prev.reglamento || {}),
+                                      ventanasHorariosFijos: todasLasVentanas
+                                    }
+                                  }));
+                                }}
+                              >
+                                <Plus className="w-4 h-4 mr-1" />
+                                Agregar Horario
+                              </Button>
+                            )}
+                          </div>
+
+                          {/* Horarios del día */}
+                          {!reglamento.diasSemanaDeshabilitados?.includes(dia) && (
+                            <div className="space-y-2">
+                              {(reglamento.ventanasHorariosFijos?.find(v => v.dia === dia)?.ventanas || []).map((ventana, index) => (
                                 <div key={index} className="border border-gray-100 rounded p-2 space-y-2">
                                   <div className="flex items-center justify-between">
-                                    <Input 
-                                      value={ventana.nombre} 
+                                    <Input
+                                      value={ventana.nombre}
                                       onChange={(e) => {
                                         const todasLasVentanas = [...(reglamento.ventanasHorariosFijos || [])];
                                         const indexDia = todasLasVentanas.findIndex(v => v.dia === dia);
@@ -1140,12 +1757,12 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                                           const ventanasDia = [...todasLasVentanas[indexDia].ventanas];
                                           ventanasDia[index] = { ...ventana, nombre: e.target.value };
                                           todasLasVentanas[indexDia] = { ...todasLasVentanas[indexDia], ventanas: ventanasDia };
-                                          setFormData(prev => ({ 
-                                            ...prev, 
-                                            reglamento: { 
-                                              ...(prev.reglamento || {}), 
+                                          setFormData(prev => ({
+                                            ...prev,
+                                            reglamento: {
+                                              ...(prev.reglamento || {}),
                                               ventanasHorariosFijos: todasLasVentanas
-                                            } 
+                                            }
                                           }));
                                         }
                                       }}
@@ -1166,12 +1783,12 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                                           } else {
                                             todasLasVentanas[indexDia] = { ...todasLasVentanas[indexDia], ventanas: ventanasDia };
                                           }
-                                          setFormData(prev => ({ 
-                                            ...prev, 
-                                            reglamento: { 
-                                              ...(prev.reglamento || {}), 
+                                          setFormData(prev => ({
+                                            ...prev,
+                                            reglamento: {
+                                              ...(prev.reglamento || {}),
                                               ventanasHorariosFijos: todasLasVentanas
-                                            } 
+                                            }
                                           }));
                                         }
                                       }}
@@ -1183,9 +1800,9 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                                   <div className="grid grid-cols-3 gap-2">
                                     <div className="space-y-1">
                                       <Label className="text-xs">Inicio</Label>
-                                      <Input 
+                                      <Input
                                         type="time"
-                                        value={ventana.inicio} 
+                                        value={ventana.inicio}
                                         onChange={(e) => {
                                           const todasLasVentanas = [...(reglamento.ventanasHorariosFijos || [])];
                                           const indexDia = todasLasVentanas.findIndex(v => v.dia === dia);
@@ -1193,12 +1810,12 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                                             const ventanasDia = [...todasLasVentanas[indexDia].ventanas];
                                             ventanasDia[index] = { ...ventana, inicio: e.target.value };
                                             todasLasVentanas[indexDia] = { ...todasLasVentanas[indexDia], ventanas: ventanasDia };
-                                            setFormData(prev => ({ 
-                                              ...prev, 
-                                              reglamento: { 
-                                                ...(prev.reglamento || {}), 
+                                            setFormData(prev => ({
+                                              ...prev,
+                                              reglamento: {
+                                                ...(prev.reglamento || {}),
                                                 ventanasHorariosFijos: todasLasVentanas
-                                              } 
+                                              }
                                             }));
                                           }
                                         }}
@@ -1207,9 +1824,9 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                                     </div>
                                     <div className="space-y-1">
                                       <Label className="text-xs">Fin</Label>
-                                      <Input 
+                                      <Input
                                         type="time"
-                                        value={ventana.fin} 
+                                        value={ventana.fin}
                                         onChange={(e) => {
                                           const todasLasVentanas = [...(reglamento.ventanasHorariosFijos || [])];
                                           const indexDia = todasLasVentanas.findIndex(v => v.dia === dia);
@@ -1217,12 +1834,12 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                                             const ventanasDia = [...todasLasVentanas[indexDia].ventanas];
                                             ventanasDia[index] = { ...ventana, fin: e.target.value };
                                             todasLasVentanas[indexDia] = { ...todasLasVentanas[indexDia], ventanas: ventanasDia };
-                                            setFormData(prev => ({ 
-                                              ...prev, 
-                                              reglamento: { 
-                                                ...(prev.reglamento || {}), 
+                                            setFormData(prev => ({
+                                              ...prev,
+                                              reglamento: {
+                                                ...(prev.reglamento || {}),
                                                 ventanasHorariosFijos: todasLasVentanas
-                                              } 
+                                              }
                                             }));
                                           }
                                         }}
@@ -1231,9 +1848,9 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                                     </div>
                                     <div className="space-y-1">
                                       <Label className="text-xs">Máx (h)</Label>
-                                      <Input 
+                                      <Input
                                         type="number"
-                                        value={ventana.duracionMaxima} 
+                                        value={ventana.duracionMaxima}
                                         onChange={(e) => {
                                           const todasLasVentanas = [...(reglamento.ventanasHorariosFijos || [])];
                                           const indexDia = todasLasVentanas.findIndex(v => v.dia === dia);
@@ -1241,12 +1858,12 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                                             const ventanasDia = [...todasLasVentanas[indexDia].ventanas];
                                             ventanasDia[index] = { ...ventana, duracionMaxima: parseInt(e.target.value) || 1 };
                                             todasLasVentanas[indexDia] = { ...todasLasVentanas[indexDia], ventanas: ventanasDia };
-                                            setFormData(prev => ({ 
-                                              ...prev, 
-                                              reglamento: { 
-                                                ...(prev.reglamento || {}), 
+                                            setFormData(prev => ({
+                                              ...prev,
+                                              reglamento: {
+                                                ...(prev.reglamento || {}),
                                                 ventanasHorariosFijos: todasLasVentanas
-                                              } 
+                                              }
                                             }));
                                           }
                                         }}
@@ -1261,530 +1878,140 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                             </div>
                           )}
 
-                            {/* Mensaje cuando no hay horarios para este día */}
-                            {!reglamento.diasSemanaDeshabilitados?.includes(dia) && (reglamento.ventanasHorariosFijos?.find(v => v.dia === dia)?.ventanas || []).length === 0 && (
-                              <div className="text-center py-4 text-gray-400">
-                                <p className="text-xs">Sin horarios</p>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Información de ayuda */}
-                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                      <div className="text-xs text-purple-700 space-y-1">
-                        <p><strong>Ejemplo:</strong></p>
-                        <p>• Mañana: 9:00 AM - 12:00 PM (hasta 3h)</p>
-                        <p>• Tarde: 3:00 PM - 8:00 PM (hasta 5h)</p>
-                        <p>• Los usuarios elegirán cuándo empezar dentro de cada período</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                // UI ORIGINAL PARA HORARIOS NORMALES
-                <div className="space-y-6">
-                  <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-blue-600" />
-                    Horarios de Operación
-                  </h3>
-
-              {/* Horarios por Día - UI Individual Integrada */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-md font-medium text-gray-700">Horarios por Día</h4>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        // Aplicar horario base a todos los días
-                        const horarioBase = { apertura: "08:00", cierre: "22:00" };
-                        setFormData(prev => ({
-                      ...prev, 
-                      reglamento: { 
-                        ...(prev.reglamento || {}), 
-                        horarios: { 
-                          ...(prev.reglamento?.horarios || {}), 
-                              entreSemana: horarioBase,
-                              finDeSemana: horarioBase,
-                              diasDisponibles: ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"],
-                              individuales: {
-                                lunes: horarioBase,
-                                martes: horarioBase,
-                                miercoles: horarioBase,
-                                jueves: horarioBase,
-                                viernes: horarioBase,
-                                sabado: { apertura: "09:00", cierre: "23:00" },
-                                domingo: { apertura: "09:00", cierre: "23:00" }
-                              }
-                            }
-                          }
-                        }));
-                        toast.success("Horario base aplicado a todos los días");
-                      }}
-                      className="text-xs"
-                    >
-                      🚀 Aplicar a todos
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Grid de Horarios por Día Individual */}
-                <div className="space-y-3">
-                  {/* Lunes */}
-                  <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                    <div className="w-20 text-sm font-medium text-gray-700">Lunes</div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-gray-600">Apertura</Label>
-                      <Select 
-                        value={horariosSeguros.lunes.apertura} 
-                        onValueChange={(value) => actualizarHorarioIndividual('lunes', 'apertura', value)}
-                      >
-                        <SelectTrigger className="w-24 h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {opcionesHora.map(opc => (
-                        <SelectItem key={opc.valor} value={opc.valor}>
-                          {opc.etiqueta}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                    
-                    <div className="text-gray-400">─</div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-gray-600">Cierre</Label>
-                  <Select 
-                        value={horariosSeguros.lunes.cierre} 
-                        onValueChange={(value) => actualizarHorarioIndividual('lunes', 'cierre', value)}
-                      >
-                        <SelectTrigger className="w-24 h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {opcionesHora.map(opc => (
-                            <SelectItem key={opc.valor} value={opc.valor}>
-                              {opc.etiqueta}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 ml-auto">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="lunes-deshabilitado"
-                          checked={reglamento.diasSemanaDeshabilitados?.includes('lunes') || false}
-                          onChange={(e) => {
-                            const diasActuales = reglamento.diasSemanaDeshabilitados || [];
-                            let nuevosDias;
-                            
-                            if (e.target.checked) {
-                              nuevosDias = [...diasActuales, 'lunes'];
-                            } else {
-                              nuevosDias = diasActuales.filter(d => d !== 'lunes');
-                            }
-                            
-                            setFormData(prev => ({
-                      ...prev, 
-                      reglamento: { 
-                        ...(prev.reglamento || {}), 
-                                diasSemanaDeshabilitados: nuevosDias
-                              }
-                            }));
-                          }}
-                          className="rounded border-gray-300 text-red-600 focus:ring-red-500"
-                        />
-                        <Label htmlFor="lunes-deshabilitado" className="text-xs text-red-600 cursor-pointer">
-                          Deshabilitar
-                        </Label>
-                      </div>
-                      <div className={`w-2 h-2 rounded-full ${reglamento.diasSemanaDeshabilitados?.includes('lunes') ? 'bg-red-500' : 'bg-green-500'}`}></div>
-                    </div>
-                  </div>
-
-                  {/* Martes */}
-                  <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                    <div className="w-20 text-sm font-medium text-gray-700">Martes</div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-gray-600">Apertura</Label>
-                      <Select 
-                        value={horariosSeguros.martes.apertura} 
-                        onValueChange={(value) => actualizarHorarioIndividual('martes', 'apertura', value)}
-                      >
-                        <SelectTrigger className="w-24 h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {opcionesHora.map(opc => (
-                        <SelectItem key={opc.valor} value={opc.valor}>
-                          {opc.etiqueta}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-            </div>
-            
-                    <div className="text-gray-400">─</div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-gray-600">Cierre</Label>
-                  <Select 
-                        value={horariosSeguros.martes.cierre} 
-                        onValueChange={(value) => actualizarHorarioIndividual('martes', 'cierre', value)}
-                      >
-                        <SelectTrigger className="w-24 h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {opcionesHora.map(opc => (
-                            <SelectItem key={opc.valor} value={opc.valor}>
-                              {opc.etiqueta}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 ml-auto">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="martes-deshabilitado"
-                          checked={reglamento.diasSemanaDeshabilitados?.includes('martes') || false}
-                          onChange={(e) => {
-                            const diasActuales = reglamento.diasSemanaDeshabilitados || [];
-                            let nuevosDias;
-                            
-                            if (e.target.checked) {
-                              nuevosDias = [...diasActuales, 'martes'];
-                            } else {
-                              nuevosDias = diasActuales.filter(d => d !== 'martes');
-                            }
-                            
-                            setFormData(prev => ({
-                      ...prev, 
-                      reglamento: { 
-                        ...(prev.reglamento || {}), 
-                                diasSemanaDeshabilitados: nuevosDias
-                              }
-                            }));
-                          }}
-                          className="rounded border-gray-300 text-red-600 focus:ring-red-500"
-                        />
-                        <Label htmlFor="martes-deshabilitado" className="text-xs text-red-600 cursor-pointer">
-                          Deshabilitar
-                        </Label>
-                      </div>
-                      <div className={`w-2 h-2 rounded-full ${reglamento.diasSemanaDeshabilitados?.includes('martes') ? 'bg-red-500' : 'bg-green-500'}`}></div>
-                    </div>
-                  </div>
-
-                  {/* Miércoles */}
-                  <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                    <div className="w-20 text-sm font-medium text-gray-700">Miércoles</div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-gray-600">Apertura</Label>
-                      <Select 
-                        value={horariosSeguros.miercoles.apertura} 
-                        onValueChange={(value) => actualizarHorarioIndividual('miercoles', 'apertura', value)}
-                      >
-                        <SelectTrigger className="w-24 h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {opcionesHora.map(opc => (
-                        <SelectItem key={opc.valor} value={opc.valor}>
-                          {opc.etiqueta}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                    
-                    <div className="text-gray-400">─</div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-gray-600">Cierre</Label>
-                  <Select 
-                        value={horariosSeguros.miercoles.cierre} 
-                        onValueChange={(value) => actualizarHorarioIndividual('miercoles', 'cierre', value)}
-                      >
-                        <SelectTrigger className="w-24 h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {opcionesHora.map(opc => (
-                            <SelectItem key={opc.valor} value={opc.valor}>
-                              {opc.etiqueta}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 ml-auto">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="miercoles-deshabilitado"
-                          checked={reglamento.diasSemanaDeshabilitados?.includes('miercoles') || false}
-                          onChange={(e) => {
-                            const diasActuales = reglamento.diasSemanaDeshabilitados || [];
-                            let nuevosDias;
-                            
-                            if (e.target.checked) {
-                              nuevosDias = [...diasActuales, 'miercoles'];
-                            } else {
-                              nuevosDias = diasActuales.filter(d => d !== 'miercoles');
-                            }
-                            
-                            setFormData(prev => ({
-                      ...prev, 
-                      reglamento: { 
-                        ...(prev.reglamento || {}), 
-                                diasSemanaDeshabilitados: nuevosDias
-                              }
-                            }));
-                          }}
-                          className="rounded border-gray-300 text-red-600 focus:ring-red-500"
-                        />
-                        <Label htmlFor="miercoles-deshabilitado" className="text-xs text-red-600 cursor-pointer">
-                          Deshabilitar
-                        </Label>
-                      </div>
-                      <div className={`w-2 h-2 rounded-full ${reglamento.diasSemanaDeshabilitados?.includes('miercoles') ? 'bg-red-500' : 'bg-green-500'}`}></div>
-                    </div>
-                  </div>
-
-                  {/* Jueves */}
-                  <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                    <div className="w-20 text-sm font-medium text-gray-700">Jueves</div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-gray-600">Apertura</Label>
-                      <Select 
-                        value={horariosSeguros.jueves.apertura} 
-                        onValueChange={(value) => actualizarHorarioIndividual('jueves', 'apertura', value)}
-                      >
-                        <SelectTrigger className="w-24 h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {opcionesHora.map(opc => (
-                        <SelectItem key={opc.valor} value={opc.valor}>
-                          {opc.etiqueta}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-          </div>
-          
-                    <div className="text-gray-400">─</div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-gray-600">Cierre</Label>
-                <Select 
-                        value={horariosSeguros.jueves.cierre} 
-                        onValueChange={(value) => actualizarHorarioIndividual('jueves', 'cierre', value)}
-                      >
-                        <SelectTrigger className="w-24 h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                          {opcionesHora.map(opc => (
-                            <SelectItem key={opc.valor} value={opc.valor}>
-                              {opc.etiqueta}
-                            </SelectItem>
-                          ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-                    <div className="flex items-center gap-2 ml-auto">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="jueves-deshabilitado"
-                          checked={reglamento.diasSemanaDeshabilitados?.includes('jueves') || false}
-                          onChange={(e) => {
-                            const diasActuales = reglamento.diasSemanaDeshabilitados || [];
-                            let nuevosDias;
-                            
-                            if (e.target.checked) {
-                              nuevosDias = [...diasActuales, 'jueves'];
-                            } else {
-                              nuevosDias = diasActuales.filter(d => d !== 'jueves');
-                            }
-                            
-                            setFormData(prev => ({
-                      ...prev, 
-                      reglamento: { 
-                        ...(prev.reglamento || {}), 
-                                diasSemanaDeshabilitados: nuevosDias
-                      } 
-                            }));
-                          }}
-                          className="rounded border-gray-300 text-red-600 focus:ring-red-500"
-                  />
-                        <Label htmlFor="jueves-deshabilitado" className="text-xs text-red-600 cursor-pointer">
-                          Deshabilitar
-                        </Label>
-                </div>
-                      <div className={`w-2 h-2 rounded-full ${reglamento.diasSemanaDeshabilitados?.includes('jueves') ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                          {/* Mensaje cuando no hay horarios para este día */}
+                          {!reglamento.diasSemanaDeshabilitados?.includes(dia) && (reglamento.ventanasHorariosFijos?.find(v => v.dia === dia)?.ventanas || []).length === 0 && (
+                            <div className="text-center py-4 text-gray-400">
+                              <p className="text-xs">Sin horarios</p>
+                            </div>
+                          )}
                         </div>
-          </div>
-          
-                  {/* Viernes */}
-                  <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                    <div className="w-20 text-sm font-medium text-gray-700">Viernes</div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-gray-600">Apertura</Label>
-                      <Select 
-                        value={horariosSeguros.viernes.apertura} 
-                        onValueChange={(value) => actualizarHorarioIndividual('viernes', 'apertura', value)}
-                      >
-                        <SelectTrigger className="w-24 h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {opcionesHora.map(opc => (
-                            <SelectItem key={opc.valor} value={opc.valor}>
-                              {opc.etiqueta}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="text-gray-400">─</div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-gray-600">Cierre</Label>
-                      <Select 
-                        value={horariosSeguros.viernes.cierre} 
-                        onValueChange={(value) => actualizarHorarioIndividual('viernes', 'cierre', value)}
-                      >
-                        <SelectTrigger className="w-24 h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {opcionesHora.map(opc => (
-                            <SelectItem key={opc.valor} value={opc.valor}>
-                              {opc.etiqueta}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 ml-auto">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="viernes-deshabilitado"
-                          checked={reglamento.diasSemanaDeshabilitados?.includes('viernes') || false}
-                          onChange={(e) => {
-                            const diasActuales = reglamento.diasSemanaDeshabilitados || [];
-                            let nuevosDias;
-                            
-                            if (e.target.checked) {
-                              nuevosDias = [...diasActuales, 'viernes'];
-                            } else {
-                              nuevosDias = diasActuales.filter(d => d !== 'viernes');
-                            }
-                            
-                    setFormData(prev => ({
-                      ...prev,
-                      reglamento: {
-                        ...(prev.reglamento || {}),
-                                diasSemanaDeshabilitados: nuevosDias
-                      }
-                    }));
-                          }}
-                          className="rounded border-gray-300 text-red-600 focus:ring-red-500"
-                        />
-                        <Label htmlFor="viernes-deshabilitado" className="text-xs text-red-600 cursor-pointer">
-                          Deshabilitar
-                        </Label>
-                      </div>
-                      <div className={`w-2 h-2 rounded-full ${reglamento.diasSemanaDeshabilitados?.includes('viernes') ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                      ))}
                     </div>
                   </div>
 
-                  {/* Sábado */}
-                  <div className="flex items-center gap-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="w-20 text-sm font-medium text-blue-700">Sábado</div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-blue-600">Apertura</Label>
-                      <Select 
-                        value={horariosSeguros.sabado.apertura} 
-                        onValueChange={(value) => actualizarHorarioIndividual('sabado', 'apertura', value)}
-                      >
-                        <SelectTrigger className="w-24 h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {opcionesHora.map(opc => (
-                            <SelectItem key={opc.valor} value={opc.valor}>
-                              {opc.etiqueta}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-            </div>
-            
-                    <div className="text-blue-400">─</div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-blue-600">Cierre</Label>
-                      <Select 
-                        value={horariosSeguros.sabado.cierre} 
-                        onValueChange={(value) => actualizarHorarioIndividual('sabado', 'cierre', value)}
-                      >
-                        <SelectTrigger className="w-24 h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {opcionesHora.map(opc => (
-                            <SelectItem key={opc.valor} value={opc.valor}>
-                              {opc.etiqueta}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  {/* Información de ayuda */}
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                    <div className="text-xs text-purple-700 space-y-1">
+                      <p><strong>Ejemplo:</strong></p>
+                      <p>• Mañana: 9:00 AM - 12:00 PM (hasta 3h)</p>
+                      <p>• Tarde: 3:00 PM - 8:00 PM (hasta 5h)</p>
+                      <p>• Los usuarios elegirán cuándo empezar dentro de cada período</p>
+                    </div>
                   </div>
-                    
-                    <div className="flex items-center gap-2 ml-auto">
+                </div>
+              </div>
+            ) : (
+              // UI ORIGINAL PARA HORARIOS NORMALES
+              <div className="space-y-6">
+                <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-blue-600" />
+                  Horarios de Operación
+                </h3>
+
+                {/* Horarios por Día - UI Individual Integrada */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-md font-medium text-gray-700">Horarios por Día</h4>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // Aplicar horario base a todos los días
+                          const horarioBase = { apertura: "08:00", cierre: "22:00" };
+                          setFormData(prev => ({
+                            ...prev,
+                            reglamento: {
+                              ...(prev.reglamento || {}),
+                              horarios: {
+                                ...(prev.reglamento?.horarios || {}),
+                                entreSemana: horarioBase,
+                                finDeSemana: horarioBase,
+                                diasDisponibles: ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"],
+                                individuales: {
+                                  lunes: horarioBase,
+                                  martes: horarioBase,
+                                  miercoles: horarioBase,
+                                  jueves: horarioBase,
+                                  viernes: horarioBase,
+                                  sabado: { apertura: "09:00", cierre: "23:00" },
+                                  domingo: { apertura: "09:00", cierre: "23:00" }
+                                }
+                              }
+                            }
+                          }));
+                          toast.success("Horario base aplicado a todos los días");
+                        }}
+                        className="text-xs"
+                      >
+                        🚀 Aplicar a todos
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Grid de Horarios por Día Individual */}
+                  <div className="space-y-3">
+                    {/* Lunes */}
+                    <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                      <div className="w-20 text-sm font-medium text-gray-700">Lunes</div>
+
                       <div className="flex items-center gap-2">
+                        <Label className="text-xs text-gray-600">Apertura</Label>
+                        <Select
+                          value={horariosSeguros.lunes.apertura}
+                          onValueChange={(value) => actualizarHorarioIndividual('lunes', 'apertura', value)}
+                        >
+                          <SelectTrigger className="w-24 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {opcionesHora.map(opc => (
+                              <SelectItem key={opc.valor} value={opc.valor}>
+                                {opc.etiqueta}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="text-gray-400">─</div>
+
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-gray-600">Cierre</Label>
+                        <Select
+                          value={horariosSeguros.lunes.cierre}
+                          onValueChange={(value) => actualizarHorarioIndividual('lunes', 'cierre', value)}
+                        >
+                          <SelectTrigger className="w-24 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {opcionesHora.map(opc => (
+                              <SelectItem key={opc.valor} value={opc.valor}>
+                                {opc.etiqueta}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex items-center gap-2 ml-auto">
+                        <div className="flex items-center gap-2">
                           <input
                             type="checkbox"
-                          id="sabado-deshabilitado"
-                          checked={reglamento.diasSemanaDeshabilitados?.includes('sabado') || false}
+                            id="lunes-deshabilitado"
+                            checked={reglamento.diasSemanaDeshabilitados?.includes('lunes') || false}
                             onChange={(e) => {
                               const diasActuales = reglamento.diasSemanaDeshabilitados || [];
                               let nuevosDias;
-                              
+
                               if (e.target.checked) {
-                              nuevosDias = [...diasActuales, 'sabado'];
+                                nuevosDias = [...diasActuales, 'lunes'];
                               } else {
-                              nuevosDias = diasActuales.filter(d => d !== 'sabado');
+                                nuevosDias = diasActuales.filter(d => d !== 'lunes');
                               }
-                              
+
                               setFormData(prev => ({
                                 ...prev,
                                 reglamento: {
@@ -1793,111 +2020,501 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                                 }
                               }));
                             }}
-                          className="rounded border-blue-300 text-red-600 focus:ring-red-500"
+                            className="rounded border-gray-300 text-red-600 focus:ring-red-500"
                           />
-                        <Label htmlFor="sabado-deshabilitado" className="text-xs text-red-600 cursor-pointer">
-                          Deshabilitar
+                          <Label htmlFor="lunes-deshabilitado" className="text-xs text-red-600 cursor-pointer">
+                            Deshabilitar
                           </Label>
                         </div>
-                      <div className={`w-2 h-2 rounded-full ${reglamento.diasSemanaDeshabilitados?.includes('sabado') ? 'bg-red-500' : 'bg-green-500'}`}></div>
-                  </div>
-                </div>
-
-                  {/* Domingo */}
-                  <div className="flex items-center gap-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="w-20 text-sm font-medium text-blue-700">Domingo</div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-blue-600">Apertura</Label>
-                      <Select 
-                        value={horariosSeguros.domingo.apertura} 
-                        onValueChange={(value) => actualizarHorarioIndividual('domingo', 'apertura', value)}
-                      >
-                        <SelectTrigger className="w-24 h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {opcionesHora.map(opc => (
-                            <SelectItem key={opc.valor} value={opc.valor}>
-                              {opc.etiqueta}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                  </div>
-                    
-                    <div className="text-blue-400">─</div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-blue-600">Cierre</Label>
-                      <Select 
-                        value={horariosSeguros.domingo.cierre} 
-                        onValueChange={(value) => actualizarHorarioIndividual('domingo', 'cierre', value)}
-                      >
-                        <SelectTrigger className="w-24 h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {opcionesHora.map(opc => (
-                            <SelectItem key={opc.valor} value={opc.valor}>
-                              {opc.etiqueta}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <div className={`w-2 h-2 rounded-full ${reglamento.diasSemanaDeshabilitados?.includes('lunes') ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                      </div>
                     </div>
-                    
-                    <div className="flex items-center gap-2 ml-auto">
+
+                    {/* Martes */}
+                    <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                      <div className="w-20 text-sm font-medium text-gray-700">Martes</div>
+
                       <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="domingo-deshabilitado"
-                          checked={reglamento.diasSemanaDeshabilitados?.includes('domingo') || false}
-                          onChange={(e) => {
-                            const diasActuales = reglamento.diasSemanaDeshabilitados || [];
-                            let nuevosDias;
-                            
-                            if (e.target.checked) {
-                              nuevosDias = [...diasActuales, 'domingo'];
-                            } else {
-                              nuevosDias = diasActuales.filter(d => d !== 'domingo');
-                            }
-                            
+                        <Label className="text-xs text-gray-600">Apertura</Label>
+                        <Select
+                          value={horariosSeguros.martes.apertura}
+                          onValueChange={(value) => actualizarHorarioIndividual('martes', 'apertura', value)}
+                        >
+                          <SelectTrigger className="w-24 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {opcionesHora.map(opc => (
+                              <SelectItem key={opc.valor} value={opc.valor}>
+                                {opc.etiqueta}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="text-gray-400">─</div>
+
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-gray-600">Cierre</Label>
+                        <Select
+                          value={horariosSeguros.martes.cierre}
+                          onValueChange={(value) => actualizarHorarioIndividual('martes', 'cierre', value)}
+                        >
+                          <SelectTrigger className="w-24 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {opcionesHora.map(opc => (
+                              <SelectItem key={opc.valor} value={opc.valor}>
+                                {opc.etiqueta}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex items-center gap-2 ml-auto">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="martes-deshabilitado"
+                            checked={reglamento.diasSemanaDeshabilitados?.includes('martes') || false}
+                            onChange={(e) => {
+                              const diasActuales = reglamento.diasSemanaDeshabilitados || [];
+                              let nuevosDias;
+
+                              if (e.target.checked) {
+                                nuevosDias = [...diasActuales, 'martes'];
+                              } else {
+                                nuevosDias = diasActuales.filter(d => d !== 'martes');
+                              }
+
                               setFormData(prev => ({
                                 ...prev,
                                 reglamento: {
                                   ...(prev.reglamento || {}),
-                                diasSemanaDeshabilitados: nuevosDias
+                                  diasSemanaDeshabilitados: nuevosDias
                                 }
                               }));
-                          }}
-                          className="rounded border-blue-300 text-red-600 focus:ring-red-500"
-                        />
-                        <Label htmlFor="domingo-deshabilitado" className="text-xs text-red-600 cursor-pointer">
-                          Deshabilitar
-                        </Label>
+                            }}
+                            className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                          />
+                          <Label htmlFor="martes-deshabilitado" className="text-xs text-red-600 cursor-pointer">
+                            Deshabilitar
+                          </Label>
+                        </div>
+                        <div className={`w-2 h-2 rounded-full ${reglamento.diasSemanaDeshabilitados?.includes('martes') ? 'bg-red-500' : 'bg-green-500'}`}></div>
                       </div>
-                      <div className={`w-2 h-2 rounded-full ${reglamento.diasSemanaDeshabilitados?.includes('domingo') ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                    </div>
+
+                    {/* Miércoles */}
+                    <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                      <div className="w-20 text-sm font-medium text-gray-700">Miércoles</div>
+
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-gray-600">Apertura</Label>
+                        <Select
+                          value={horariosSeguros.miercoles.apertura}
+                          onValueChange={(value) => actualizarHorarioIndividual('miercoles', 'apertura', value)}
+                        >
+                          <SelectTrigger className="w-24 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {opcionesHora.map(opc => (
+                              <SelectItem key={opc.valor} value={opc.valor}>
+                                {opc.etiqueta}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="text-gray-400">─</div>
+
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-gray-600">Cierre</Label>
+                        <Select
+                          value={horariosSeguros.miercoles.cierre}
+                          onValueChange={(value) => actualizarHorarioIndividual('miercoles', 'cierre', value)}
+                        >
+                          <SelectTrigger className="w-24 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {opcionesHora.map(opc => (
+                              <SelectItem key={opc.valor} value={opc.valor}>
+                                {opc.etiqueta}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex items-center gap-2 ml-auto">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="miercoles-deshabilitado"
+                            checked={reglamento.diasSemanaDeshabilitados?.includes('miercoles') || false}
+                            onChange={(e) => {
+                              const diasActuales = reglamento.diasSemanaDeshabilitados || [];
+                              let nuevosDias;
+
+                              if (e.target.checked) {
+                                nuevosDias = [...diasActuales, 'miercoles'];
+                              } else {
+                                nuevosDias = diasActuales.filter(d => d !== 'miercoles');
+                              }
+
+                              setFormData(prev => ({
+                                ...prev,
+                                reglamento: {
+                                  ...(prev.reglamento || {}),
+                                  diasSemanaDeshabilitados: nuevosDias
+                                }
+                              }));
+                            }}
+                            className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                          />
+                          <Label htmlFor="miercoles-deshabilitado" className="text-xs text-red-600 cursor-pointer">
+                            Deshabilitar
+                          </Label>
+                        </div>
+                        <div className={`w-2 h-2 rounded-full ${reglamento.diasSemanaDeshabilitados?.includes('miercoles') ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                      </div>
+                    </div>
+
+                    {/* Jueves */}
+                    <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                      <div className="w-20 text-sm font-medium text-gray-700">Jueves</div>
+
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-gray-600">Apertura</Label>
+                        <Select
+                          value={horariosSeguros.jueves.apertura}
+                          onValueChange={(value) => actualizarHorarioIndividual('jueves', 'apertura', value)}
+                        >
+                          <SelectTrigger className="w-24 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {opcionesHora.map(opc => (
+                              <SelectItem key={opc.valor} value={opc.valor}>
+                                {opc.etiqueta}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="text-gray-400">─</div>
+
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-gray-600">Cierre</Label>
+                        <Select
+                          value={horariosSeguros.jueves.cierre}
+                          onValueChange={(value) => actualizarHorarioIndividual('jueves', 'cierre', value)}
+                        >
+                          <SelectTrigger className="w-24 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {opcionesHora.map(opc => (
+                              <SelectItem key={opc.valor} value={opc.valor}>
+                                {opc.etiqueta}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex items-center gap-2 ml-auto">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="jueves-deshabilitado"
+                            checked={reglamento.diasSemanaDeshabilitados?.includes('jueves') || false}
+                            onChange={(e) => {
+                              const diasActuales = reglamento.diasSemanaDeshabilitados || [];
+                              let nuevosDias;
+
+                              if (e.target.checked) {
+                                nuevosDias = [...diasActuales, 'jueves'];
+                              } else {
+                                nuevosDias = diasActuales.filter(d => d !== 'jueves');
+                              }
+
+                              setFormData(prev => ({
+                                ...prev,
+                                reglamento: {
+                                  ...(prev.reglamento || {}),
+                                  diasSemanaDeshabilitados: nuevosDias
+                                }
+                              }));
+                            }}
+                            className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                          />
+                          <Label htmlFor="jueves-deshabilitado" className="text-xs text-red-600 cursor-pointer">
+                            Deshabilitar
+                          </Label>
+                        </div>
+                        <div className={`w-2 h-2 rounded-full ${reglamento.diasSemanaDeshabilitados?.includes('jueves') ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                      </div>
+                    </div>
+
+                    {/* Viernes */}
+                    <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                      <div className="w-20 text-sm font-medium text-gray-700">Viernes</div>
+
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-gray-600">Apertura</Label>
+                        <Select
+                          value={horariosSeguros.viernes.apertura}
+                          onValueChange={(value) => actualizarHorarioIndividual('viernes', 'apertura', value)}
+                        >
+                          <SelectTrigger className="w-24 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {opcionesHora.map(opc => (
+                              <SelectItem key={opc.valor} value={opc.valor}>
+                                {opc.etiqueta}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="text-gray-400">─</div>
+
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-gray-600">Cierre</Label>
+                        <Select
+                          value={horariosSeguros.viernes.cierre}
+                          onValueChange={(value) => actualizarHorarioIndividual('viernes', 'cierre', value)}
+                        >
+                          <SelectTrigger className="w-24 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {opcionesHora.map(opc => (
+                              <SelectItem key={opc.valor} value={opc.valor}>
+                                {opc.etiqueta}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex items-center gap-2 ml-auto">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="viernes-deshabilitado"
+                            checked={reglamento.diasSemanaDeshabilitados?.includes('viernes') || false}
+                            onChange={(e) => {
+                              const diasActuales = reglamento.diasSemanaDeshabilitados || [];
+                              let nuevosDias;
+
+                              if (e.target.checked) {
+                                nuevosDias = [...diasActuales, 'viernes'];
+                              } else {
+                                nuevosDias = diasActuales.filter(d => d !== 'viernes');
+                              }
+
+                              setFormData(prev => ({
+                                ...prev,
+                                reglamento: {
+                                  ...(prev.reglamento || {}),
+                                  diasSemanaDeshabilitados: nuevosDias
+                                }
+                              }));
+                            }}
+                            className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                          />
+                          <Label htmlFor="viernes-deshabilitado" className="text-xs text-red-600 cursor-pointer">
+                            Deshabilitar
+                          </Label>
+                        </div>
+                        <div className={`w-2 h-2 rounded-full ${reglamento.diasSemanaDeshabilitados?.includes('viernes') ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                      </div>
+                    </div>
+
+                    {/* Sábado */}
+                    <div className="flex items-center gap-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="w-20 text-sm font-medium text-blue-700">Sábado</div>
+
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-blue-600">Apertura</Label>
+                        <Select
+                          value={horariosSeguros.sabado.apertura}
+                          onValueChange={(value) => actualizarHorarioIndividual('sabado', 'apertura', value)}
+                        >
+                          <SelectTrigger className="w-24 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {opcionesHora.map(opc => (
+                              <SelectItem key={opc.valor} value={opc.valor}>
+                                {opc.etiqueta}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="text-blue-400">─</div>
+
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-blue-600">Cierre</Label>
+                        <Select
+                          value={horariosSeguros.sabado.cierre}
+                          onValueChange={(value) => actualizarHorarioIndividual('sabado', 'cierre', value)}
+                        >
+                          <SelectTrigger className="w-24 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {opcionesHora.map(opc => (
+                              <SelectItem key={opc.valor} value={opc.valor}>
+                                {opc.etiqueta}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex items-center gap-2 ml-auto">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="sabado-deshabilitado"
+                            checked={reglamento.diasSemanaDeshabilitados?.includes('sabado') || false}
+                            onChange={(e) => {
+                              const diasActuales = reglamento.diasSemanaDeshabilitados || [];
+                              let nuevosDias;
+
+                              if (e.target.checked) {
+                                nuevosDias = [...diasActuales, 'sabado'];
+                              } else {
+                                nuevosDias = diasActuales.filter(d => d !== 'sabado');
+                              }
+
+                              setFormData(prev => ({
+                                ...prev,
+                                reglamento: {
+                                  ...(prev.reglamento || {}),
+                                  diasSemanaDeshabilitados: nuevosDias
+                                }
+                              }));
+                            }}
+                            className="rounded border-blue-300 text-red-600 focus:ring-red-500"
+                          />
+                          <Label htmlFor="sabado-deshabilitado" className="text-xs text-red-600 cursor-pointer">
+                            Deshabilitar
+                          </Label>
+                        </div>
+                        <div className={`w-2 h-2 rounded-full ${reglamento.diasSemanaDeshabilitados?.includes('sabado') ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                      </div>
+                    </div>
+
+                    {/* Domingo */}
+                    <div className="flex items-center gap-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="w-20 text-sm font-medium text-blue-700">Domingo</div>
+
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-blue-600">Apertura</Label>
+                        <Select
+                          value={horariosSeguros.domingo.apertura}
+                          onValueChange={(value) => actualizarHorarioIndividual('domingo', 'apertura', value)}
+                        >
+                          <SelectTrigger className="w-24 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {opcionesHora.map(opc => (
+                              <SelectItem key={opc.valor} value={opc.valor}>
+                                {opc.etiqueta}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="text-blue-400">─</div>
+
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-blue-600">Cierre</Label>
+                        <Select
+                          value={horariosSeguros.domingo.cierre}
+                          onValueChange={(value) => actualizarHorarioIndividual('domingo', 'cierre', value)}
+                        >
+                          <SelectTrigger className="w-24 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {opcionesHora.map(opc => (
+                              <SelectItem key={opc.valor} value={opc.valor}>
+                                {opc.etiqueta}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex items-center gap-2 ml-auto">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="domingo-deshabilitado"
+                            checked={reglamento.diasSemanaDeshabilitados?.includes('domingo') || false}
+                            onChange={(e) => {
+                              const diasActuales = reglamento.diasSemanaDeshabilitados || [];
+                              let nuevosDias;
+
+                              if (e.target.checked) {
+                                nuevosDias = [...diasActuales, 'domingo'];
+                              } else {
+                                nuevosDias = diasActuales.filter(d => d !== 'domingo');
+                              }
+
+                              setFormData(prev => ({
+                                ...prev,
+                                reglamento: {
+                                  ...(prev.reglamento || {}),
+                                  diasSemanaDeshabilitados: nuevosDias
+                                }
+                              }));
+                            }}
+                            className="rounded border-blue-300 text-red-600 focus:ring-red-500"
+                          />
+                          <Label htmlFor="domingo-deshabilitado" className="text-xs text-red-600 cursor-pointer">
+                            Deshabilitar
+                          </Label>
+                        </div>
+                        <div className={`w-2 h-2 rounded-full ${reglamento.diasSemanaDeshabilitados?.includes('domingo') ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                      </div>
+                    </div>
+                  </div>
+
+
+
+                  {/* Información de Ayuda */}
+                  <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div className="text-xs text-gray-600 space-y-2">
+                      <p><strong>💡 Consejo:</strong> Cada día tiene su propio horario independiente configurable.</p>
+                      <p><strong>🚀 Aplicar a todos:</strong> Establece el mismo horario base para todos los días de la semana.</p>
+                      <p><strong>🔴 Deshabilitar:</strong> Marca días específicos como no disponibles para reservas.</p>
+                      <p><strong>✅ Días Activos:</strong> Muestran solo el horario de apertura y cierre.</p>
+                      <p><strong>🖱️ Click en día:</strong> Haz clic en cualquier día activo para ver sus bloques de horarios.</p>
+                      <p><strong>📋 Ver Bloques:</strong> Usa el botón azul para ver todos los bloques de horarios disponibles.</p>
                     </div>
                   </div>
                 </div>
-                
-
-
-                {/* Información de Ayuda */}
-                <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                  <div className="text-xs text-gray-600 space-y-2">
-                    <p><strong>💡 Consejo:</strong> Cada día tiene su propio horario independiente configurable.</p>
-                    <p><strong>🚀 Aplicar a todos:</strong> Establece el mismo horario base para todos los días de la semana.</p>
-                    <p><strong>🔴 Deshabilitar:</strong> Marca días específicos como no disponibles para reservas.</p>
-                    <p><strong>✅ Días Activos:</strong> Muestran solo el horario de apertura y cierre.</p>
-                    <p><strong>🖱️ Click en día:</strong> Haz clic en cualquier día activo para ver sus bloques de horarios.</p>
-                    <p><strong>📋 Ver Bloques:</strong> Usa el botón azul para ver todos los bloques de horarios disponibles.</p>
-                  </div>
-                </div>
-          </div>
-            </div>
-                )}
+              </div>
+            )}
           </TabsContent>
 
           {/* Tab 4: Preview del Calendario */}
@@ -1909,8 +2526,8 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
               </h3>
 
               {/* Preview del Calendario */}
-                <div className="space-y-4">
-                                  <div className="flex items-center gap-2">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
                   <h4 className="text-md font-medium text-gray-700">📅 Vista Previa del Calendario</h4>
                   <Popover>
                     <PopoverTrigger asChild>
@@ -1941,16 +2558,16 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                       </div>
                     </PopoverContent>
                   </Popover>
-                  </div>
-                  
+                </div>
+
                 {/* Indicador discreto de funcionalidad */}
                 <div className="flex items-center justify-center">
                   <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-50 border border-gray-200 rounded-full text-xs text-gray-500">
                     <span className="w-1.5 h-1.5 bg-gray-400 rounded-full"></span>
                     <span>Click derecho en días para desactivar/reactivar</span>
-                      </div>
-                      </div>
-                  <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+                  </div>
+                </div>
+                <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
                   {/* Header del calendario con navegación */}
                   <div className="flex items-center justify-between mb-4">
                     <Button
@@ -1962,7 +2579,7 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    
+
                     <div className="flex items-center gap-3">
                       <h5 className="text-lg font-semibold text-gray-800">
                         {obtenerMesActual()} {obtenerAñoActual()}
@@ -1978,8 +2595,8 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                         <RotateCcw className="h-3 w-3 mr-1" />
                         Hoy
                       </Button>
-                  </div>
-                  
+                    </div>
+
                     <Button
                       type="button"
                       variant="outline"
@@ -1989,36 +2606,36 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                     >
                       <ChevronRight className="h-4 w-4" />
                     </Button>
-                    </div>
-                    
-                    {/* Días de la semana */}
-                    <div className="grid grid-cols-7 gap-1 mb-2">
-                      {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((dia) => (
-                        <div key={dia} className="text-center text-xs font-medium text-gray-500 p-2">
-                          {dia}
-                        </div>
-                      ))}
-                    </div>
-                    
-                    {/* Días del mes */}
-                    <div className="grid grid-cols-7 gap-2">
-                      {obtenerDiasDelMes().map((dia, index) => {
-                        if (dia.numero === null) {
-                          return <div key={index} className="h-32"></div>;
-                        }
-                        
-                        const estaDeshabilitado = dia.estaDeshabilitado;
-                        const horario = dia.horario;
+                  </div>
+
+                  {/* Días de la semana */}
+                  <div className="grid grid-cols-7 gap-1 mb-2">
+                    {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((dia) => (
+                      <div key={dia} className="text-center text-xs font-medium text-gray-500 p-2">
+                        {dia}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Días del mes */}
+                  <div className="grid grid-cols-7 gap-2">
+                    {obtenerDiasDelMes().map((dia, index) => {
+                      if (dia.numero === null) {
+                        return <div key={index} className="h-32"></div>;
+                      }
+
+                      const estaDeshabilitado = dia.estaDeshabilitado;
+                      const horario = dia.horario;
                       const estado = dia.estado;
-                        const bloques = calcularBloquesDelDia(horario, reglamento.maxHorasPorReserva);
-                      
+                      const bloques = calcularBloquesDelDia(horario, reglamento.maxHorasPorReserva);
+
                       // Estilos y contenido según el estado
                       let estilosClase = '';
                       let icono = '';
                       let etiqueta = '';
                       let titulo = '';
                       let colorTexto = '';
-                      
+
                       switch (estado) {
                         case 'pasado':
                           estilosClase = 'bg-red-50 border-red-200 hover:bg-red-100';
@@ -2064,24 +2681,24 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                           colorTexto = 'text-green-700';
                           break;
                       }
-                        
-                        return (
-                          <div 
-                            key={index} 
+
+                      return (
+                        <div
+                          key={index}
                           className={`h-32 border rounded-lg p-2 transition-all hover:shadow-md overflow-hidden relative flex flex-col cursor-pointer ${estilosClase}`}
-                            onClick={() => {
-                              if (!estaDeshabilitado) {
-                                // Mostrar modal con bloques del día específico
-                                const bloques = calcularBloquesDelDia(horario, reglamento.maxHorasPorReserva);
-                                setSelectedDay({
-                                  numero: dia.numero,
-                                  diaSemana: dia.diaSemana,
-                                  horario: horario,
-                                  bloques: bloques
-                                });
-                                setShowBloquesModal(true);
-                              }
-                            }}
+                          onClick={() => {
+                            if (!estaDeshabilitado) {
+                              // Mostrar modal con bloques del día específico
+                              const bloques = calcularBloquesDelDia(horario, reglamento.maxHorasPorReserva);
+                              setSelectedDay({
+                                numero: dia.numero,
+                                diaSemana: dia.diaSemana,
+                                horario: horario,
+                                bloques: bloques
+                              });
+                              setShowBloquesModal(true);
+                            }
+                          }}
                           onContextMenu={(e) => {
                             e.preventDefault();
                             // Solo permitir desactivar/reactivar días que no hayan pasado
@@ -2090,50 +2707,50 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                             }
                           }}
                           title={titulo}
-                          >
-                            {/* Número del día */}
+                        >
+                          {/* Número del día */}
                           <div className={`text-sm font-bold text-center mb-2 flex-shrink-0 ${colorTexto}`}>
-                              {dia.numero}
-                            </div>
-                            
-                            {estaDeshabilitado ? (
-                              <div className="text-center flex-shrink-0">
+                            {dia.numero}
+                          </div>
+
+                          {estaDeshabilitado ? (
+                            <div className="text-center flex-shrink-0">
                               <div className="text-lg mb-1">{icono}</div>
                               <div className={`text-xs font-medium ${colorTexto}`}>{etiqueta}</div>
-                              </div>
-                            ) : (
-                              <div className="text-center">
+                            </div>
+                          ) : (
+                            <div className="text-center">
                               {/* Ícono de disponible */}
                               <div className="text-xs mb-1">{icono}</div>
                               {/* Horario de apertura y cierre */}
-                                <div className="text-xs text-green-600 font-medium">
-                                  {formatearHora12(horario.apertura)}
-                                </div>
-                                <div className="text-xs text-green-500">─</div>
-                                <div className="text-xs text-green-600 font-medium">
-                                  {formatearHora12(horario.cierre)}
-                                </div>
+                              <div className="text-xs text-green-600 font-medium">
+                                {formatearHora12(horario.apertura)}
                               </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    
-                    {/* Leyenda */}
+                              <div className="text-xs text-green-500">─</div>
+                              <div className="text-xs text-green-600 font-medium">
+                                {formatearHora12(horario.cierre)}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Leyenda */}
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4 text-xs">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-green-50 border border-green-200 rounded"></div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-green-50 border border-green-200 rounded"></div>
                       <span className="text-green-700">✅ Disponible</span>
-                      </div>
-                      <div className="flex items-center gap-2">
+                    </div>
+                    <div className="flex items-center gap-2">
                       <div className="w-3 h-3 bg-yellow-50 border border-yellow-300 rounded"></div>
                       <span className="text-yellow-600">🚧 Desactivado</span>
-                      </div>
-                      <div className="flex items-center gap-2">
+                    </div>
+                    <div className="flex items-center gap-2">
                       <div className="w-3 h-3 bg-red-50 border border-red-200 rounded"></div>
                       <span className="text-red-600">🚫 Ya Pasó</span>
-                      </div>
+                    </div>
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 bg-orange-50 border border-orange-200 rounded"></div>
                       <span className="text-orange-600">⏳ Muy Pronto</span>
@@ -2145,21 +2762,21 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 bg-gray-100 border border-gray-200 rounded"></div>
                       <span className="text-gray-500">❌ Cerrado</span>
+                    </div>
                   </div>
-                </div>
 
                   {/* Indicador discreto adicional en la leyenda */}
                   <div className="flex items-center justify-center mt-3">
                     <div className="text-xs text-gray-400 flex items-center gap-1">
                       <span>💡</span>
                       <span>Días disponibles: click izquierdo para bloques, click derecho para desactivar</span>
+                    </div>
                   </div>
                 </div>
-          </div>
-            </div>
+              </div>
 
-                
-          </div>
+
+            </div>
           </TabsContent>
 
           {/* Tab 5: Avanzado */}
@@ -2169,79 +2786,79 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                 <Users className="w-5 h-5 text-purple-600" />
                 Configuraciones Avanzadas
               </h3>
-          
-          {/* Invitados y Aprobación */}
-          <div className="space-y-4">
+
+              {/* Invitados y Aprobación */}
+              <div className="space-y-4">
                 <h4 className="text-md font-medium text-gray-700">Invitados y Aprobación</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="permiteInvitados" className="text-sm font-medium">¿Permite Invitados?</Label>
-                <Select 
-                  value={reglamento.permiteInvitados ? "true" : "false"} 
-                  onValueChange={(value) => setFormData(prev => ({ 
-                    ...prev, 
-                    reglamento: { 
-                      ...(prev.reglamento || {}), 
-                      permiteInvitados: value === "true" 
-                    } 
-                  }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="true">Sí, permite invitados</SelectItem>
-                    <SelectItem value="false">No, solo residentes</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="permiteInvitados" className="text-sm font-medium">¿Permite Invitados?</Label>
+                    <Select
+                      value={reglamento.permiteInvitados ? "true" : "false"}
+                      onValueChange={(value) => setFormData(prev => ({
+                        ...prev,
+                        reglamento: {
+                          ...(prev.reglamento || {}),
+                          permiteInvitados: value === "true"
+                        }
+                      }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="true">Sí, permite invitados</SelectItem>
+                        <SelectItem value="false">No, solo residentes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="requiereAprobacion" className="text-sm font-medium">¿Requiere Aprobación?</Label>
+                    <Select
+                      value={reglamento.requiereAprobacion ? "true" : "false"}
+                      onValueChange={(value) => setFormData(prev => ({
+                        ...prev,
+                        reglamento: {
+                          ...(prev.reglamento || {}),
+                          requiereAprobacion: value === "true"
+                        }
+                      }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="true">Sí, requiere aprobación</SelectItem>
+                        <SelectItem value="false">No, aprobación automática</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {reglamento.permiteInvitados && (
+                  <div className="space-y-2">
+                    <Label htmlFor="maxInvitados" className="text-sm font-medium">Máximo Personas por Casa</Label>
+                    <Input
+                      id="maxInvitados"
+                      name="maxInvitados"
+                      type="number"
+                      value={reglamento.maxInvitados}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        reglamento: {
+                          ...(prev.reglamento || {}),
+                          maxInvitados: parseInt(e.target.value)
+                        }
+                      }))}
+                      placeholder="Ej: 6"
+                    />
+                    <p className="text-xs text-gray-500">
+                      Número total de personas por reserva (incluye al residente + invitados)
+                    </p>
+                  </div>
+                )}
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="requiereAprobacion" className="text-sm font-medium">¿Requiere Aprobación?</Label>
-                <Select 
-                  value={reglamento.requiereAprobacion ? "true" : "false"} 
-                  onValueChange={(value) => setFormData(prev => ({ 
-                    ...prev, 
-                    reglamento: { 
-                      ...(prev.reglamento || {}), 
-                      requiereAprobacion: value === "true" 
-                    } 
-                  }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="true">Sí, requiere aprobación</SelectItem>
-                    <SelectItem value="false">No, aprobación automática</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
-            {reglamento.permiteInvitados && (
-              <div className="space-y-2">
-                <Label htmlFor="maxInvitados" className="text-sm font-medium">Máximo Personas por Casa</Label>
-                <Input 
-                  id="maxInvitados" 
-                  name="maxInvitados" 
-                  type="number" 
-                  value={reglamento.maxInvitados} 
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    reglamento: { 
-                      ...(prev.reglamento || {}), 
-                      maxInvitados: parseInt(e.target.value) 
-                    } 
-                  }))} 
-                  placeholder="Ej: 6"
-                />
-                <p className="text-xs text-gray-500">
-                  Número total de personas por reserva (incluye al residente + invitados)
-                </p>
-              </div>
-            )}
-          </div>
 
               {/* Botón para restaurar valores recomendados */}
               <div className="space-y-4">
@@ -2295,17 +2912,17 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
                   >
                     🚀 Aplicar Configuración Recomendada
                   </Button>
-        </div>
+                </div>
               </div>
             </div>
           </TabsContent>
         </Tabs>
-                </div>
+      </div>
 
       {/* Modal de Bloques del Día - Compacto */}
       {showBloquesModal && selectedDay && (
-        <div 
-          className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999] p-4" 
+        <div
+          className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999] p-4"
           style={{ margin: 0 }}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -2316,80 +2933,103 @@ const AreaComunFormDialogContent: React.FC<AreaComunFormDialogContentProps> = ({
           <div className="bg-white rounded-lg shadow-xl max-w-sm w-full mx-auto border border-gray-200 overflow-hidden" style={{ maxHeight: '90vh' }}>
             {/* Header compacto */}
             <div className="bg-blue-500 text-white p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 <CalendarDays className="w-4 h-4" />
-                  <div>
+                <div>
                   <span className="font-medium text-sm">
-                      {selectedDay.diaSemana.charAt(0).toUpperCase() + selectedDay.diaSemana.slice(1)} {selectedDay.numero}
+                    {selectedDay.diaSemana.charAt(0).toUpperCase() + selectedDay.diaSemana.slice(1)} {selectedDay.numero}
                   </span>
-                  </div>
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowBloquesModal(false)}
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowBloquesModal(false)}
                 className="h-6 w-6 p-0 hover:bg-white hover:bg-opacity-20 text-white"
-                >
+              >
                 <X className="h-3 w-3" />
-                </Button>
+              </Button>
             </div>
-            
+
             {/* Contenido compacto */}
             <div className="p-4 space-y-3 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 60px)' }}>
               {/* Horario */}
               <div className="text-center p-2 bg-green-50 rounded border border-green-200">
                 <div className="text-sm font-medium text-green-700">
-                    {formatearHora12(selectedDay.horario.apertura)} - {formatearHora12(selectedDay.horario.cierre)}
-                  </div>
+                  {formatearHora12(selectedDay.horario.apertura)} - {formatearHora12(selectedDay.horario.cierre)}
+                </div>
                 <div className="text-xs text-green-600">
                   Bloques de {reglamento.maxHorasPorReserva}h
                 </div>
               </div>
-              
+
               {/* Bloques compactos */}
-                {selectedDay.bloques.length > 0 ? (
+              {selectedDay.bloques.length > 0 ? (
                 <div className="space-y-2">
-                    {selectedDay.bloques.map((bloque, idx) => (
+                  {selectedDay.bloques.map((bloque, idx) => (
                     <div key={idx} className="flex items-center justify-between p-2 bg-blue-50 rounded border border-blue-200">
                       <div className="flex items-center gap-2">
                         <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs">
-                              {idx + 1}
-                            </div>
+                          {idx + 1}
+                        </div>
                         <span className="text-sm text-blue-800">
-                                {formatearHora12(bloque.inicio)} - {formatearHora12(bloque.fin)}
+                          {formatearHora12(bloque.inicio)} - {formatearHora12(bloque.fin)}
                         </span>
-                              </div>
+                      </div>
                       <span className="text-xs text-blue-500 bg-blue-100 px-2 py-1 rounded">
                         Libre
                       </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
+                    </div>
+                  ))}
+                </div>
+              ) : (
                 <div className="text-center p-3 bg-gray-50 rounded border border-gray-200">
                   <div className="text-gray-400 text-sm">⚠️ Sin bloques</div>
                   <div className="text-xs text-gray-500">Revisa duración/horarios</div>
-                  </div>
-                )}
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
-      
-      <DialogFooter>
-        <Button variant="outline" onClick={() => { console.log('[DialogFooter-EditarCrear] Botón Cancelar clickeado'); setOpenDialog(false); }}>Cancelar</Button>
-        <Button 
-          onClick={() => {
-            // 🆕 NUEVO: Asegurar que todos los horarios individuales estén completos antes de guardar
-            asegurarHorariosCompletos();
-            handleSubmit();
-          }} 
-          disabled={loading || (!currentArea && userClaims?.isGlobalAdmin && !esAdminDeResidencial && !selectedResidencialId)}
+
+      <div className="p-6 md:p-8 border-t border-slate-100 bg-white/95 backdrop-blur-sm z-20 flex justify-between items-center shrink-0">
+        <Button
+          variant="ghost"
+          onClick={() => { console.log('[DialogFooter-EditarCrear] Botón Cancelar clickeado'); setOpenDialog(false); }}
+          className="text-slate-500 hover:text-slate-800 hover:bg-slate-100 font-bold rounded-xl h-12 px-6"
         >
-          {loading ? "Guardando..." : "Guardar"}
+          Cancelar Operación
         </Button>
-      </DialogFooter>
+
+        <div className="flex gap-4">
+          {currentArea && (
+            <div className="hidden sm:block text-xs font-semibold text-slate-400 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 self-center">
+              ID: {currentArea.id?.substring(0, 8)}...
+            </div>
+          )}
+          <Button
+            onClick={() => {
+              // 🆕 NUEVO: Asegurar que todos los horarios individuales estén completos antes de guardar
+              asegurarHorariosCompletos();
+              handleSubmit();
+            }}
+            disabled={loading || (!currentArea && userClaims?.isGlobalAdmin && !esAdminDeResidencial && !selectedResidencialId)}
+            className="h-12 px-8 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all hover:scale-105 active:scale-95"
+          >
+            {loading ? (
+              <>
+                <RotateCcw className="mr-2 h-4 w-4 animate-spin" /> Guardando...
+              </>
+            ) : (
+              <>
+                {currentArea ? "Guardar Cambios" : "Crear Amenidad"}
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
     </DialogContent>
   );
 };

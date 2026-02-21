@@ -1,546 +1,747 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback, Suspense } from "react";
 import { useRouter } from 'next/navigation';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
-} from "@/components/ui/card";
-import { 
-  Dialog,
-  DialogContent, 
-  DialogDescription, 
-  DialogHeader, 
-  DialogTitle 
-} from "@/components/ui/dialog";
-import { toast } from "sonner";
-import { TrendingUp, Users, Calendar, Building, Car, Download, FileSpreadsheet } from "lucide-react";
-import { 
-  Residencial, 
-  getResidenciales,
-  suscribirseAIngresos
-} from "@/lib/firebase/firestore";
-import { Ingreso, Timestamp as IngresoTimestamp } from "@/types/ingresos";
-import { formatDistanceToNow, format } from "date-fns";
-import { es } from "date-fns/locale";
 import { useAuth } from "@/contexts/AuthContext";
-import { Skeleton } from "@/components/ui/skeleton";
+import { useAdminRequired } from "@/lib/hooks";
+import { motion, AnimatePresence } from "framer-motion";
 import dynamic from 'next/dynamic';
-import { Suspense } from 'react';
-import { useIngresosFilters } from "@/hooks/useIngresosFilters";
-import AdvancedFiltersBar from "@/components/dashboard/ingresos/AdvancedFiltersBar";
-import PaginationControls from "@/components/dashboard/ingresos/PaginationControls";
-import { exportToCSV, getExportStats } from "@/lib/utils/exportUtils";
+
+// UI Components
+import {
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle,
+    CardDescription
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue
+} from "@/components/ui/select";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
-// Importar dinámicamente TablaIngresos y DetallesIngresoDialogContent
-const TablaIngresos = dynamic(() => import("@/components/dashboard/ingresos/TablaIngresos"), {
-  loading: () => <Skeleton className="h-96 w-full" />,
-  ssr: false
+// Icons
+import {
+    Search,
+    Calendar,
+    RefreshCw,
+    Download,
+    Building,
+    Car,
+    User,
+    MapPin,
+    Clock,
+    ChevronRight,
+    Home,
+    ArrowRightLeft,
+    X,
+    Wifi,
+    TrendingUp,
+    Filter,
+    Hash,
+    ChevronDown,
+    ShieldCheck,
+    UserCheck,
+    Zap
+} from "lucide-react";
+
+// Firebase & Utils
+import { collection, query, orderBy, onSnapshot, limit as fbLimit, getDocs, Timestamp as FirestoreTimestamp, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
+import { formatDistanceToNow, format, parseISO, isWithinInterval, startOfDay, endOfDay, isSameMonth, setMonth, setYear, startOfMonth, endOfMonth } from "date-fns";
+import { es } from "date-fns/locale";
+import { toast } from "sonner";
+
+// Types
+import { Ingreso } from "@/types/ingresos";
+
+// Dynamic Components
+const DetallesIngresoDialogContent = dynamic(() => import('@/components/dashboard/ingresos/DetallesIngresoDialogContent'), {
+    loading: () => <div className="p-10 text-center"><RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" /> Cargando auditoría...</div>,
+    ssr: false
 });
 
-const DetallesIngresoDialogContent = dynamic(() => import("@/components/dashboard/ingresos/DetallesIngresoDialogContent"), {
-  loading: () => <Skeleton className="h-96 w-full" />,
-  ssr: false
+const VistaPorCasa = dynamic(() => import('@/components/dashboard/ingresos/VistaPorCasa'), {
+    loading: () => <div className="p-6"><Skeleton className="h-40 w-full rounded-2xl" /></div>,
+    ssr: false
 });
 
-// Función para convertir timestamp de Firestore a Date
-const convertFirestoreTimestampToDate = (timestamp: IngresoTimestamp | Date | string): Date => {
-  if (timestamp instanceof Date) return timestamp;
-  if (typeof timestamp === 'string') return new Date(timestamp);
-  if (timestamp && typeof timestamp === 'object' && 'seconds' in timestamp) {
-    return new Date(timestamp.seconds * 1000);
-  }
-  return new Date(); 
-};
+const IngresosPorCasaDialog = dynamic(() => import('@/components/dashboard/ingresos/IngresosPorCasaDialog'), {
+    ssr: false
+});
 
-// Función para capitalizar nombres
-const capitalizeName = (name: string): string => {
-  return name.toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
-};
+const PaginationControls = dynamic(() => import('@/components/dashboard/ingresos/PaginationControls'), {
+    ssr: false
+});
 
-export default function IngresosPage() {
-  const router = useRouter();
-  const { user, userClaims, loading: authLoading } = useAuth();
+const EstadisticasIngresos = dynamic(() => import('@/components/dashboard/ingresos/EstadisticasIngresos'), {
+    loading: () => <div className="p-20 text-center"><RefreshCw className="h-10 w-10 animate-spin mx-auto mb-4 text-primary" /><p className="font-black text-slate-400">Generando reporte de analítica...</p></div>,
+    ssr: false
+});
 
-  // Estados principales
-  const [residenciales, setResidenciales] = useState<Residencial[]>([]);
-  const [ingresos, setIngresos] = useState<Ingreso[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [selectedIngreso, setSelectedIngreso] = useState<Ingreso | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState<boolean>(false);
-  const [mapeoResidenciales, setMapeoResidenciales] = useState<{[key: string]: string}>({});
-  const [residencialFilter, setResidencialFilter] = useState<string>("todos");
-  const initialFilterSetRef = useRef<boolean>(false);
+// Interfaces Locales
+interface Residencial {
+    id: string;
+    nombre: string;
+    residencialID: string;
+}
 
-  // Hook de filtros avanzados - DEBE estar antes de cualquier return condicional
-  const {
-    filters,
-    filteredIngresos,
-    paginatedIngresos,
-    updateFilters,
-    resetFilters,
-    setQuickFilter,
-    filterOptions,
-    totalPages,
-    hasActiveFilters,
-    totalResults,
-    currentResults
-  } = useIngresosFilters(ingresos);
+export default function IngresosMasterPage() {
+    const { isAdmin, isUserLoading } = useAdminRequired();
+    const { userClaims } = useAuth();
+    const router = useRouter();
 
-  // Verificar permisos de usuario
-  const esAdminDeResidencial = useMemo(() => 
-    userClaims?.isResidencialAdmin === true, 
-    [userClaims]
-  );
-  
-  const residencialCodigoDelAdmin = useMemo(() => 
-    esAdminDeResidencial ? userClaims?.managedResidencialId || userClaims?.residencialId : null, 
-    [esAdminDeResidencial, userClaims]
-  );
-  
-  const residencialIdDocDelAdmin = useMemo(() => {
-    if (!esAdminDeResidencial || !residencialCodigoDelAdmin || Object.keys(mapeoResidenciales).length === 0) return null;
-    const idDoc = Object.keys(mapeoResidenciales).find(
-      key => residenciales.find(r => r.id === key)?.residencialID === residencialCodigoDelAdmin
-    );
-    return idDoc || null;
-  }, [esAdminDeResidencial, residencialCodigoDelAdmin, mapeoResidenciales, residenciales]);
+    // Data States
+    const [ingresos, setIngresos] = useState<Ingreso[]>([]);
+    const [residenciales, setResidenciales] = useState<Residencial[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
 
-  // Calcular estadísticas
-  const stats = useMemo(() => {
-    const total = ingresos.length;
-    const activos = ingresos.filter(i => i.status === 'active').length;
-    const completados = ingresos.filter(i => i.status === 'completed').length;
-    const conVehiculo = ingresos.filter(i => i.vehicleInfo).length;
-    
-    return { total, activos, completados, conVehiculo };
-  }, [ingresos]);
+    // Filtering & Pagination
+    const [activeView, setActiveView] = useState<'general' | 'casas' | 'analitica'>('general');
+    const [searchTerm, setSearchTerm] = useState("");
+    const [residencialFilter, setResidencialFilter] = useState("todos");
+    const [dateFilter, setDateFilter] = useState("");
+    const [monthFilter, setMonthFilter] = useState<string>(format(new Date(), 'yyyy-MM')); // Default to current month
+    const [tipoIngresoFilter, setTipoIngresoFilter] = useState("todos");
+    const [statusFilter, setStatusFilter] = useState("todos");
 
-  // =====================
-  // Pestañas Vehicular/Peatonal
-  // =====================
-  const isVehicular = useCallback((i: Ingreso) => {
-    const method = (i.entryMethod || '').toLowerCase();
-    return (
-      !!i.vehicleInfo ||
-      method.includes('vehicular') ||
-      method === 'qr_with_physical_pass' ||
-      method.includes('with_new_vehicle') ||
-      method.includes('with_physical_pass') && !!i.vehicleInfo ||
-      // 🔧 CORREGIDO: Los proveedores con vehículo son vehiculares
-      method.startsWith('provider_') && !!i.vehicleInfo
-    );
-  }, []);
+    const [pageSize, setPageSize] = useState(25);
+    const [currentPage, setCurrentPage] = useState(1);
 
-  const isPedestrian = useCallback((i: Ingreso) => {
-    const method = (i.entryMethod || '').toLowerCase();
-    return (
-      method.startsWith('pedestrian') ||
-      // 🔧 CORREGIDO: Los proveedores sin vehículo son peatonales
-      (method.startsWith('provider_') && !i.vehicleInfo) ||
-      (!i.vehicleInfo && !method.includes('vehicular') && !method.startsWith('provider_'))
-    );
-  }, []);
+    // Modals
+    const [selectedIngreso, setSelectedIngreso] = useState<Ingreso | null>(null);
+    const [detailsOpen, setDetailsOpen] = useState(false);
+    const [selectedCasa, setSelectedCasa] = useState<any>(null);
+    const [casaDialogOpen, setCasaDialogOpen] = useState(false);
 
-  const vehicularList = useMemo(() => {
-    return filteredIngresos.filter(isVehicular);
-  }, [filteredIngresos, isVehicular]);
+    // Permissions Config
+    const isGlobalAdmin = userClaims?.isGlobalAdmin === true;
+    const adminResidencialId = userClaims?.managedResidencialId || userClaims?.residencialId;
 
-  const pedestrianList = useMemo(() => {
-    return filteredIngresos.filter(isPedestrian);
-  }, [filteredIngresos, isPedestrian]);
-
-  const startIndex = useMemo(() => (filters.currentPage - 1) * filters.pageSize, [filters.currentPage, filters.pageSize]);
-  const endIndex = useMemo(() => startIndex + filters.pageSize, [startIndex, filters.pageSize]);
-  const vehicularPage = useMemo(() => vehicularList.slice(startIndex, endIndex), [vehicularList, startIndex, endIndex]);
-  const pedestrianPage = useMemo(() => pedestrianList.slice(startIndex, endIndex), [pedestrianList, startIndex, endIndex]);
-    
-  // Función para obtener nombre del residencial
-  const getResidencialNombre = useCallback((docId: string | undefined): string => {
-    if (!docId) return "Desconocido";
-    return mapeoResidenciales[docId] || 
-           residenciales.find(r => r.id === docId)?.nombre || 
-           "Desconocido";
-  }, [mapeoResidenciales, residenciales]);
-    
-  // Función para abrir detalles
-  const handleOpenDetails = useCallback((ingreso: Ingreso) => {
-    setSelectedIngreso(ingreso);
-    setDetailsOpen(true);
-  }, []);
-
-  // Función para exportar datos
-  const handleExport = useCallback(() => {
-    const dataToExport = hasActiveFilters ? filteredIngresos : ingresos;
-    exportToCSV(dataToExport, getResidencialNombre);
-    toast.success(`Exportados ${dataToExport.length} registros a CSV`);
-  }, [filteredIngresos, ingresos, hasActiveFilters, getResidencialNombre]);
-      
-  // Función para formatear fechas
-  const formatDateToRelative = useCallback((timestamp: IngresoTimestamp | Date | string) => {
-    try {
-      const date = convertFirestoreTimestampToDate(timestamp);
-      return formatDistanceToNow(date, { addSuffix: true, locale: es });
-        } catch (error) {
-      return "Fecha inválida";
-        }
-  }, []);
-
-  const formatDateToFull = useCallback((timestamp: IngresoTimestamp | Date | string) => {
-    try {
-      const date = convertFirestoreTimestampToDate(timestamp);
-      return format(date, "dd/MM/yyyy, h:mm:ss a", { locale: es });
-    } catch (error) {
-      return "Fecha inválida";
-    }
-  }, []);
-
-  // Cargar residenciales
-  useEffect(() => {
-    const fetchResidenciales = async () => {
-      try {
-        setLoading(true);
-        const residencialesData = await getResidenciales();
-        setResidenciales(residencialesData);
-        
-        const mapeo = residencialesData.reduce<{[key: string]: string}>((acc, r) => {
-          if (r.id && r.nombre) acc[r.id] = r.nombre;
-          return acc;
-        }, {});
-        setMapeoResidenciales(mapeo);
-
-        // Configurar filtro para admin de residencial (solo una vez)
-        if (!initialFilterSetRef.current && userClaims?.isResidencialAdmin && residencialCodigoDelAdmin) {
-          const idDocAdmin = residencialesData.find(r => r.residencialID === residencialCodigoDelAdmin)?.id;
-          if (idDocAdmin) {
-            setResidencialFilter(idDocAdmin);
-            updateFilters({ residencialId: idDocAdmin });
-            initialFilterSetRef.current = true;
-          }
-        }
-      } catch (error) {
-        toast.error("Error al cargar residenciales");
-      } finally {
-        setLoading(false);
-      }
+    // Formatting Helpers
+    const convertToDate = (ts: any): Date => {
+        if (!ts) return new Date();
+        if (ts instanceof FirestoreTimestamp) return ts.toDate();
+        if (typeof ts === 'object' && 'seconds' in ts) return new Date(ts.seconds * 1000);
+        if (ts instanceof Date) return ts;
+        return new Date(ts);
     };
 
-    if (userClaims?.isGlobalAdmin || userClaims?.isResidencialAdmin) {
-        fetchResidenciales();
-    }
-  }, [userClaims]);
+    const formatDateToRelative = useCallback((ts: any) => {
+        try {
+            return formatDistanceToNow(convertToDate(ts), { addSuffix: true, locale: es });
+        } catch (e) { return "Fecha inválida"; }
+    }, []);
 
-  // Calcular una clave estable para la suscripción y evitar re-suscripciones innecesarias
-  const subscriptionKey = useMemo(() => {
-    if (userClaims?.isGlobalAdmin && residencialFilter === "todos") {
-      return `todos:${residenciales.length}`;
-    }
-    if (residencialFilter !== "todos") {
-      const targetResidencialId = userClaims?.isResidencialAdmin ? residencialIdDocDelAdmin : residencialFilter;
-      return targetResidencialId ? `one:${targetResidencialId}` : null;
-    }
-    return null;
-  }, [userClaims?.isGlobalAdmin, userClaims?.isResidencialAdmin, residencialFilter, residencialIdDocDelAdmin, residenciales.length]);
+    const formatDateToFull = useCallback((ts: any) => {
+        try {
+            return format(convertToDate(ts), "PPPP p", { locale: es });
+        } catch (e) { return "Fecha inválida"; }
+    }, []);
 
-  // Configurar suscripciones a ingresos
-  useEffect(() => {
-    let unsubscribes: (() => void)[] = [];
-
-    const setupSubscriptions = async () => {
-      if (authLoading) {
-        return;
-      }
-      
-      if (!userClaims?.isGlobalAdmin && !userClaims?.isResidencialAdmin) {
-        setLoading(false);
-        return;
-      }
-
-      if (Object.keys(mapeoResidenciales).length === 0 && userClaims?.isResidencialAdmin && residencialFilter !== "todos") {
-         return;
-      }
-
-      if (userClaims?.isResidencialAdmin && !residencialIdDocDelAdmin) {
-        return;
-      }
-
-      if (!subscriptionKey) {
-        return;
-      }
-
-      setLoading(true);
-
-      // Limpiar suscripciones anteriores
-      unsubscribes.forEach(unsub => unsub());
-      unsubscribes = [];
-      setIngresos([]);
-
-      const handleNewIngresos = (nuevosIngresos: Ingreso[], residencialDocId: string, nombreResidencial?: string) => {
-        const ingresosConMetadata = nuevosIngresos.map(ing => ({
-          ...ing,
-          _residencialDocId: residencialDocId,
-          _residencialNombre: nombreResidencial || mapeoResidenciales[residencialDocId] || "Desconocido"
-        }));
-
-        setIngresos(prevIngresos => {
-          const otrosIngresos = prevIngresos.filter(i => i._residencialDocId !== residencialDocId);
-          const todos = [...otrosIngresos, ...ingresosConMetadata];
-          todos.sort((a, b) => {
-            const dateA = convertFirestoreTimestampToDate(a.timestamp).getTime();
-            const dateB = convertFirestoreTimestampToDate(b.timestamp).getTime();
-            return dateB - dateA;
-          });
-          return todos;
-        });
-        setLoading(false);
-      };
-      
-      // Suscripción global (admin global)
-      if (subscriptionKey.startsWith("todos:") && userClaims?.isGlobalAdmin) {
-        if (residenciales.length === 0) {
-          setLoading(false);
-            return;
-        }
-        
-        residenciales.forEach(residencial => {
-          if (residencial.id) {
-            const unsubscribe = suscribirseAIngresos(residencial.id, (nuevosIngresos) => {
-              handleNewIngresos(nuevosIngresos, residencial.id!, residencial.nombre);
+    // Generate Year-Month options
+    const monthOptions = useMemo(() => {
+        const options = [];
+        const now = new Date();
+        for (let i = 0; i < 12; i++) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            options.push({
+                value: format(d, 'yyyy-MM'),
+                label: format(d, 'MMMM yyyy', { locale: es })
             });
-            unsubscribes.push(unsubscribe);
-          }
-        });
-      } else if (subscriptionKey.startsWith("one:")) {
-        const targetResidencialId = subscriptionKey.replace("one:", "");
-        if (targetResidencialId) {
-          const nombreRes = mapeoResidenciales[targetResidencialId] || residenciales.find(r => r.id === targetResidencialId)?.nombre || "Desconocido";
-          const unsubscribe = suscribirseAIngresos(targetResidencialId, (nuevosIngresos) => {
-            handleNewIngresos(nuevosIngresos, targetResidencialId, nombreRes);
-          });
-          unsubscribes.push(unsubscribe);
-        } else {
-            setLoading(false);
         }
-      } else {
-        setLoading(false);
-      }
+        return options;
+    }, []);
+
+    // 1. Fetch Residenciales
+    useEffect(() => {
+        const fetchResidenciales = async () => {
+            try {
+                const snap = await getDocs(collection(db, 'residenciales'));
+                const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Residencial));
+                setResidenciales(list);
+
+                if (!isGlobalAdmin && adminResidencialId) {
+                    const found = list.find(r => r.residencialID === adminResidencialId || r.id === adminResidencialId);
+                    if (found) {
+                        setResidencialFilter(found.id);
+                    }
+                }
+            } catch (e) { console.error(e); }
+        };
+        fetchResidenciales();
+    }, [isGlobalAdmin, adminResidencialId]);
+
+    // 2. Real-time Subscription with Month-aware Query
+    useEffect(() => {
+        if (!isAdmin || residenciales.length === 0) return;
+
+        setLoading(true);
+        let unsubscribes: (() => void)[] = [];
+
+        const setup = () => {
+            let targets: string[] = [];
+            if (isGlobalAdmin) {
+                targets = residencialFilter === 'todos' ? residenciales.map(r => r.id) : [residencialFilter];
+            } else if (adminResidencialId) {
+                const myRes = residenciales.find(r => r.residencialID === adminResidencialId || r.id === adminResidencialId);
+                targets = myRes ? [myRes.id] : [];
+                if (myRes && residencialFilter !== myRes.id) setResidencialFilter(myRes.id);
+            }
+
+            if (targets.length === 0) {
+                setLoading(false);
+                return;
+            }
+
+            targets.forEach(resId => {
+                if (!resId) return;
+
+                const colRef = collection(db, 'residenciales', resId, 'ingresos');
+                let queryConstraints: any[] = [orderBy('timestamp', 'desc')];
+
+                if (monthFilter !== 'todos') {
+                    const [year, month] = monthFilter.split('-').map(Number);
+                    const startDate = startOfMonth(new Date(year, month - 1));
+                    const endDate = endOfMonth(new Date(year, month - 1));
+                    queryConstraints.push(where('timestamp', '>=', FirestoreTimestamp.fromDate(startDate)));
+                    queryConstraints.push(where('timestamp', '<=', FirestoreTimestamp.fromDate(endDate)));
+                } else {
+                    queryConstraints.push(fbLimit(10000));
+                }
+
+                const q = query(colRef, ...queryConstraints);
+
+                const unsub = onSnapshot(q, (snap) => {
+                    const resNombre = residenciales.find(r => r.id === resId)?.nombre || 'Residencial';
+                    const nuevos = snap.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data(),
+                        _residencialNombre: resNombre,
+                        _residencialDocId: resId
+                    } as Ingreso));
+
+                    setIngresos(prev => {
+                        const others = prev.filter(i => i._residencialDocId !== resId);
+                        const result = [...others, ...nuevos].sort((a, b) => {
+                            const tA = convertToDate(a.timestamp).getTime();
+                            const tB = convertToDate(b.timestamp).getTime();
+                            return tB - tA;
+                        });
+                        return result;
+                    });
+                    setLoading(false);
+                    setRefreshing(false);
+                }, (err) => {
+                    console.error(`Subscription error for ${resId}:`, err);
+                    if (err.message?.includes('index')) {
+                        toast.error("Error de base de datos. Se requiere crear un índice.");
+                    }
+                    setLoading(false);
+                });
+                unsubscribes.push(unsub);
+            });
+        };
+
+        setup();
+        return () => unsubscribes.forEach(u => u());
+    }, [isAdmin, residencialFilter, residenciales, isGlobalAdmin, adminResidencialId, monthFilter]);
+
+    // 3. Advanced Filters Logic
+    const filteredIngresos = useMemo(() => {
+        return ingresos.filter(ing => {
+            const search = searchTerm.toLowerCase();
+            const visitorName = (ing.visitData?.name || '').toLowerCase();
+            const placa = (ing.vehicleInfo?.placa || '').toLowerCase();
+            const domicilio = `${ing.domicilio?.calle || ''} ${ing.domicilio?.houseNumber || ''}`.toLowerCase();
+            const codigoAcceso = (ing.codigoAcceso || '').toLowerCase();
+
+            const matchesSearch = !searchTerm ||
+                visitorName.includes(search) ||
+                placa.includes(search) ||
+                domicilio.includes(search) ||
+                codigoAcceso.includes(search);
+
+            const matchesTipo = tipoIngresoFilter === 'todos' ||
+                (tipoIngresoFilter === 'autorizada' ? (ing.category !== 'temporal' && ing.category !== 'evento') : ing.category === tipoIngresoFilter);
+
+            const matchesStatus = statusFilter === 'todos' || ing.status === statusFilter;
+
+            let matchesMonth = true;
+            const ingDate = convertToDate(ing.timestamp);
+            if (monthFilter && monthFilter !== 'todos') {
+                const [year, month] = monthFilter.split('-').map(Number);
+                const targetMonth = month - 1; // JavaScript months are 0-indexed
+                matchesMonth = ingDate.getFullYear() === year && ingDate.getMonth() === targetMonth;
+            }
+
+            let matchesSpecificDate = true;
+            if (dateFilter) {
+                const target = parseISO(dateFilter);
+                matchesSpecificDate = isWithinInterval(ingDate, { start: startOfDay(target), end: endOfDay(target) });
+            }
+
+            return matchesSearch && matchesTipo && matchesStatus && matchesMonth && matchesSpecificDate;
+        });
+    }, [ingresos, searchTerm, dateFilter, monthFilter, tipoIngresoFilter, statusFilter]);
+
+    // General Stats
+    const stats = useMemo(() => ({
+        total: filteredIngresos.length,
+        activos: filteredIngresos.filter(i => i.status === 'active').length,
+        vehiculares: filteredIngresos.filter(i => i.vehicleInfo?.placa).length,
+        casasAnalizadas: (new Set(filteredIngresos.map(i => `${i.domicilio?.calle}#${i.domicilio?.houseNumber}`))).size
+    }), [filteredIngresos]);
+
+    const clearFilters = () => {
+        setSearchTerm("");
+        setDateFilter("");
+        setMonthFilter(format(new Date(), 'yyyy-MM'));
+        setTipoIngresoFilter("todos");
+        setStatusFilter("todos");
+        if (isGlobalAdmin) setResidencialFilter("todos");
     };
 
-    setupSubscriptions();
+    const paginatedIngresos = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return filteredIngresos.slice(start, start + pageSize);
+    }, [filteredIngresos, currentPage, pageSize]);
 
-    return () => {
-      unsubscribes.forEach(unsubscribe => unsubscribe());
-    };
-  }, [subscriptionKey, residenciales, authLoading, userClaims]);
+    const totalPages = Math.ceil(filteredIngresos.length / pageSize);
 
-  // Mostrar loading durante autenticación
-  if (authLoading) {
-    return (
-      <div className="space-y-6 p-4 md:p-8">
-        <Skeleton className="h-10 w-2/3 mb-4" />
-        <Skeleton className="h-8 w-1/3 mb-6" />
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
-            <Skeleton className="h-10 flex-1" />
-            <Skeleton className="h-10 flex-1" />
-            <Skeleton className="h-10 flex-1" />
+    // Grouping por Casas
+    const casasAgrupadas = useMemo(() => {
+        const map = new Map<string, any>();
+        filteredIngresos.forEach(ing => {
+            const key = `${ing.domicilio?.calle || 'S/D'}#${ing.domicilio?.houseNumber || 'S/N'}`;
+            if (!map.has(key)) {
+                map.set(key, {
+                    key,
+                    calle: ing.domicilio?.calle,
+                    houseNumber: ing.domicilio?.houseNumber,
+                    residencialID: ing.domicilio?.residencialID || ing._residencialDocId,
+                    ingresos: [],
+                    total: 0,
+                    activos: 0,
+                    completados: 0,
+                    conVehiculo: 0,
+                });
+            }
+            const casa = map.get(key);
+            casa.ingresos.push(ing);
+            casa.total++;
+            if (ing.status === 'active') casa.activos++;
+            if (ing.status === 'completed') casa.completados++;
+            if (ing.vehicleInfo?.placa) casa.conVehiculo++;
+        });
+        return Array.from(map.values()).sort((a, b) => b.total - a.total);
+    }, [filteredIngresos]);
+
+    if (isUserLoading || !isAdmin) return (
+        <div className="h-screen flex items-center justify-center bg-premium">
+            <div className="text-center">
+                <RefreshCw className="h-10 w-10 animate-spin text-primary mx-auto mb-4" />
+                <p className="font-black text-primary tracking-widest uppercase">Zentry Security OS</p>
+            </div>
         </div>
-        <Card>
-            <CardHeader><Skeleton className="h-8 w-1/2" /></CardHeader>
-            <CardContent className="space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-            </CardContent>
-        </Card>
-      </div>
     );
-  }
 
-  // Verificar permisos
-  if (!userClaims?.isGlobalAdmin && !userClaims?.isResidencialAdmin) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
-        <Building className="h-16 w-16 text-muted-foreground" />
-        <h2 className="text-2xl font-bold">Acceso Denegado</h2>
-        <p className="text-muted-foreground text-center max-w-md">
-          No tienes permisos para ver los ingresos. Contacta al administrador si crees que esto es un error.
-        </p>
-        <div className="text-xs text-muted-foreground/70 bg-muted/30 p-3 rounded mt-4">
-          <strong>Información de depuración:</strong><br/>
-          Role: {userClaims?.role || 'No definido'}<br/>
-          Global Admin: {userClaims?.isGlobalAdmin ? 'Sí' : 'No'}<br/>
-          Residencial Admin: {userClaims?.isResidencialAdmin ? 'Sí' : 'No'}<br/>
-          Residencial ID: {userClaims?.residencialId || 'No definido'}
-        </div>
-      </div>
-    );
-  }
+        <div className="min-h-screen bg-premium p-4 lg:p-10 space-y-8 pb-20">
+            {/* Header Premium */}
+            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col lg:flex-row justify-between gap-6 items-start">
+                <div className="space-y-2">
+                    <Badge className="bg-primary/10 text-primary border-none font-black px-4 py-1 rounded-full flex gap-2 w-fit items-center shadow-sm">
+                        <span className="h-2 w-2 rounded-full bg-primary animate-ping" />
+                        Vigilancia en Tiempo Real
+                    </Badge>
+                    <h1 className="text-5xl font-extrabold tracking-tighter text-slate-900">
+                        Análisis de <span className="text-gradient-zentry">Accesos</span>
+                    </h1>
+                    <p className="text-slate-600 font-bold max-w-lg">Control total de ingresos y auditoría mensual avanzada del recinto.</p>
+                </div>
+                <div className="flex gap-4">
+                    <Button variant="outline" className="rounded-2xl h-14 px-6 font-black shadow-zentry bg-white/60 border-slate-300 text-slate-800 hover:bg-slate-50 transition-all">
+                        <Download className="mr-2 h-5 w-5" /> REPORTE XLS
+                    </Button>
+                    <Button
+                        onClick={() => setRefreshing(true)}
+                        className="rounded-2xl h-14 px-8 font-black shadow-zentry-lg bg-slate-900 text-white hover:bg-slate-800 hover-lift transition-all"
+                    >
+                        <RefreshCw className={`mr-2 h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} /> ACTUALIZAR
+                    </Button>
+                </div>
+            </motion.div>
 
-  return (
-    <div className="space-y-6 p-4 md:p-8">
-      {/* Header */}
-      <div className="flex flex-col space-y-2">
-        <h1 className="text-3xl font-bold">Gestión de Ingresos</h1>
-          <p className="text-muted-foreground">
-          Monitorea y gestiona todos los ingresos del sistema en tiempo real
-        </p>
-      </div>
-      
-      {/* Estadísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Ingresos</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-xs text-muted-foreground">
-              {currentResults} filtrados
-            </p>
-          </CardContent>
-        </Card>
+            {/* Grid de Estadísticas con Filtro Dinámico */}
+            <div className="flex flex-col gap-6">
+                <div className="flex justify-between items-end">
+                    <div className="flex flex-col gap-1">
+                        <p className="text-[11px] font-black text-slate-600 uppercase tracking-widest ml-1 flex items-center gap-2">
+                            <Calendar className="h-3 w-3" /> Periodo de Auditoría
+                        </p>
+                        <div className="flex items-center gap-4 bg-white/70 backdrop-blur-xl p-2 rounded-2xl shadow-sm border border-slate-200">
+                            <Select value={monthFilter} onValueChange={setMonthFilter}>
+                                <SelectTrigger className="h-10 border-none bg-transparent font-black text-slate-700 min-w-[200px] focus-visible:ring-0">
+                                    <SelectValue placeholder="Mes del reporte" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-2xl border-none shadow-2xl bg-white/95 backdrop-blur-3xl">
+                                    <SelectItem value="todos" className="font-bold">Todo el Historial</SelectItem>
+                                    {monthOptions.map(opt => (
+                                        <SelectItem key={opt.value} value={opt.value} className="font-bold">{opt.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Activos</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.activos}</div>
-            <p className="text-xs text-muted-foreground">
-              En el residencial
-            </p>
-        </CardContent>
-      </Card>
-      
-      <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Completados</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.completados}</div>
-            <p className="text-xs text-muted-foreground">
-              Han salido
-            </p>
-        </CardContent>
-      </Card>
-      
-      <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Con Vehículo</CardTitle>
-            <Car className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.conVehiculo}</div>
-            <p className="text-xs text-muted-foreground">
-              Registraron vehículo
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                    <StatTile icon={<User />} label={`Ingresos ${monthFilter === 'todos' ? 'Totales' : 'Mes'}`} value={stats.total} color="blue" description="Accesos registrados" />
+                    <StatTile icon={<Clock />} label="En Recinto" value={stats.activos} color="green" description="Activos actualmente" />
+                    <StatTile icon={<Car />} label="Vehiculares" value={stats.vehiculares} color="purple" description="Con placa auditada" />
+                    <StatTile icon={<Home />} label="Cobertura" value={stats.casasAnalizadas} color="orange" description="Casas visitadas" />
+                </div>
+            </div>
 
-      {/* Filtros Avanzados */}
-      <AdvancedFiltersBar
-        filters={filters}
-        updateFilters={updateFilters}
-        resetFilters={resetFilters}
-        setQuickFilter={setQuickFilter}
-        filterOptions={filterOptions}
-        hasActiveFilters={hasActiveFilters}
-        totalResults={totalResults}
-        currentResults={currentResults}
-        onExport={handleExport}
-        getResidencialNombre={getResidencialNombre}
-      />
+            {/* SMART FILTERS SECTION */}
+            <Card className="border-none shadow-zentry-lg bg-white/80 backdrop-blur-2xl rounded-[2.5rem] overflow-hidden">
+                <div className="p-8 pb-4 border-b border-white/10 space-y-6">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <Filter className="h-5 w-5 text-primary" />
+                            <h2 className="text-sm font-black uppercase tracking-widest mr-4 text-slate-800">Filtrado Maestro</h2>
 
-      {/* Tabla de Ingresos con Pestañas */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Lista de Ingresos</span>
-            {loading && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                Actualizando...
-              </div>
-            )}
-          </CardTitle>
-          <CardDescription>
-            Gestiona los ingresos con filtros avanzados y búsqueda en tiempo real
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="vehicular" className="w-full">
-            <TabsList>
-              <TabsTrigger value="vehicular">Vehicular ({vehicularList.length})</TabsTrigger>
-              <TabsTrigger value="peatonal">Peatonal ({pedestrianList.length})</TabsTrigger>
-            </TabsList>
-            <TabsContent value="vehicular">
-              <Suspense fallback={<Skeleton className="h-96 w-full" />}>
-                <TablaIngresos 
-                  ingresos={vehicularPage}
-                  onOpenDetails={handleOpenDetails}
-                  loading={loading}
-                  formatDateToRelative={formatDateToRelative}
-                  formatDateToFull={formatDateToFull}
-                  getResidencialNombre={getResidencialNombre}
-                  showVehicleColumn={true}
-                />
-              </Suspense>
-            </TabsContent>
-            <TabsContent value="peatonal">
-              <Suspense fallback={<Skeleton className="h-96 w-full" />}>
-                <TablaIngresos 
-                  ingresos={pedestrianPage}
-                  onOpenDetails={handleOpenDetails}
-                  loading={loading}
-                  formatDateToRelative={formatDateToRelative}
-                  formatDateToFull={formatDateToFull}
-                  getResidencialNombre={getResidencialNombre}
-                  showVehicleColumn={false}
-                />
-              </Suspense>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-      
-      {/* Paginación */}
-      <PaginationControls
-        currentPage={filters.currentPage}
-        totalPages={totalPages}
-        pageSize={filters.pageSize}
-        totalResults={totalResults}
-        currentResults={currentResults}
-        onPageChange={(page) => updateFilters({ currentPage: page })}
-        onPageSizeChange={(pageSize) => updateFilters({ pageSize })}
-      />
+                            {/* Botones de Filtro - UI Refinada con Alto Contraste */}
+                            <div className="flex bg-slate-200/50 p-1.5 rounded-2xl shadow-inner gap-1.5">
+                                <FilterButton
+                                    active={tipoIngresoFilter === 'todos'}
+                                    onClick={() => setTipoIngresoFilter("todos")}
+                                    label="Todos"
+                                />
+                                <FilterButton
+                                    active={tipoIngresoFilter === 'temporal'}
+                                    onClick={() => setTipoIngresoFilter("temporal")}
+                                    label="1 Solo Uso"
+                                    icon={<Zap className="h-3 w-3" />}
+                                />
+                                <FilterButton
+                                    active={tipoIngresoFilter === 'autorizada'}
+                                    onClick={() => setTipoIngresoFilter("autorizada")}
+                                    label="Visita Autorizada"
+                                    icon={<ShieldCheck className="h-3 w-3" />}
+                                />
+                                <FilterButton
+                                    active={tipoIngresoFilter === 'evento'}
+                                    onClick={() => setTipoIngresoFilter("evento")}
+                                    label="Eventos"
+                                    icon={<Calendar className="h-3 w-3" />}
+                                />
+                            </div>
+                        </div>
 
-      {/* Dialog de Detalles */}
-      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Detalles del Ingreso</DialogTitle>
-            <DialogDescription>
-              Información completa del registro de ingreso
-            </DialogDescription>
-          </DialogHeader>
-          {selectedIngreso && (
-            <Suspense fallback={<Skeleton className="h-96 w-full" />}>
-            <DetallesIngresoDialogContent 
-              selectedIngreso={selectedIngreso}
-              formatDateToFull={formatDateToFull}
+                        <div className="flex items-center gap-4">
+                            <Tabs value={activeView} onValueChange={v => setActiveView(v as any)} className="bg-slate-200/50 p-1 rounded-2xl shadow-inner">
+                                <TabsList className="bg-transparent border-none gap-1">
+                                    <TabsTrigger value="general" className="h-9 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-lg text-slate-700">
+                                        <ArrowRightLeft className="w-3.5 h-3.5 mr-2" /> Historial
+                                    </TabsTrigger>
+                                    <TabsTrigger value="casas" className="h-9 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-lg text-slate-700">
+                                        <Home className="w-3.5 h-3.5 mr-2" /> Agrupado
+                                    </TabsTrigger>
+                                    <TabsTrigger value="analitica" className="h-9 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-lg text-slate-700">
+                                        <TrendingUp className="w-3.5 h-3.5 mr-2" /> Analítica
+                                    </TabsTrigger>
+                                </TabsList>
+                            </Tabs>
+                            {(searchTerm || dateFilter || (isGlobalAdmin && residencialFilter !== 'todos') || statusFilter !== 'todos') && (
+                                <Button variant="secondary" onClick={clearFilters} className="rounded-2xl font-black text-[10px] uppercase tracking-widest h-11 px-6 shadow-sm bg-white border border-slate-200 hover:bg-slate-50 text-slate-700">
+                                    <X className="h-4 w-4 mr-2" /> Limpiar
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                        {/* Búsqueda General */}
+                        <div className="md:col-span-2 lg:col-span-3 relative">
+                            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-600" />
+                            <Input
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                placeholder="Buscar visitante, placa, casa o código QR..."
+                                className="pl-12 h-14 bg-white border border-slate-300 shadow-sm rounded-2xl font-bold focus-visible:ring-primary/20 text-slate-900 placeholder:text-slate-500"
+                            />
+                        </div>
+
+                        {/* Filtro de Estado Discreto */}
+                        <div className="relative">
+                            <Select value={statusFilter} onValueChange={setStatusFilter}>
+                                <SelectTrigger className="h-14 bg-white border border-slate-300 shadow-sm rounded-2xl font-bold px-6 text-slate-900">
+                                    <Wifi className="mr-2 h-4 w-4 text-emerald-500" />
+                                    <SelectValue placeholder="Estado" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-3xl border-none shadow-2xl bg-white/95 backdrop-blur-3xl">
+                                    <SelectItem value="todos" className="font-bold">Todos los Estados</SelectItem>
+                                    <SelectItem value="active" className="font-bold text-emerald-600">En Recinto</SelectItem>
+                                    <SelectItem value="completed" className="font-bold text-blue-600">Finalizado</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {isGlobalAdmin ? (
+                            <Select value={residencialFilter} onValueChange={setResidencialFilter}>
+                                <SelectTrigger className="h-14 bg-white border border-slate-300 shadow-sm rounded-2xl font-bold px-6 text-slate-900">
+                                    <Building className="mr-2 h-5 w-5 text-primary" />
+                                    <SelectValue placeholder="Residencial" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-3xl border-none shadow-2xl bg-white/95 backdrop-blur-3xl">
+                                    <SelectItem value="todos" className="font-bold">Todos los Residenciales</SelectItem>
+                                    {residenciales.map(r => (
+                                        <SelectItem key={r.id} value={r.id} className="font-bold">{r.nombre}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        ) : (
+                            <div className="relative">
+                                <Calendar className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-primary" />
+                                <Input
+                                    type="date"
+                                    value={dateFilter}
+                                    onChange={e => setDateFilter(e.target.value)}
+                                    className="pl-12 h-14 bg-white border border-slate-300 shadow-sm rounded-2xl font-bold focus-visible:ring-primary/20 text-slate-900"
+                                />
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <CardContent className="p-0">
+                    <AnimatePresence mode="wait">
+                        {activeView === 'general' ? (
+                            <motion.div key="general" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader className="bg-slate-100/50">
+                                            <TableRow className="border-none">
+                                                <TableHead className="py-6 px-10 text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">ID Pase</TableHead>
+                                                <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">Identificación / Tipo</TableHead>
+                                                <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">Vehículo / Placa</TableHead>
+                                                <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">Domicilio</TableHead>
+                                                <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">Llegada</TableHead>
+                                                <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700 text-right px-10">Estado</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {loading ? (
+                                                Array(6).fill(0).map((_, i) => <TableRow key={i}><TableCell colSpan={6} className="p-6"><Skeleton className="h-16 w-full rounded-2xl" /></TableCell></TableRow>)
+                                            ) : paginatedIngresos.length > 0 ? (
+                                                paginatedIngresos.map(ing => (
+                                                    <TableRow
+                                                        key={ing.id}
+                                                        onClick={() => { setSelectedIngreso(ing); setDetailsOpen(true); }}
+                                                        className="group border-white/10 hover:bg-slate-50 transition-all cursor-pointer"
+                                                    >
+                                                        <TableCell className="py-6 px-10">
+                                                            <div className="h-10 w-10 rounded-xl bg-slate-900 flex items-center justify-center text-white shadow-lg ring-1 ring-slate-800">
+                                                                <span className="font-mono text-xs font-black">
+                                                                    {ing.physicalPass?.number ? `#${ing.physicalPass.number}` : "---"}
+                                                                </span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="h-12 w-12 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-700 shadow-sm border border-blue-100">
+                                                                    <User className="h-5 w-5" />
+                                                                </div>
+                                                                <div className="min-w-0">
+                                                                    <p className="font-black text-slate-900 truncate max-w-[180px]">{ing.visitData?.name || '---'}</p>
+                                                                    <Badge
+                                                                        className={`text-[9px] h-5 rounded-md px-2 font-black uppercase tracking-widest border-none shadow-sm ${ing.category === 'temporal' ? 'bg-amber-100 text-amber-700' :
+                                                                            ing.category === 'evento' ? 'bg-purple-100 text-purple-700' :
+                                                                                'bg-blue-100 text-blue-700'
+                                                                            }`}
+                                                                    >
+                                                                        {ing.category === 'temporal' ? '1 SOLO USO' : ing.category === 'evento' ? 'EVENTO' : 'AUTORIZADA'}
+                                                                    </Badge>
+                                                                </div>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {ing.vehicleInfo?.placa ? (
+                                                                <div className="space-y-1">
+                                                                    <Badge className="bg-slate-900 text-white font-mono tracking-tighter px-3 py-1 text-sm border-none shadow-lg">
+                                                                        {ing.vehicleInfo.placa.toUpperCase()}
+                                                                    </Badge>
+                                                                    <p className="text-[10px] font-black uppercase text-slate-500">{ing.vehicleInfo.marca} {ing.vehicleInfo.modelo}</p>
+                                                                </div>
+                                                            ) : <Badge variant="outline" className="border-slate-300 text-slate-600 font-black text-[9px] uppercase tracking-widest bg-slate-50 px-2 py-1">Peatonal</Badge>}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="h-8 w-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-700 shrink-0 border border-emerald-100">
+                                                                    <MapPin className="h-4 w-4" />
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-black text-sm text-slate-900">{ing.domicilio?.calle} #{ing.domicilio?.houseNumber}</p>
+                                                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">{ing._residencialNombre}</p>
+                                                                </div>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <div className="space-y-0.5">
+                                                                <p className="text-sm font-black text-slate-900">{formatDateToRelative(ing.timestamp)}</p>
+                                                                <p className="text-[10px] font-bold text-primary flex items-center gap-1 uppercase tracking-widest">
+                                                                    <Clock className="h-3 w-3" /> {format(convertToDate(ing.timestamp), "hh:mm aa")}
+                                                                </p>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="text-right px-10">
+                                                            <div className="flex items-center justify-end gap-3">
+                                                                <Badge className={
+                                                                    ing.status === 'active' ? 'bg-emerald-600 text-white border-none px-4 py-1.5 rounded-full font-black text-[9px] tracking-widest shadow-md' :
+                                                                        ing.status === 'completed' ? 'bg-blue-600 text-white border-none px-4 py-1.5 rounded-full font-black text-[9px] tracking-widest shadow-md' :
+                                                                            'bg-slate-200 text-slate-500 border-none px-4 py-1.5 rounded-full font-black text-[9px] tracking-widest'
+                                                                }>
+                                                                    {ing.status === 'active' ? 'EN RECINTO' : 'FINALIZADO'}
+                                                                </Badge>
+                                                                <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-primary transition-all group-hover:translate-x-1" />
+                                                            </div>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            ) : (
+                                                <TableRow>
+                                                    <TableCell colSpan={6} className="py-20 text-center">
+                                                        <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-500">
+                                                            <Search className="h-16 w-16 text-slate-200" />
+                                                            <div className="space-y-1">
+                                                                <p className="text-xl font-black text-slate-600">Sin Resultados en {monthFilter === 'todos' ? 'el Historial' : format(parseISO(monthFilter + "-01"), "MMMM", { locale: es })}</p>
+                                                                <p className="text-sm text-slate-500 font-bold">Intenta ajustar los filtros de periodo o categoría.</p>
+                                                            </div>
+                                                            <Button onClick={clearFilters} variant="outline" className="rounded-2xl font-black mt-2 text-slate-700 border-slate-300">Limpiar Todo</Button>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+
+                                {!loading && filteredIngresos.length > 0 && (
+                                    <div className="border-t border-slate-100 p-6 bg-slate-50/40">
+                                        <PaginationControls
+                                            currentPage={currentPage}
+                                            totalPages={totalPages}
+                                            pageSize={pageSize}
+                                            totalResults={filteredIngresos.length}
+                                            currentResults={paginatedIngresos.length}
+                                            onPageChange={setCurrentPage}
+                                            onPageSizeChange={(s) => { setPageSize(s); setCurrentPage(1); }}
+                                        />
+                                    </div>
+                                )}
+                            </motion.div>
+                        ) : activeView === 'casas' ? (
+                            <motion.div key="casas" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-8">
+                                <VistaPorCasa
+                                    casas={casasAgrupadas}
+                                    onVerDetalles={(casa) => { setSelectedCasa(casa); setCasaDialogOpen(true); }}
+                                    getResidencialNombre={(id) => residenciales.find(r => r.id === id)?.nombre || '---'}
+                                />
+                            </motion.div>
+                        ) : (
+                            <motion.div key="analitica" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-8 pb-12">
+                                <EstadisticasIngresos
+                                    ingresos={filteredIngresos}
+                                    monthFilter={monthFilter}
+                                    isGlobalAdmin={isGlobalAdmin}
+                                />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </CardContent>
+            </Card>
+
+            {/* Modales Compartidos */}
+            <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+                <DialogContent className="max-w-3xl bg-white rounded-[3rem] border-none shadow-2xl p-0 overflow-hidden">
+                    <DetallesIngresoDialogContent
+                        selectedIngreso={selectedIngreso}
+                        formatDateToFull={formatDateToFull}
+                    />
+                </DialogContent>
+            </Dialog>
+
+            <IngresosPorCasaDialog
+                casa={selectedCasa}
+                isOpen={casaDialogOpen}
+                onClose={() => setCasaDialogOpen(false)}
+                onVerDetalles={(ing) => { setSelectedIngreso(ing); setDetailsOpen(true); }}
+                formatDateToRelative={formatDateToRelative}
+                formatDateToFull={formatDateToFull}
+                getResidencialNombre={(id) => residenciales.find(r => r.id === id)?.nombre || '---'}
             />
-          </Suspense>
-        )}
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-} 
+        </div>
+    );
+}
+
+// Sub-componentes Especializados para la UI Premium
+function StatTile({ icon, label, value, color, description }: any) {
+    const colors: any = {
+        blue: "bg-blue-50 text-blue-700 border-blue-200",
+        green: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        purple: "bg-purple-50 text-purple-700 border-purple-200",
+        orange: "bg-orange-50 text-orange-700 border-orange-200"
+    };
+    return (
+        <Card className="border-none shadow-zentry-lg bg-white/70 backdrop-blur-2xl rounded-[2.2rem] p-6 group hover:translate-y-[-4px] hover:shadow-2xl transition-all duration-300 ring-1 ring-slate-100">
+            <div className="flex items-start gap-5">
+                <div className={`h-14 w-14 rounded-2xl ${colors[color]} border flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:rotate-3 transition-all shadow-sm`}>
+                    {React.cloneElement(icon, { size: 28 })}
+                </div>
+                <div className="space-y-0.5">
+                    <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">{label}</p>
+                    <div className="flex items-baseline gap-1">
+                        <p className="text-3xl font-black text-slate-900 tracking-tighter leading-none">{value}</p>
+                        <span className="text-emerald-500 font-black text-[10px] animate-pulse">●</span>
+                    </div>
+                    <p className="text-[10px] font-bold text-slate-500 truncate mt-1">{description}</p>
+                </div>
+            </div>
+        </Card>
+    );
+}
+
+function FilterButton({ active, onClick, label, icon }: { active: boolean, onClick: () => void, label: string, icon?: React.ReactNode }) {
+    return (
+        <button
+            onClick={onClick}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-[1.2rem] font-black text-[10px] uppercase tracking-widest transition-all duration-300 ${active
+                ? 'bg-slate-900 text-white shadow-xl shadow-slate-200 scale-105'
+                : 'text-slate-700 hover:text-slate-950 hover:bg-white/60'
+                }`}
+        >
+            {icon && <span className={active ? 'text-primary-foreground' : 'text-slate-500'}>{icon}</span>}
+            {label}
+        </button>
+    );
+}

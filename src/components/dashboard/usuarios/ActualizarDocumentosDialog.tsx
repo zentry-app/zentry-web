@@ -9,17 +9,17 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Usuario, actualizarUsuario } from '@/lib/firebase/firestore';
 import { subirDocumento, getDocumentURLSimplificado, eliminarDocumento } from '@/lib/firebase/storage';
 import { toast as sonnerToast } from 'sonner';
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  Home, 
-  Building, 
-  FileText, 
-  Upload, 
-  CheckCircle, 
-  XCircle, 
-  Save, 
+import {
+  User,
+  Mail,
+  Phone,
+  Home,
+  Building,
+  FileText,
+  Upload,
+  CheckCircle,
+  XCircle,
+  Save,
   RefreshCw,
   AlertTriangle,
   Info,
@@ -35,25 +35,25 @@ interface ActualizarDocumentosDialogProps {
   onUsuarioActualizado: () => void;
 }
 
-const ActualizarDocumentosDialog: React.FC<ActualizarDocumentosDialogProps> = ({ 
-  usuario, 
-  onClose, 
-  onUsuarioActualizado 
+const ActualizarDocumentosDialog: React.FC<ActualizarDocumentosDialogProps> = ({
+  usuario,
+  onClose,
+  onUsuarioActualizado
 }) => {
   const [loading, setLoading] = useState(false);
   const [subiendoDocumentos, setSubiendoDocumentos] = useState(false);
-  
+
   // Estado de documentos
   const [identificacionFile, setIdentificacionFile] = useState<File | null>(null);
   const [comprobanteFile, setComprobanteFile] = useState<File | null>(null);
-  
+
   // URLs de previsualización para archivos nuevos
   const [identificacionPreview, setIdentificacionPreview] = useState<string | null>(null);
   const [comprobantePreview, setComprobantePreview] = useState<string | null>(null);
-  
+
   // Estado de carga de documentos
   const [cargandoDocumentos, setCargandoDocumentos] = useState(true);
-  
+
   // URLs de documentos actuales
   const [identificacionUrl, setIdentificacionUrl] = useState<string | null>(null);
   const [comprobanteUrl, setComprobanteUrl] = useState<string | null>(null);
@@ -63,7 +63,7 @@ const ActualizarDocumentosDialog: React.FC<ActualizarDocumentosDialogProps> = ({
     const cargarDocumentos = async () => {
       try {
         setCargandoDocumentos(true);
-        
+
         // Cargar identificación
         if (usuario.identificacionUrl) {
           try {
@@ -74,7 +74,7 @@ const ActualizarDocumentosDialog: React.FC<ActualizarDocumentosDialogProps> = ({
             setIdentificacionUrl(null);
           }
         }
-        
+
         // Cargar comprobante (solo para propietarios)
         if ((usuario as any).isOwner || usuario.ownershipStatus === 'own') {
           if (usuario.comprobanteUrl) {
@@ -137,7 +137,7 @@ const ActualizarDocumentosDialog: React.FC<ActualizarDocumentosDialogProps> = ({
         const rutaIdentificacion = `usuarios/${usuario.id}/identificacion_${Date.now()}.jpg`;
         const urlIdentificacion = await subirDocumento(identificacionFile, rutaIdentificacion);
         actualizaciones.identificacionUrl = urlIdentificacion;
-        
+
         // Eliminar documento anterior si existe
         if (usuario.identificacionUrl) {
           try {
@@ -153,7 +153,7 @@ const ActualizarDocumentosDialog: React.FC<ActualizarDocumentosDialogProps> = ({
         const rutaComprobante = `usuarios/${usuario.id}/comprobante_${Date.now()}.jpg`;
         const urlComprobante = await subirDocumento(comprobanteFile, rutaComprobante);
         actualizaciones.comprobanteUrl = urlComprobante;
-        
+
         // Eliminar documento anterior si existe
         if (usuario.comprobanteUrl) {
           try {
@@ -171,16 +171,16 @@ const ActualizarDocumentosDialog: React.FC<ActualizarDocumentosDialogProps> = ({
 
       sonnerToast.dismiss(toastId);
       sonnerToast.success('Documentos actualizados correctamente');
-      
+
       // Limpiar archivos seleccionados
       setIdentificacionFile(null);
       setComprobanteFile(null);
       setIdentificacionPreview(null);
       setComprobantePreview(null);
-      
+
       // Recargar documentos
       onUsuarioActualizado();
-      
+
     } catch (error) {
       console.error('Error subiendo documentos:', error);
       sonnerToast.dismiss(toastId);
@@ -197,13 +197,13 @@ const ActualizarDocumentosDialog: React.FC<ActualizarDocumentosDialogProps> = ({
 
     try {
       await actualizarUsuario(usuario.id!, { status: 'approved' });
-      
+
       sonnerToast.dismiss(toastId);
       sonnerToast.success('Usuario aprobado correctamente');
-      
+
       onUsuarioActualizado();
       onClose();
-      
+
     } catch (error) {
       console.error('Error aprobando usuario:', error);
       sonnerToast.dismiss(toastId);
@@ -416,7 +416,7 @@ const ActualizarDocumentosDialog: React.FC<ActualizarDocumentosDialogProps> = ({
           </div>
 
           <div className="mt-4 flex gap-2">
-            <Button 
+            <Button
               onClick={subirDocumentos}
               disabled={subiendoDocumentos || (!identificacionFile && !comprobanteFile)}
               className="flex items-center gap-2"
@@ -437,7 +437,7 @@ const ActualizarDocumentosDialog: React.FC<ActualizarDocumentosDialogProps> = ({
         <Button variant="outline" onClick={onClose}>
           Cancelar
         </Button>
-        <Button 
+        <Button
           onClick={handleAprobarUsuario}
           disabled={loading}
           className="flex items-center gap-2"
