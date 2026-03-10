@@ -1,1 +1,0 @@
-self.__NEXT_FONT_MANIFEST="{\"pages\":{},\"app\":{\"/Users/gerardoarroyo/Desktop/Zentry WEB/app/layout\":[\"static/media/e4af272ccee01ff0-s.p.woff2\",\"static/media/8888a3826f4a3af4-s.p.woff2\",\"static/media/b957ea75a84b6ea7-s.p.woff2\",\"static/media/4473ecc91f70f139-s.p.woff\"]},\"appUsingSizeAdjust\":true,\"pagesUsingSizeAdjust\":false}"

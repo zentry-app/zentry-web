@@ -22,3 +22,20 @@ service_account_one_line.json
 .env.local.backup*
 *.json.backup
 node_modules
+
+# Local OS/editor
+.DS_Store
+
+# TypeScript incremental cache
+tsconfig.tsbuildinfo
+
+# Local logs / test artifacts
+*.log
+test_output.txt
+coverage_output.txt
+
+# Temporary/debug/scratch files
+temp_*
+debug_*
+*.backup
+*.old

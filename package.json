@@ -19,7 +19,10 @@
     "vercel:prod": "vercel --prod",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "analyze": "ANALYZE=true next build"
+    "analyze": "ANALYZE=true next build",
+    "test": "vitest",
+    "test:silent": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
@@ -83,6 +86,7 @@
     "next": "^14.2.23",
     "next-themes": "^0.3.0",
     "nodemailer": "^6.9.16",
+    "papaparse": "^5.5.3",
     "qrcode.react": "^4.2.0",
     "react": "^18.3.1",
     "react-countup": "^6.5.3",
@@ -107,21 +111,29 @@
     "tsparticles": "^3.8.0",
     "tsparticles-slim": "^2.12.0",
     "vaul": "^1.1.0",
+    "xlsx": "^0.18.5",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@next/bundle-analyzer": "14.2.23",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/lodash": "^4.17.19",
     "@types/node": "^20",
+    "@types/papaparse": "^5.5.2",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.5",
     "@types/react-scroll": "^1.8.10",
+    "@vitejs/plugin-react-swc": "^4.2.3",
     "eslint": "^8",
     "eslint-config-next": "14.2.23",
+    "jsdom": "^28.1.0",
     "postcss": "^8",
     "sharp": "^0.34.5",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.0.18"
   },
   "browserslist": {
     "production": [
