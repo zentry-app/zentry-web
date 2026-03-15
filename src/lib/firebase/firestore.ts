@@ -1,5 +1,7 @@
 import { getFirestore } from 'firebase/firestore';
-import { app } from './config';
+import { app, functions } from './config';
+import { httpsCallable } from 'firebase/functions';
+import { FEATURE_FLAGS } from '../featureFlags';
 import {
   collection,
   doc,
@@ -920,8 +922,6 @@ export const cambiarEstadoUsuario = async (id: string, estado: Usuario['status']
  */
 export const cambiarEstadoMoroso = async (id: string, isMoroso: boolean) => {
   try {
-    console.log(`🔄 Cambiando estado de moroso para usuario ${id}: ${isMoroso ? 'Marcado como moroso' : 'Desmarcado como moroso'}`);
-
     // Primero obtener el usuario actual para preservar valores
     const usuarioActual = await getUsuario(id);
     if (!usuarioActual) {
@@ -948,7 +948,6 @@ export const cambiarEstadoMoroso = async (id: string, isMoroso: boolean) => {
           const residencial = await getResidencialPorID(usuarioActual.residencialID);
           if (residencial?.maxCodigosQRMorosos !== undefined) {
             maxCodigosQRMorosos = residencial.maxCodigosQRMorosos;
-            console.log(`📋 Usando límite de códigos QR para morosos del residencial: ${maxCodigosQRMorosos}`);
           }
         } catch (error) {
           console.warn(`⚠️ No se pudo obtener la configuración del residencial, usando valor por defecto (5):`, error);
@@ -961,8 +960,6 @@ export const cambiarEstadoMoroso = async (id: string, isMoroso: boolean) => {
       if (usuarioActual.max_codigos_qr_diarios !== undefined) {
         datosActualizacion.max_codigos_qr_original = usuarioActual.max_codigos_qr_diarios;
       }
-
-      console.log(`🔒 Usuario marcado como moroso - Desactivando todas las funciones y limitando códigos QR a ${maxCodigosQRMorosos} por día`);
     } else {
       // Si se desmarca como moroso, restaurar funciones por defecto
       datosActualizacion.features = {
@@ -982,13 +979,9 @@ export const cambiarEstadoMoroso = async (id: string, isMoroso: boolean) => {
         // Si no hay valor original guardado, usar 10 como valor por defecto
         datosActualizacion.max_codigos_qr_diarios = 10;
       }
-
-      console.log(`🔓 Usuario desmarcado como moroso - Restaurando funciones por defecto y códigos QR originales`);
     }
 
     const resultado = await actualizarUsuario(id, datosActualizacion);
-
-    console.log(`✅ Estado de moroso y funciones actualizados correctamente para usuario ${id}`);
 
     // --- Historial de morosidad ---
     try {
@@ -1021,8 +1014,6 @@ export const cambiarEstadoMoroso = async (id: string, isMoroso: boolean) => {
           });
         }
       }
-
-      console.log(`📝 Historial de morosidad registrado para usuario ${id}`);
     } catch (historialError) {
       console.warn(`⚠️ Error escribiendo historial de morosidad (no crítico):`, historialError);
     }
@@ -1045,91 +1036,78 @@ export const cambiarMorosidadPorCasa = async (
 ): Promise<number> => {
   try {
     const { residencialId, houseID, houseId, calle, houseNumber } = params;
-    console.log('🔍 [cambiarMorosidadPorCasa] Parámetros recibidos:', { residencialId, houseID, houseId, calle, houseNumber, isMoroso });
-
     if (!residencialId) throw new Error('residencialId es requerido');
 
     const usuariosRef = collection(db, 'usuarios');
     let q: any;
 
+    const docsMap = new Map<string, any>();
+    const addSnapshotDocs = (snap: any) => {
+      snap.docs.forEach((docSnap: any) => {
+        docsMap.set(docSnap.id, docSnap);
+      });
+    };
+
     // 1) Por houseID/houseId (preferido)
     const targetHouseId = (houseID || houseId || '').trim();
     if (targetHouseId) {
-      console.log('🔍 [cambiarMorosidadPorCasa] Buscando por houseID:', targetHouseId);
-
       q = query(usuariosRef,
         where('residencialID', '==', residencialId),
         where('houseID', '==', targetHouseId)
       );
-      let snap = await getDocs(q);
-      console.log('🔍 [cambiarMorosidadPorCasa] Primer query (houseID) encontró:', snap.size, 'usuarios');
+      const houseIdSnap = await getDocs(q);
+      addSnapshotDocs(houseIdSnap);
 
-      if (snap.empty) {
-        console.log('🔍 [cambiarMorosidadPorCasa] Intentando fallback con houseId');
-        // Fallback: algunos documentos usan 'houseId'
+      q = query(usuariosRef,
+        where('residencialID', '==', residencialId),
+        where('houseId', '==', targetHouseId)
+      );
+      const legacyHouseIdSnap = await getDocs(q);
+      addSnapshotDocs(legacyHouseIdSnap);
+
+      if (docsMap.size === 0 && calle && houseNumber) {
         q = query(usuariosRef,
           where('residencialID', '==', residencialId),
-          where('houseId', '==', targetHouseId)
+          where('calle', '==', calle),
+          where('houseNumber', '==', houseNumber)
         );
-        snap = await getDocs(q);
-        console.log('🔍 [cambiarMorosidadPorCasa] Fallback query (houseId) encontró:', snap.size, 'usuarios');
-      }
-
-      if (snap.size > 0) {
-        console.log('🔍 [cambiarMorosidadPorCasa] Usuarios encontrados para actualizar:');
-        snap.docs.forEach((doc, index) => {
-          const data = doc.data() as any;
-          console.log(`  ${index + 1}. ID: ${doc.id}, Email: ${data.email || 'N/A'}, Estado moroso actual: ${data.isMoroso || false}`);
-        });
+        const addressSnap = await getDocs(q);
+        addSnapshotDocs(addressSnap);
       }
 
       let updated = 0;
-      for (const d of snap.docs) {
+      for (const d of docsMap.values()) {
         try {
           await cambiarEstadoMoroso(d.id, isMoroso);
           updated++;
-          console.log(`✅ Usuario ${d.id} actualizado exitosamente`);
         } catch (error) {
           console.error(`❌ Error actualizando usuario ${d.id}:`, error);
         }
       }
 
-      console.log(`🔍 [cambiarMorosidadPorCasa] Total usuarios actualizados: ${updated}`);
       return updated;
     }
 
     // 2) Por calle + houseNumber
     if (calle && houseNumber) {
-      console.log('🔍 [cambiarMorosidadPorCasa] Buscando por calle + houseNumber:', { calle, houseNumber });
-
       q = query(usuariosRef,
         where('residencialID', '==', residencialId),
         where('calle', '==', calle),
         where('houseNumber', '==', houseNumber)
       );
       const snap = await getDocs(q);
-      console.log('🔍 [cambiarMorosidadPorCasa] Query por dirección encontró:', snap.size, 'usuarios');
-
-      if (snap.size > 0) {
-        console.log('🔍 [cambiarMorosidadPorCasa] Usuarios encontrados para actualizar:');
-        snap.docs.forEach((doc, index) => {
-          const data = doc.data() as any;
-          console.log(`  ${index + 1}. ID: ${doc.id}, Email: ${data.email || 'N/A'}, Estado moroso actual: ${data.isMoroso || false}`);
-        });
-      }
+      addSnapshotDocs(snap);
 
       let updated = 0;
-      for (const d of snap.docs) {
+      for (const d of docsMap.values()) {
         try {
           await cambiarEstadoMoroso(d.id, isMoroso);
           updated++;
-          console.log(`✅ Usuario ${d.id} actualizado exitosamente`);
         } catch (error) {
           console.error(`❌ Error actualizando usuario ${d.id}:`, error);
         }
       }
 
-      console.log(`🔍 [cambiarMorosidadPorCasa] Total usuarios actualizados: ${updated}`);
       return updated;
     }
 
@@ -2412,7 +2390,6 @@ export const suscribirseAUsuarios = (
   }
 
   let previousData: Usuario[] = [];
-  let updateCount = 0;
 
   return onSnapshot(q, (snapshot) => {
     const usuarios = snapshot.docs.map(doc => ({
@@ -2420,16 +2397,10 @@ export const suscribirseAUsuarios = (
       ...doc.data()
     })) as Usuario[];
 
-    updateCount++;
-    console.log(`🔄 Suscripción #${updateCount}: ${usuarios.length} usuarios recibidos`);
-
     // Solo actualizar si hay cambios reales
     if (JSON.stringify(previousData) !== JSON.stringify(usuarios)) {
-      console.log(`✅ Cambios detectados en suscripción, actualizando...`);
       previousData = usuarios;
       callback(usuarios);
-    } else {
-      console.log(`⏭️ No hay cambios en suscripción, saltando actualización`);
     }
   }, (error) => {
     console.error('❌ Error en suscripción a usuarios:', error);
@@ -2722,7 +2693,7 @@ export const suscribirseANotificacionesProgramadas = (
     });
   } catch (error) {
     console.error('Error en suscribirseANotificacionesProgramadas:', error);
-    return () => {};
+    return () => { };
   }
 };
 
@@ -2760,7 +2731,7 @@ export const getPagos = async (residencialID: string): Promise<Pago[]> => {
   try {
     console.log(`🔍 getPagos: Buscando pagos para residencial ID: ${residencialID}`);
 
-    const coleccionesPosibles = ['pagos', 'payments'];
+    const coleccionesPosibles = ['paymentIntents'];
 
     for (const nombreColeccion of coleccionesPosibles) {
       console.log(`🔍 Intentando con subcolección: ${nombreColeccion}`);
@@ -2800,7 +2771,7 @@ export const getPagos = async (residencialID: string): Promise<Pago[]> => {
  * Suscripción en tiempo real a los pagos de un residencial
  */
 export const suscribirseAPagos = (residencialID: string, callback: (pagos: Pago[]) => void): (() => void) => {
-  const pagosRef = collection(db, `residenciales/${residencialID}/pagos`);
+  const pagosRef = collection(db, `residenciales/${residencialID}/paymentIntents`);
   const q = query(pagosRef, orderBy("timestamp", "desc"));
 
   const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -3107,41 +3078,43 @@ interface EfectivoPaymentData {
   residencialId: string;
   userId: string;
   userName: string;
+  userEmail?: string;
+  calle?: string;
+  houseNumber?: string;
   amount: number;
   concept: string;
   paymentDate: Date;
 }
 
 export const registrarPagoEfectivo = async (data: EfectivoPaymentData): Promise<void> => {
-  const { residencialId, userId, userName, amount, concept, paymentDate } = data;
+  const { residencialId, userId, userName, userEmail, calle, houseNumber, amount, concept, paymentDate } = data;
 
   if (!residencialId) {
     throw new Error("El ID del residencial es requerido para registrar un pago.");
   }
 
   try {
-    const pagosRef = collection(db, `residenciales/${residencialId}/pagos`);
+    console.log('🚀 [V2] Registrando pago en efectivo a través de Cloud Function (Atómico)...');
+    const registerFn = httpsCallable<{ residencialId: string, data: any }, { success: boolean, paymentId: string }>(functions, 'apiRegisterDirectCashPayment');
 
-    const newPaymentDoc = {
-      amount: amount * 100, // Guardar en centavos
-      currency: 'mxn',
-      description: concept,
-      status: 'succeeded',
-      paymentMethod: 'cash',
-      user: {
-        id: userId,
-        name: userName,
-      },
-      timestamp: Timestamp.fromDate(paymentDate),
-      createdAt: serverTimestamp(),
-    };
+    const result = await registerFn({
+      residencialId,
+      data: {
+        houseId: (calle && houseNumber) ? `${calle}-${houseNumber}`.toLowerCase().replace(/\s+/g, '_') : data.userId,
+        amount: amount,
+        concept: concept || 'Pago en efectivo',
+        userId: userId || '',
+        userName: userName || '',
+        userEmail: userEmail || '',
+        paymentDate: paymentDate.toISOString(),
+      }
+    });
 
-    await addDoc(pagosRef, newPaymentDoc);
-    console.log("Pago en efectivo registrado con éxito");
-
-  } catch (error) {
-    console.error("Error al registrar el pago en efectivo:", error);
-    throw new Error("No se pudo registrar el pago en efectivo en la base de datos.");
+    console.log(`✅ [V2] Pago registrado exitosamente con ID: ${result.data.paymentId}`);
+    return;
+  } catch (error: any) {
+    console.error("Error registrando pago:", error);
+    throw error;
   }
 };
 

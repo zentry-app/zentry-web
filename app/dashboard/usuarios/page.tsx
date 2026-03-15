@@ -459,7 +459,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
     } finally {
       setIsLoading(false);
     }
-  }, [residenciales.length, residencialIdDelAdmin, mapeoResidenciales, cargarCallesDelResidencial]);
+  }, [cargarCallesDelResidencial, codigoResidencialAdmin, configurarSuscripcionesEnTiempoReal, mapeoResidenciales, residenciales.length]);
 
   // Función para configurar suscripciones en tiempo real
   const configurarSuscripcionesEnTiempoReal = useCallback(() => {
@@ -497,12 +497,6 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       console.log('🔧 Configurando suscripción de usuarios aprobados...');
       const unsubscribeUsuarios = suscribirseAUsuarios(
         (usuariosActualizados) => {
-          console.log('🔄 Usuarios actualizados en tiempo real:', usuariosActualizados.length);
-
-          // ✅ CORREGIDO: Siempre actualizar cuando hay cambios en tiempo real
-          // Esto permite que se actualice correctamente cuando se aprueban/rechazan usuarios
-          console.log('✅ Suscripción en tiempo real: Actualizando usuarios');
-
           // Filtrar usuarios según el residencial seleccionado
           let usuariosFiltrados = usuariosActualizados;
           if (residencialIdDelAdmin) {
@@ -550,7 +544,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
 
     setUnsubscribeFunctions(nuevasSuscripciones);
     console.log('✅ Suscripciones configuradas correctamente');
-  }, [residenciales.length, isLoading, residencialIdDelAdmin, residencialSeleccionado, mapeoResidenciales]);
+  }, [mapeoResidenciales, residencialIdDelAdmin, residencialSeleccionado, unsubscribeFunctions, usuarios.length]);
 
   // Función para manejar actualizaciones de usuarios
   const handleUsuarioActualizado = useCallback(() => {
@@ -621,7 +615,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
         }
       });
     }
-  }, [usuariosPendientes]);
+  }, [isLoading, usuariosPendientes]);
 
   const handleAprobarUsuario = async (id: string) => {
     try {
@@ -754,21 +748,13 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
     }
   };
 
-  const getResidencialIdFromUser = (usuario: Usuario): string => {
+  const getResidencialIdFromUser = useCallback((usuario: Usuario): string => {
     // Verificar las diferentes propiedades donde podría estar el ID del residencial
     if (usuario.residencialID) {
-      console.log('🔍 getResidencialIdFromUser - usando residencialID:', {
-        nombre: usuario.fullName,
-        residencialID: usuario.residencialID
-      });
       return usuario.residencialID;
     }
 
     if ((usuario as any)['residencialId']) {
-      console.log('🔍 getResidencialIdFromUser - usando residencialId:', {
-        nombre: usuario.fullName,
-        residencialId: (usuario as any)['residencialId']
-      });
       return (usuario as any)['residencialId'];
     }
 
@@ -776,26 +762,17 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       const docId = (usuario as any)['residencialDocId'];
       // Intentar obtener el residencialID del mapeo
       if (mapeoResidenciales[docId]) {
-        console.log('🔍 getResidencialIdFromUser - usando residencialDocId con mapeo:', {
-          nombre: usuario.fullName,
-          residencialDocId: docId,
-          mapeado: mapeoResidenciales[docId]
-        });
         return mapeoResidenciales[docId];
       }
-      console.log('🔍 getResidencialIdFromUser - usando residencialDocId sin mapeo:', {
-        nombre: usuario.fullName,
-        residencialDocId: docId
-      });
       return docId;
     }
 
-    console.log('❌ getResidencialIdFromUser - no se encontró residencial para:', {
+    console.warn('❌ getResidencialIdFromUser - no se encontró residencial para:', {
       nombre: usuario.fullName,
       usuario: usuario
     });
     return ""; // Valor por defecto vacío en lugar de undefined
-  };
+  }, [mapeoResidenciales]);
 
   // =============================
   // Agrupación por casa (house view)
@@ -834,7 +811,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
     });
   };
 
-  const filtrarUsuariosPorBusqueda = (usuarios: Usuario[]) => {
+  const filtrarUsuariosPorBusqueda = useCallback((usuarios: Usuario[]) => {
     if (!searchTerm) return usuarios;
 
     const termino = searchTerm.toLowerCase();
@@ -848,9 +825,9 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       (usuario.houseNumber || '').toLowerCase().includes(termino) ||
       (usuario.houseID || '').toLowerCase().includes(termino)
     );
-  };
+  }, [searchTerm]);
 
-  const filtrarUsuariosPorDireccion = (usuarios: Usuario[]) => {
+  const filtrarUsuariosPorDireccion = useCallback((usuarios: Usuario[]) => {
     let usuariosFiltrados = usuarios;
 
     // Filtro por calle
@@ -870,9 +847,9 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
     }
 
     return usuariosFiltrados;
-  };
+  }, [filterCalle, filterNumero]);
 
-  const filtrarUsuariosPorTipo = (usuarios: Usuario[]) => {
+  const filtrarUsuariosPorTipo = useCallback((usuarios: Usuario[]) => {
     let usuariosFiltrados = usuarios;
 
     // Filtro por tipo de usuario
@@ -891,7 +868,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
     }
 
     return usuariosFiltrados;
-  };
+  }, [filterTipoUsuario]);
 
   // Usar useMemo para filtrar los usuarios por residencial
   const usuariosDelResidencial = useMemo(() => {
@@ -912,7 +889,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
     // IMPORTANTE: Si ya se filtró por residencial en cargarYActualizarUsuarios,
     // no aplicar filtro adicional aquí para evitar doble filtrado
     return usuarios;
-  }, [usuarios, residencialSeleccionado, mapeoResidenciales, residencialIdDelAdmin]);
+  }, [codigoResidencialAdmin, getResidencialIdFromUser, mapeoResidenciales, residencialSeleccionado, usuarios]);
 
   // Usar useMemo para aplicar el filtro de búsqueda
   const usuariosBuscados = useMemo(() => {
@@ -938,7 +915,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
     usuarios = filtrarUsuariosPorTipo(usuarios);
 
     return usuarios;
-  }, [usuariosDelResidencial, searchTerm, filterCalle, filterNumero, filterTipoUsuario, filtrarUsuariosPorDireccion, filtrarUsuariosPorTipo]);
+  }, [filtrarUsuariosPorDireccion, filtrarUsuariosPorTipo, searchTerm, usuariosDelResidencial]);
 
   // Usar useMemo para calcular los usuarios filtrados por rol
   const residentes = useMemo(() =>
@@ -1104,80 +1081,60 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
 
   const handleMarcarCasaMorosa = async (casa: CasaResumen, value: boolean) => {
     try {
-      console.log('🔍 [handleMarcarCasaMorosa] Iniciando proceso para casa:', casa);
-      console.log('🔍 [handleMarcarCasaMorosa] Valor a aplicar (isMoroso):', value);
-      console.log('🔍 [handleMarcarCasaMorosa] Usuarios en la casa:', casa.usuarios.length);
+      const sanitize = (s?: string) => (s || '')
+        .toString()
+        .replace(/[\u0000-\u001F\u007F-\u009F\u200B\u200C\u200D\uFEFF]/g, '');
+      const normalize = (s?: string) => sanitize(s).trim().toUpperCase().replace(/\s+/g, ' ');
+      const targetHouseId = normalize(casa.houseID);
+      const targetStreet = normalize(casa.calle);
+      const targetHouseNumber = normalize(casa.houseNumber);
 
-      // OPTIMIZACIÓN: Usar directamente los usuarios que ya tenemos en la casa
-      // en lugar de buscarlos nuevamente en Firestore
-      if (casa.usuarios.length === 0) {
-        sonnerToast.error('No hay usuarios en esta casa para actualizar');
-        return;
+      const residencialId =
+        getResidencialIdFromUser(casa.usuarios[0] as Usuario) ||
+        codigoResidencialAdmin ||
+        (residencialSeleccionado !== "todos" ? mapeoResidenciales[residencialSeleccionado] : "");
+
+      if (!residencialId) {
+        throw new Error('No se pudo resolver el residencial de la casa');
       }
 
-      console.log('🔍 [handleMarcarCasaMorosa] IDs de usuarios a actualizar:', casa.usuarios.map(u => ({ id: u.id || u.uid, email: u.email })));
+      const updated = await cambiarMorosidadPorCasa(
+        {
+          residencialId,
+          houseID: casa.houseID,
+          calle: casa.calle,
+          houseNumber: casa.houseNumber,
+        },
+        value
+      );
 
-      let updated = 0;
-      const errores: string[] = [];
-
-      const usuariosActualizados: string[] = [];
-
-      for (const usuario of casa.usuarios) {
-        try {
-          const userId = usuario.id || usuario.uid;
-          if (!userId) {
-            console.error('🔍 [handleMarcarCasaMorosa] Usuario sin ID:', usuario.email);
-            errores.push(`Usuario ${usuario.email || 'sin email'} no tiene ID válido`);
-            continue;
-          }
-
-          console.log(`🔍 [handleMarcarCasaMorosa] Actualizando usuario ${userId} (${usuario.email})`);
-          await cambiarEstadoMoroso(userId, value);
-          updated++;
-          usuariosActualizados.push(userId);
-          console.log(`✅ Usuario ${usuario.email} actualizado exitosamente`);
-        } catch (error: any) {
-          console.error(`❌ Error actualizando usuario ${usuario.email}:`, error);
-          errores.push(`Error en ${usuario.email}: ${error.message}`);
-        }
-      }
-
-      console.log('🔍 [handleMarcarCasaMorosa] Total usuarios actualizados:', updated);
-
-      // ACTUALIZAR ESTADO LOCAL INMEDIATAMENTE para evitar esperar la recarga
-      if (usuariosActualizados.length > 0) {
+      if (updated > 0) {
         setUsuarios(prevUsuarios =>
           prevUsuarios.map(usuario => {
-            const userId = usuario.id || usuario.uid;
-            if (userId && usuariosActualizados.includes(userId)) {
-              // Actualizar el estado isMoroso en el usuario
+            const userHouseId = normalize((usuario as any).houseID || (usuario as any).houseId);
+            const userStreet = normalize(usuario.calle);
+            const userHouseNumber = normalize(usuario.houseNumber);
+            const sameHouseById = !!targetHouseId && userHouseId === targetHouseId;
+            const sameHouseByAddress = !!targetStreet && !!targetHouseNumber &&
+              userStreet === targetStreet && userHouseNumber === targetHouseNumber;
+
+            if (sameHouseById || sameHouseByAddress) {
               return { ...usuario, isMoroso: value } as Usuario;
             }
+
             return usuario;
           })
         );
 
-        console.log('🔄 Estado local actualizado inmediatamente para', usuariosActualizados.length, 'usuarios');
-      }
-
-      // Mostrar resultado
-      if (updated > 0) {
         setTimeout(() => {
           sonnerToast.success(`${value ? 'Marcadas' : 'Desmarcadas'} ${updated} cuentas de la casa`);
         }, 0);
+        return;
       }
 
-      if (errores.length > 0) {
-        setTimeout(() => {
-          sonnerToast.error(`Errores en ${errores.length} usuarios: ${errores.slice(0, 2).join(', ')}${errores.length > 2 ? '...' : ''}`);
-        }, 100);
-      }
-
-      if (updated === 0 && errores.length === 0) {
-        setTimeout(() => {
-          sonnerToast.error('No se pudieron actualizar usuarios');
-        }, 0);
-      }
+      setTimeout(() => {
+        sonnerToast.error('No se encontraron usuarios para actualizar en esa casa');
+      }, 0);
     } catch (e: any) {
       console.error('Error cambiando morosidad por casa:', e);
       setTimeout(() => {
@@ -1208,7 +1165,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
         // Por defecto, mostrar residentes para evitar listas vacías inesperadas
         return residentes;
     }
-  }, [activeTab, residentes, guardias, administradores, usuariosPendientes, searchTerm, filtrarUsuariosPorBusqueda]);
+  }, [activeTab, administradores, filtrarUsuariosPorBusqueda, guardias, residentes, usuariosPendientes, usuariosRechazados]);
 
   // 2. Aplicar paginación a la lista activa
   const totalItems = listaActiva.length;
@@ -1217,7 +1174,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentUsers = useMemo(() =>
     listaActiva.slice(indexOfFirstItem, indexOfLastItem),
-    [listaActiva, currentPage, itemsPerPage]
+    [indexOfFirstItem, indexOfLastItem, listaActiva]
   );
 
   // =================================================================================
@@ -1320,7 +1277,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       return usuariosRechazados;
     }
     return [];
-  }, [activeTab, residentes, guardias, administradores, usuariosBuscados, usuariosPendientes]);
+  }, [activeTab, administradores, guardias, residentes, usuariosPendientes, usuariosRechazados]);
 
   const getEstadoBadge = (estado: Usuario['status']) => {
     switch (estado) {
@@ -1690,7 +1647,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
   };
 
   // Búsqueda optimizada con debounce
-  const debouncedSearch = useCallback(
+  const debouncedSearch = useMemo(() =>
     debounce((value: string) => {
       setSearchTerm(value);
       setCurrentPage(1);
@@ -1714,9 +1671,9 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
   // Función para renderizar la paginación
   const renderPagination = () => {
     return (
-      <div className="mt-8 bg-white/50 backdrop-blur-xl border border-white/50 rounded-[2rem] p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm w-full group hover:shadow-md transition-all duration-300">
+      <div className="mt-8 bg-white/50 backdrop-blur-xl border border-white/50 rounded-2xl sm:rounded-[2rem] p-3 sm:p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm w-full group hover:shadow-md transition-all duration-300">
 
-        <div className="flex items-center gap-4 text-xs font-bold text-slate-500 uppercase tracking-widest pl-2">
+        <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest pl-0 sm:pl-2">
           <div className="flex items-center gap-2">
             <span>Mostrar</span>
             <Select
@@ -1727,7 +1684,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
                 setCurrentPage(1);
               }}
             >
-              <SelectTrigger className="w-[70px] h-8 border-slate-200 bg-white shadow-sm font-bold text-slate-700 text-xs focus:ring-0 rounded-lg transition-all hover:border-blue-200">
+              <SelectTrigger className="w-[60px] h-8 border-slate-200 bg-white shadow-sm font-bold text-slate-700 text-xs focus:ring-0 rounded-lg transition-all hover:border-blue-200">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-none shadow-xl bg-white/90 backdrop-blur-xl">
@@ -1748,7 +1705,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
 
         {/* Paginación solo si hay más de una página */}
         {totalItems > itemsPerPage && (
-          <div className="flex items-center gap-1 bg-white p-1 rounded-xl shadow-sm border border-slate-100">
+          <div className="flex items-center gap-1 bg-white p-1 rounded-xl shadow-sm border border-slate-100 overflow-x-auto max-w-full scrollbar-hide">
             <Button
               variant="ghost"
               size="icon"
@@ -1757,7 +1714,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
                 if (currentPage > 1) setCurrentPage(currentPage - 1);
               }}
               disabled={currentPage === 1}
-              className="h-8 w-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all disabled:opacity-30"
+              className="h-8 w-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all disabled:opacity-30 shrink-0"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -1770,9 +1727,9 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
                     e.preventDefault();
                     setCurrentPage(number);
                   }}
-                  className={`w-8 h-8 rounded-lg text-xs font-black transition-all ${currentPage === number
-                      ? 'bg-slate-900 text-white shadow-md scale-105'
-                      : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+                  className={`min-w-[32px] w-8 h-8 rounded-lg text-[10px] sm:text-xs font-black transition-all ${currentPage === number
+                    ? 'bg-slate-900 text-white shadow-md scale-105'
+                    : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
                     }`}
                 >
                   {number}
@@ -1780,7 +1737,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
               ))}
 
               {totalPages > 5 && currentPage < totalPages - 2 && (
-                <span className="w-8 h-8 flex items-center justify-center text-slate-300">
+                <span className="w-8 h-8 flex items-center justify-center text-slate-300 shrink-0">
                   <PaginationEllipsis className="h-4 w-4" />
                 </span>
               )}
@@ -1794,7 +1751,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
                 if (currentPage < totalPages) setCurrentPage(currentPage + 1);
               }}
               disabled={currentPage === totalPages}
-              className="h-8 w-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all disabled:opacity-30"
+              className="h-8 w-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all disabled:opacity-30 shrink-0"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -1952,14 +1909,13 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
             <Users className="w-3 h-3 mr-1" />
             Gestión de Comunidad
           </Badge>
-          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
             Directorio de <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Usuarios</span>
           </h1>
-          <p className="text-slate-500 font-medium text-lg leading-relaxed">
+          <p className="text-slate-500 font-medium text-base sm:text-lg leading-relaxed">
             Gestiona residentes, seguridad y accesos con herramientas avanzadas de control y monitoreo en tiempo real.
-            <span className="text-xs block mt-2 font-bold text-slate-400 flex items-center gap-2 uppercase tracking-wider">
-              <Clock className="h-3 w-3" />
-              Actualizado: {lastUpdate.toLocaleTimeString()}
+            <span className="text-xs block mt-2 font-bold text-slate-400 flex items-center flex-wrap gap-2 uppercase tracking-wider">
+              <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Actualizado: {lastUpdate.toLocaleTimeString()}</span>
               {actualizacionEnTiempoReal && (
                 <span className="flex items-center text-emerald-500 animate-pulse">
                   <RefreshCw className="h-3 w-3 mr-1" />
@@ -1973,7 +1929,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
         <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
           <Button
             onClick={() => setShowNuevoUsuarioDialog(true)}
-            className="bg-slate-900 text-white hover:bg-slate-800 rounded-2xl shadow-xl shadow-slate-900/20 px-6 h-14 font-bold text-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+            className="bg-slate-900 text-white hover:bg-slate-800 rounded-2xl shadow-xl shadow-slate-900/20 px-6 h-12 sm:h-14 font-bold text-sm transition-all hover:scale-[1.02] active:scale-[0.98] w-full sm:w-auto"
           >
             <UserPlus className="mr-2 h-5 w-5" />
             Nuevo Usuario
@@ -1986,7 +1942,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="sticky top-4 z-30 bg-white/80 backdrop-blur-xl p-4 rounded-[2rem] shadow-zentry-lg border border-white/50 relative overflow-hidden group"
+        className="sticky top-4 z-30 bg-white/80 backdrop-blur-xl p-3 sm:p-4 rounded-2xl sm:rounded-[2rem] shadow-zentry-lg border border-white/50 relative overflow-hidden group"
       >
         <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 via-indigo-50/50 to-purple-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
         <div className="relative flex flex-col xl:flex-row justify-between items-center gap-4">
@@ -1997,110 +1953,112 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
               <Input
                 type="search"
                 placeholder="Buscar por nombre, email, teléfono..."
-                className="pl-11 h-12 rounded-xl border-slate-200 bg-white/80 focus:bg-white transition-all shadow-sm focus:ring-2 focus:ring-blue-100 font-medium"
+                className="pl-11 h-12 rounded-xl border-slate-200 bg-white/80 focus:bg-white transition-all shadow-sm focus:ring-2 focus:ring-blue-100 font-medium w-full"
                 value={typingSearchTerm}
                 onChange={handleSearchChange}
               />
             </div>
 
-            {/* Residential Selector */}
-            {!esAdminDeResidencial && (
-              <div className="w-full md:w-[250px] relative">
-                <Select
-                  value={residencialSeleccionado}
-                  onValueChange={(value) => {
-                    if (!esAdminDeResidencial) {
-                      setResidencialSeleccionado(value);
-                      cargarYActualizarUsuarios(value); // Cargar usuarios para el nuevo residencial
-                      if (value !== "todos") {
-                        cargarCallesDelResidencial(value);
+            <div className="flex flex-wrap sm:flex-nowrap gap-3 w-full items-center">
+              {/* Residential Selector */}
+              {!esAdminDeResidencial && (
+                <div className="flex-1 min-w-[150px] relative">
+                  <Select
+                    value={residencialSeleccionado}
+                    onValueChange={(value) => {
+                      if (!esAdminDeResidencial) {
+                        setResidencialSeleccionado(value);
+                        cargarYActualizarUsuarios(value);
+                        if (value !== "todos") {
+                          cargarCallesDelResidencial(value);
+                        }
+                      } else {
+                        sonnerToast.info("Solo puedes ver usuarios de tu residencial asignado.");
                       }
-                    } else {
-                      sonnerToast.info("Solo puedes ver usuarios de tu residencial asignado.");
-                    }
-                  }}
-                  disabled={!!esAdminDeResidencial}
+                    }}
+                    disabled={!!esAdminDeResidencial}
+                  >
+                    <SelectTrigger className="h-12 rounded-xl bg-white border-slate-200 font-medium shadow-sm w-full">
+                      <SelectValue placeholder="Seleccionar residencial" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-none shadow-xl max-h-[300px]">
+                      {(!esAdminDeResidencial || userClaims?.isGlobalAdmin) && (
+                        <SelectItem value="todos">Todos los residenciales</SelectItem>
+                      )}
+                      {residenciales
+                        .filter(residencial => !!residencial.id)
+                        .filter(residencial => !esAdminDeResidencial || (residencial.residencialID === codigoResidencialAdmin) || (mapeoResidenciales[residencial.id!] === codigoResidencialAdmin))
+                        .map((residencial) => (
+                          <SelectItem key={residencial.id} value={residencial.id!.toString()}>
+                            {residencial.nombre}
+                          </SelectItem>
+                        ))
+                      }
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Street Selector */}
+              <div className="flex-1 min-w-[150px]">
+                <Select
+                  value={filterCalle || "todas"}
+                  onValueChange={(value) => setFilterCalle(value === "todas" ? "" : value)}
+                  disabled={callesDisponibles.length === 0}
                 >
-                  <SelectTrigger className="h-12 rounded-xl bg-white border-slate-200 font-medium shadow-sm">
-                    <SelectValue placeholder="Seleccionar residencial" />
+                  <SelectTrigger className="h-12 rounded-xl bg-white border-slate-200 font-medium shadow-sm w-full">
+                    <SelectValue placeholder="Todas las calles" />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-none shadow-xl max-h-[300px]">
-                    {(!esAdminDeResidencial || userClaims?.isGlobalAdmin) && (
-                      <SelectItem value="todos">Todos los residenciales</SelectItem>
-                    )}
-                    {residenciales
-                      .filter(residencial => !!residencial.id)
-                      .filter(residencial => !esAdminDeResidencial || (residencial.residencialID === codigoResidencialAdmin) || (mapeoResidenciales[residencial.id!] === codigoResidencialAdmin))
-                      .map((residencial) => (
-                        <SelectItem key={residencial.id} value={residencial.id!.toString()}>
-                          {residencial.nombre}
-                        </SelectItem>
-                      ))
-                    }
+                    <SelectItem value="todas">Todas las calles</SelectItem>
+                    {callesDisponibles.map(calle => (
+                      <SelectItem key={calle} value={calle}>{calle}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-            )}
 
-            {/* Street Selector */}
-            <div className="w-full md:w-[200px]">
-              <Select
-                value={filterCalle || "todas"}
-                onValueChange={(value) => setFilterCalle(value === "todas" ? "" : value)}
-                disabled={callesDisponibles.length === 0}
+              {/* Quick Actions for Global Admin */}
+              {!esAdminDeResidencial && residencialSeleccionado !== "todos" && userClaims?.isGlobalAdmin && (
+                <div className="flex gap-2">
+                  <GlobalScreenRestrictionsConfig
+                    residencial={(residenciales.find(r => r.id === residencialSeleccionado) as any) || ({
+                      id: residencialSeleccionado,
+                      nombre: getResidencialNombre(residencialSeleccionado),
+                      direccion: '',
+                      ciudad: '',
+                      estado: '',
+                      codigoPostal: '',
+                      cuotaMantenimiento: 0
+                    } as any)}
+                    onUpdate={() => console.log('Restricciones globales actualizadas')}
+                  />
+                </div>
+              )}
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  console.log('🔄 Recargando TODOS los usuarios...');
+                  cargarYActualizarUsuarios(residencialSeleccionado);
+                }}
+                disabled={isLoading}
+                className="h-12 w-12 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all shrink-0"
+                title="Recargar usuarios"
               >
-                <SelectTrigger className="h-12 rounded-xl bg-white border-slate-200 font-medium shadow-sm">
-                  <SelectValue placeholder="Todas las calles" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl border-none shadow-xl max-h-[300px]">
-                  <SelectItem value="todas">Todas las calles</SelectItem>
-                  {callesDisponibles.map(calle => (
-                    <SelectItem key={calle} value={calle}>{calle}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
+              </Button>
             </div>
-
-            {/* Quick Actions for Global Admin */}
-            {!esAdminDeResidencial && residencialSeleccionado !== "todos" && userClaims?.isGlobalAdmin && (
-              <div className="flex gap-2">
-                <GlobalScreenRestrictionsConfig
-                  residencial={(residenciales.find(r => r.id === residencialSeleccionado) as any) || ({
-                    id: residencialSeleccionado,
-                    nombre: getResidencialNombre(residencialSeleccionado),
-                    direccion: '',
-                    ciudad: '',
-                    estado: '',
-                    codigoPostal: '',
-                    cuotaMantenimiento: 0
-                  } as any)}
-                  onUpdate={() => console.log('Restricciones globales actualizadas')}
-                />
-              </div>
-            )}
-
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                console.log('🔄 Recargando TODOS los usuarios...');
-                cargarYActualizarUsuarios(residencialSeleccionado);
-              }}
-              disabled={isLoading}
-              className="h-12 w-12 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
-              title="Recargar usuarios"
-            >
-              <RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
-            </Button>
           </div>
 
           {/* Right: Type Filter */}
-          <div className="flex gap-1 items-center bg-slate-100/50 p-1 rounded-xl border border-slate-200/50 w-full xl:w-auto overflow-x-auto">
+          <div className="flex gap-1 items-center bg-slate-100/50 p-1 rounded-xl border border-slate-200/50 w-full xl:w-auto overflow-x-auto scrollbar-hide">
             {['todos', 'resident', 'inquilino'].map((type) => (
               <button
                 key={type}
                 onClick={() => setFilterTipoUsuario(type as any)}
-                className={`px-3 py-2 rounded-lg text-xs font-bold transition-all uppercase tracking-wide whitespace-nowrap ${filterTipoUsuario === (type === 'todos' ? 'todos' : type) ? 'bg-white shadow-sm text-slate-900 border border-slate-100' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+                className={`flex-1 sm:flex-none px-3 py-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all uppercase tracking-wide whitespace-nowrap ${filterTipoUsuario === (type === 'todos' ? 'todos' : type) ? 'bg-white shadow-sm text-slate-900 border border-slate-100' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
               >
                 {type === 'todos' ? 'Todos' : type === 'resident' ? 'Propietarios' : 'Inquilinos'}
               </button>
@@ -2116,57 +2074,57 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
           >
             {/* Total de Casas */}
-            <div className="bg-white/60 p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-md transition-all group">
+            <div className="bg-white/60 p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-md transition-all group">
               <div className="flex items-center gap-3 text-slate-500 mb-2">
                 <div className="p-2 bg-blue-50 rounded-lg text-blue-600 group-hover:scale-110 transition-transform">
                   <Home className="h-5 w-5" />
                 </div>
-                <span className="text-xs font-bold uppercase tracking-wider">Total Casas</span>
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider">Total Casas</span>
               </div>
-              <div className="text-3xl font-black text-slate-900 tracking-tight">
+              <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
                 {estadisticasResidencial.totalCasas}
               </div>
             </div>
 
             {/* Casas con Morosos */}
-            <div className="bg-white/60 p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-md transition-all group">
+            <div className="bg-white/60 p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-md transition-all group">
               <div className="flex items-center gap-3 text-slate-500 mb-2">
                 <div className="p-2 bg-rose-50 rounded-lg text-rose-600 group-hover:scale-110 transition-transform">
                   <AlertTriangle className="h-5 w-5" />
                 </div>
-                <span className="text-xs font-bold uppercase tracking-wider">Morosidad</span>
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider">Morosidad</span>
               </div>
-              <div className="text-3xl font-black text-rose-600 tracking-tight">
+              <div className="text-2xl sm:text-3xl font-black text-rose-600 tracking-tight">
                 {estadisticasResidencial.casasMorosas}
               </div>
-              <div className="text-xs text-rose-400 font-medium mt-1">Casas restringidas</div>
+              <div className="text-[10px] sm:text-xs text-rose-400 font-medium mt-1">Casas restringidas</div>
             </div>
 
             {/* Casas al Día */}
-            <div className="bg-white/60 p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-md transition-all group border-l-4 border-l-emerald-400">
+            <div className="bg-white/60 p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-md transition-all group border-l-4 border-l-emerald-400">
               <div className="flex items-center gap-3 text-slate-500 mb-2">
                 <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600 group-hover:scale-110 transition-transform">
                   <CheckCircle className="h-5 w-5" />
                 </div>
-                <span className="text-xs font-bold uppercase tracking-wider">Al Corriente</span>
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider">Al Corriente</span>
               </div>
-              <div className="text-3xl font-black text-emerald-600 tracking-tight">
+              <div className="text-2xl sm:text-3xl font-black text-emerald-600 tracking-tight">
                 {estadisticasResidencial.casasAlDia}
               </div>
             </div>
 
             {/* Porcentaje Morosidad */}
-            <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-6 rounded-[2rem] shadow-lg shadow-slate-900/10 text-white relative overflow-hidden">
+            <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] shadow-lg shadow-slate-900/10 text-white relative overflow-hidden">
               <div className="absolute top-0 right-0 p-4 opacity-10">
-                <Percent className="h-24 w-24" />
+                <Percent className="h-20 sm:h-24 w-20 sm:w-24" />
               </div>
               <div className="flex items-center gap-3 text-slate-300 mb-2 relative z-10">
-                <span className="text-xs font-bold uppercase tracking-wider opacity-80">% Morosidad Global</span>
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider opacity-80">% Morosidad Global</span>
               </div>
-              <div className="text-3xl font-black text-white tracking-tight relative z-10 mb-2">
+              <div className="text-2xl sm:text-3xl font-black text-white tracking-tight relative z-10 mb-2">
                 {estadisticasResidencial.porcentajeMorosidad}%
               </div>
 
@@ -2178,7 +2136,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
                   style={{ width: `${estadisticasResidencial.porcentajeMorosidad}%` }}
                 />
               </div>
-              <div className="text-[10px] text-slate-400 uppercase tracking-widest font-bold relative z-10">
+              <div className="text-[9px] sm:text-[10px] text-slate-400 uppercase tracking-widest font-bold relative z-10">
                 {estadisticasResidencial.porcentajeMorosidad === 0 ? 'Excelente estado' :
                   estadisticasResidencial.porcentajeMorosidad <= 10 ? 'Bajo riesgo' :
                     estadisticasResidencial.porcentajeMorosidad <= 25 ? 'Atención requerida' :
@@ -2190,22 +2148,22 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-[2rem] border border-blue-100 flex flex-col md:flex-row items-center justify-between gap-6"
+            className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] border border-blue-100 flex flex-col md:flex-row items-center justify-between gap-6"
           >
             <div className="flex items-center gap-4">
               <div className="bg-white p-3 rounded-2xl shadow-sm text-blue-600">
                 <Building className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-lg font-black text-slate-900">Vista General del Sistema</h3>
-                <p className="text-slate-500 font-medium text-sm">Mostrando usuarios de <span className="text-slate-900 font-bold">{residenciales.length} residenciales</span> activos.</p>
+                <h3 className="text-base sm:text-lg font-black text-slate-900">Vista General del Sistema</h3>
+                <p className="text-slate-500 font-medium text-xs sm:text-sm">Mostrando usuarios de <span className="text-slate-900 font-bold">{residenciales.length} residenciales</span> activos.</p>
               </div>
             </div>
 
             <div className="flex gap-4">
               <div className="bg-white/60 px-5 py-3 rounded-2xl border border-white/50 text-center">
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Usuarios</div>
-                <div className="text-2xl font-black text-blue-600">{usuariosDelResidencial.length}</div>
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Usuarios</div>
+                <div className="text-xl sm:text-2xl font-black text-blue-600">{usuariosDelResidencial.length}</div>
               </div>
             </div>
           </motion.div>
@@ -2215,55 +2173,55 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
       {/* Main Content Tabs */}
       <div className="bg-transparent">
         <Tabs defaultValue="residentes" value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="flex overflow-x-auto pb-2 mb-6 scrollbar-hide">
-            <TabsList className="bg-slate-100/60 p-1.5 h-auto rounded-full inline-flex border border-slate-200/60 backdrop-blur-sm">
-              <TabsTrigger value="residentes" className="rounded-full px-5 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-primary transition-all duration-300">
+          <div className="flex overflow-x-auto pb-4 mb-2 sm:mb-6 scrollbar-hide -mx-2 px-2">
+            <TabsList className="bg-slate-100/60 p-1 h-auto rounded-full inline-flex border border-slate-200/60 backdrop-blur-sm min-w-max">
+              <TabsTrigger value="residentes" className="rounded-full px-4 sm:px-5 py-2 sm:py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-primary transition-all duration-300">
                 <div className="flex items-center gap-2">
-                  <Home className="h-4 w-4" />
-                  <span className="font-bold text-xs uppercase tracking-wide">Residentes</span>
-                  <Badge variant="secondary" className="ml-1 h-5 bg-slate-100 text-slate-600 border-none group-data-[state=active]:bg-blue-50 group-data-[state=active]:text-blue-600">
+                  <Home className="h-3.5 sm:h-4 w-3.5 sm:w-4" />
+                  <span className="font-bold text-[10px] sm:text-xs uppercase tracking-wide">Residentes</span>
+                  <Badge variant="secondary" className="ml-1 h-4 sm:h-5 bg-slate-100 text-slate-600 border-none group-data-[state=active]:bg-blue-50 group-data-[state=active]:text-blue-600 text-[9px] sm:text-[10px]">
                     {residentes.length}
                   </Badge>
                 </div>
               </TabsTrigger>
 
-              <TabsTrigger value="seguridad" className="rounded-full px-5 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-indigo-600 transition-all duration-300">
+              <TabsTrigger value="seguridad" className="rounded-full px-4 sm:px-5 py-2 sm:py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-indigo-600 transition-all duration-300">
                 <div className="flex items-center gap-2">
-                  <Shield className="h-4 w-4" />
-                  <span className="font-bold text-xs uppercase tracking-wide">Seguridad</span>
-                  <Badge variant="secondary" className="ml-1 h-5 bg-slate-100 text-slate-600 border-none group-data-[state=active]:bg-indigo-50 group-data-[state=active]:text-indigo-600">
+                  <Shield className="h-3.5 sm:h-4 w-3.5 sm:w-4" />
+                  <span className="font-bold text-[10px] sm:text-xs uppercase tracking-wide">Seguridad</span>
+                  <Badge variant="secondary" className="ml-1 h-4 sm:h-5 bg-slate-100 text-slate-600 border-none group-data-[state=active]:bg-indigo-50 group-data-[state=active]:text-indigo-600 text-[9px] sm:text-[10px]">
                     {guardias.length}
                   </Badge>
                 </div>
               </TabsTrigger>
 
-              <TabsTrigger value="administradores" className="rounded-full px-5 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-purple-600 transition-all duration-300">
+              <TabsTrigger value="administradores" className="rounded-full px-4 sm:px-5 py-2 sm:py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-purple-600 transition-all duration-300">
                 <div className="flex items-center gap-2">
-                  <UserCog className="h-4 w-4" />
-                  <span className="font-bold text-xs uppercase tracking-wide">Admins</span>
-                  <Badge variant="secondary" className="ml-1 h-5 bg-slate-100 text-slate-600 border-none group-data-[state=active]:bg-purple-50 group-data-[state=active]:text-purple-600">
+                  <UserCog className="h-3.5 sm:h-4 w-3.5 sm:w-4" />
+                  <span className="font-bold text-[10px] sm:text-xs uppercase tracking-wide">Admins</span>
+                  <Badge variant="secondary" className="ml-1 h-4 sm:h-5 bg-slate-100 text-slate-600 border-none group-data-[state=active]:bg-purple-50 group-data-[state=active]:text-purple-600 text-[9px] sm:text-[10px]">
                     {administradores.length}
                   </Badge>
                 </div>
               </TabsTrigger>
 
-              <TabsTrigger value="pendientes" className="rounded-full px-5 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-amber-600 transition-all duration-300">
+              <TabsTrigger value="pendientes" className="rounded-full px-4 sm:px-5 py-2 sm:py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-amber-600 transition-all duration-300">
                 <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  <span className="font-bold text-xs uppercase tracking-wide">Pendientes</span>
+                  <Clock className="h-3.5 sm:h-4 w-3.5 sm:w-4" />
+                  <span className="font-bold text-[10px] sm:text-xs uppercase tracking-wide">Pendientes</span>
                   {usuariosPendientes.length > 0 && (
-                    <div className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-bold animate-pulse">
+                    <div className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-[9px] sm:text-[10px] font-bold animate-pulse">
                       {usuariosPendientes.length}
                     </div>
                   )}
                 </div>
               </TabsTrigger>
 
-              <TabsTrigger value="rechazados" className="rounded-full px-5 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-rose-600 transition-all duration-300">
+              <TabsTrigger value="rechazados" className="rounded-full px-4 sm:px-5 py-2 sm:py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-rose-600 transition-all duration-300">
                 <div className="flex items-center gap-2">
-                  <XCircle className="h-4 w-4" />
-                  <span className="font-bold text-xs uppercase tracking-wide">Rechazados</span>
-                  <Badge variant="secondary" className="ml-1 h-5 bg-rose-50 text-rose-600 border-none">
+                  <XCircle className="h-3.5 sm:h-4 w-3.5 sm:w-4" />
+                  <span className="font-bold text-[10px] sm:text-xs uppercase tracking-wide">Rechazados</span>
+                  <Badge variant="secondary" className="ml-1 h-4 sm:h-5 bg-rose-50 text-rose-600 border-none text-[9px] sm:text-[10px]">
                     {usuariosRechazados.length}
                   </Badge>
                 </div>
@@ -2299,7 +2257,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
                 />
               </Suspense>
             ) : (
-              <div className="rounded-md border">
+              <div className="rounded-2xl border overflow-x-auto scrollbar-hide bg-white/50 backdrop-blur-sm shadow-sm">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -2579,4 +2537,3 @@ const getTituloTabla = (activeTab: string) => {
       return 'Usuarios';
   }
 };
-
