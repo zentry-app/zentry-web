@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -81,20 +81,7 @@ export default function AreasComunesPage() {
     }
   });
 
-  useEffect(() => {
-    console.log('🔄 [useEffect] Ejecutándose - userData:', !!userData);
-    
-    if (!userData) {
-      console.log('❌ [useEffect] No hay userData, redirigiendo a login');
-      router.push('/login');
-      return;
-    }
-    
-    console.log('✅ [useEffect] Cargando áreas');
-    loadAreas();
-  }, [userData]);
-
-  const loadAreas = async () => {
+  const loadAreas = useCallback(async () => {
     console.log('📥 [loadAreas] Iniciando carga de áreas');
     try {
       setLoading(true);
@@ -148,7 +135,20 @@ export default function AreasComunesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userData?.residencialId]);
+
+  useEffect(() => {
+    console.log('🔄 [useEffect] Ejecutándose - userData:', !!userData);
+    
+    if (!userData) {
+      console.log('❌ [useEffect] No hay userData, redirigiendo a login');
+      router.push('/login');
+      return;
+    }
+    
+    console.log('✅ [useEffect] Cargando áreas');
+    loadAreas();
+  }, [loadAreas, router, userData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

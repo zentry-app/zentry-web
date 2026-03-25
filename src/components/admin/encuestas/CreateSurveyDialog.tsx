@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -80,19 +80,7 @@ export function CreateSurveyDialog({ open, onOpenChange, onSubmit, residencialId
   const { toast } = useToast();
   const { user } = useAuth();
 
-  useEffect(() => {
-    if (open) {
-      loadResidenciales();
-      // Reset form
-      setTitulo('');
-      setDescripcion('');
-      setFechaFin('');
-      setSelectedResidencialId(residencialId || '');
-      setQuestions([]);
-    }
-  }, [open, residencialId]);
-
-  const loadResidenciales = async () => {
+  const loadResidenciales = useCallback(async () => {
     try {
       setLoadingResidenciales(true);
       const data = await AdminService.getResidenciales();
@@ -107,7 +95,19 @@ export function CreateSurveyDialog({ open, onOpenChange, onSubmit, residencialId
     } finally {
       setLoadingResidenciales(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    if (open) {
+      loadResidenciales();
+      // Reset form
+      setTitulo('');
+      setDescripcion('');
+      setFechaFin('');
+      setSelectedResidencialId(residencialId || '');
+      setQuestions([]);
+    }
+  }, [loadResidenciales, open, residencialId]);
 
   const addQuestion = () => {
     const newQuestion: Question = {

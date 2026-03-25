@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ArrowLeft, Clock, Calendar, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 import { ShareButtons } from '@/components/blog/ShareButtons';
 import { sanitizeBlogContent } from '@/lib/utils/sanitize-html';
@@ -137,7 +138,13 @@ export default async function BlogPostPage({ params }: Props) {
                             <div className="flex items-center gap-4 pt-4">
                                 <div className="flex items-center gap-3 group cursor-pointer">
                                     {post.author?.photoURL ? (
-                                        <img src={post.author.photoURL} alt={post.author?.name} className="w-10 h-10 rounded-full grayscale hover:grayscale-0 transition-all duration-500" />
+                                        <Image
+                                            src={post.author.photoURL}
+                                            alt={post.author?.name || 'Autor'}
+                                            width={40}
+                                            height={40}
+                                            className="w-10 h-10 rounded-full grayscale hover:grayscale-0 transition-all duration-500"
+                                        />
                                     ) : (
                                         <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 font-bold border border-gray-200">
                                             {post.author?.name?.charAt(0)}
@@ -160,10 +167,12 @@ export default async function BlogPostPage({ params }: Props) {
                     {/* Featured Image - Ultra Clean */}
                     {post.coverImage && (
                         <div className="mb-20 -mx-4 sm:-mx-8 lg:-mx-24 overflow-hidden shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] rounded-[2rem] bg-gray-50 aspect-[21/9]">
-                            <img
+                            <Image
                                 src={post.coverImage}
                                 alt={post.title}
-                                className="w-full h-full object-cover"
+                                fill
+                                className="object-cover"
+                                sizes="(max-width: 1024px) 100vw, 1200px"
                             />
                         </div>
                     )}

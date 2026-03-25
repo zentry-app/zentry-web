@@ -1,0 +1,23 @@
+{
+    "residencial": {
+        "id": "FIXTURE-RES-001",
+        "name": "Residencial Test Consistency"
+    },
+    "houses": [
+        {
+            "houseId": "LOTE-101",
+            "expectedBalanceCents": 125035,
+            "expectedDominantBucket": "30_days",
+            "lastPaymentDate": "2026-03-01T10:00:00Z",
+            "lastFolio": "P-2026-001",
+            "lastPaymentAmountCents": -10000
+        }
+    ],
+    "dashboard": {
+        "periodId": "2026-03",
+        "facturadoBruto": 500000,
+        "cobradoNeto": 450000,
+        "pendientePeriodo": 50000,
+        "pagosEnValidacion": 25000
+    }
+}

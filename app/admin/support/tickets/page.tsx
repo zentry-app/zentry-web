@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AdminLayout } from '@/components/dashboard/admin-layout';
 import { SupportService } from '@/lib/services/support-service';
 import { SupportTicket, TicketFilters } from '@/types/support';
@@ -24,12 +24,7 @@ export default function SupportTicketsPage() {
 
   const residencialId = userData?.residencialID;
 
-  useEffect(() => {
-    loadTickets();
-    loadStats();
-  }, [filters, residencialId]);
-
-  const loadTickets = async () => {
+  const loadTickets = useCallback(async () => {
     try {
       setLoading(true);
       const ticketsData = await SupportService.getTickets(residencialId, filters);
@@ -40,16 +35,21 @@ export default function SupportTicketsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters, residencialId]);
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const statsData = await SupportService.getTicketStats(residencialId);
       setStats(statsData);
     } catch (error) {
       console.error('Error cargando estadísticas:', error);
     }
-  };
+  }, [residencialId]);
+
+  useEffect(() => {
+    loadTickets();
+    loadStats();
+  }, [loadStats, loadTickets]);
 
   const handleTicketUpdate = async (
     ticketId: string,

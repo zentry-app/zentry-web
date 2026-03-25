@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -101,7 +102,7 @@ export const BlogForm = ({ initialData, isEditing = false, basePath = '/admin/bl
             .trim();
     };
 
-    const calculateMetrics = (htmlContent: string) => {
+    const calculateMetrics = useCallback((htmlContent: string) => {
         const text = stripHtml(htmlContent);
         const words = text.split(/\s+/).filter(w => w.length > 0).length;
         const wordsPerMinute = 200;
@@ -110,14 +111,14 @@ export const BlogForm = ({ initialData, isEditing = false, basePath = '/admin/bl
             wordCount: words,
             readTime: Math.max(1, minutes)
         };
-    };
+    }, []);
 
     // Update metrics when content changes
     useEffect(() => {
         const metrics = calculateMetrics(content);
         setReadTime(metrics.readTime);
         setWordCount(metrics.wordCount);
-    }, [content]);
+    }, [calculateMetrics, content]);
 
     const handleAIGenerated = (data: any) => {
         setTitle(data.title);
@@ -368,7 +369,13 @@ export const BlogForm = ({ initialData, isEditing = false, basePath = '/admin/bl
                             />
                             {coverImage && (
                                 <div className="mt-2 rounded-lg overflow-hidden border aspect-video relative group">
-                                    <img src={coverImage} alt="Cover" className="w-full h-full object-cover" />
+                                    <Image
+                                        src={coverImage}
+                                        alt="Cover"
+                                        fill
+                                        className="object-cover"
+                                        sizes="(max-width: 1024px) 100vw, 480px"
+                                    />
                                 </div>
                             )}
                         </CardContent>

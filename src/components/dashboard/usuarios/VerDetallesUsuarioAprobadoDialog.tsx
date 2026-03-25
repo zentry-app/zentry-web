@@ -144,7 +144,7 @@ const VerDetallesUsuarioAprobadoDialog: React.FC<VerDetallesUsuarioAprobadoDialo
     };
     cargarUsuariosLigados();
     return () => { isActive = false; };
-  }, [tipoVista, usuario.id, usuario.houseID, usuario.calle, usuario.houseNumber, usuario.residencialID, db, todosLosUsuarios]);
+  }, [tipoVista, usuario.id, usuario.houseID, usuario.calle, usuario.houseNumber, usuario.residencialID, todosLosUsuarios]);
 
   // Helper para mostrar domicilio
   const domicilio = usuario.calle || usuario.houseNumber

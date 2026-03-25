@@ -152,7 +152,7 @@ export default function EventosPage() {
         setAsistentesMap((prev) => ({ ...prev, [e.id!]: a }));
       } catch { /* ignore */ }
     });
-  }, [eventos]);
+  }, [asistentesMap, eventos]);
 
   const filteredEventos = useMemo(() => {
     return eventos.filter((e) => {

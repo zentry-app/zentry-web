@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAdminRequired } from '@/lib/hooks';
 import { SupportService } from '@/lib/services/support-service';
@@ -28,24 +28,10 @@ export default function SupportTicketsPage() {
   const [stats, setStats] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadTickets();
-    await loadStats();
-    setRefreshing(false);
-  };
-
   // Admin global ve todos los tickets de todos los residenciales (pasamos undefined)
   const residencialIdForFetch: string | undefined = undefined;
 
-  useEffect(() => {
-    if (!isUserLoading && isGlobalAdmin) {
-      loadTickets();
-      loadStats();
-    }
-  }, [filters, isUserLoading, isGlobalAdmin]);
-
-  const loadTickets = async () => {
+  const loadTickets = useCallback(async () => {
     try {
       setLoading(true);
       const ticketsData = await SupportService.getTickets(residencialIdForFetch, filters);
@@ -56,16 +42,30 @@ export default function SupportTicketsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters, residencialIdForFetch]);
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const statsData = await SupportService.getTicketStats(residencialIdForFetch);
       setStats(statsData);
     } catch (error) {
       console.error('Error cargando estadísticas:', error);
     }
+  }, [residencialIdForFetch]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadTickets();
+    await loadStats();
+    setRefreshing(false);
   };
+
+  useEffect(() => {
+    if (!isUserLoading && isGlobalAdmin) {
+      loadTickets();
+      loadStats();
+    }
+  }, [isGlobalAdmin, isUserLoading, loadStats, loadTickets]);
 
   const handleTicketUpdate = async (
     ticketId: string,

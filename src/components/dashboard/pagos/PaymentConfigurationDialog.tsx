@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -101,14 +101,7 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
   // Estado para controlar si se usa información bancaria
   const [useBankInfo, setUseBankInfo] = useState(false);
 
-  // Cargar configuración existente
-  useEffect(() => {
-    if (open && residencialId) {
-      loadConfiguration();
-    }
-  }, [open, residencialId]);
-
-  const loadConfiguration = async () => {
+  const loadConfiguration = useCallback(async () => {
     setLoading(true);
     try {
       const residencialRef = doc(db, 'residenciales', residencialId);
@@ -162,7 +155,14 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [residencialId]);
+
+  // Cargar configuración existente
+  useEffect(() => {
+    if (open && residencialId) {
+      loadConfiguration();
+    }
+  }, [loadConfiguration, open, residencialId]);
 
   const handlePaymentConfigChange = (field: keyof PaymentConfig, value: any) => {
     setPaymentConfig(prev => ({

@@ -318,6 +318,7 @@ export default function AreasComunesPage() {
     authLoading,
     userClaims,
     residencialFilter,
+    selectedResidencialId,
     esAdminDeResidencial,
     residencialCodigoDelAdmin,
     cargarTodosLosResidenciales,

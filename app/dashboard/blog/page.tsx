@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import {
     Table,
@@ -39,7 +39,7 @@ export default function DashboardBlogPage() {
     const router = useRouter();
     const { userClaims } = useAuth(); // Check permissions if needed
 
-    const fetchPosts = async () => {
+    const fetchPosts = useCallback(async () => {
         try {
             setLoading(true);
             const data = await BlogService.getAllPosts();
@@ -53,11 +53,11 @@ export default function DashboardBlogPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [toast]);
 
     useEffect(() => {
         fetchPosts();
-    }, []);
+    }, [fetchPosts]);
 
     const handleDeletePost = async () => {
         if (!selectedPost || !selectedPost.id) return;

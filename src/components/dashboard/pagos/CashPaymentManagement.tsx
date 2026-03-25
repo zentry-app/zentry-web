@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -35,12 +35,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { 
-  Plus, 
-  DollarSign, 
-  Home, 
-  Calendar, 
-  User, 
+import {
+  Plus,
+  DollarSign,
+  Home,
+  Calendar,
+  User,
   Search,
   Filter,
   Loader2,
@@ -76,12 +76,7 @@ const CashPaymentManagement: React.FC<CashPaymentManagementProps> = ({
   const [observaciones, setObservaciones] = useState('');
   const [montoEsperado, setMontoEsperado] = useState('');
 
-  useEffect(() => {
-    loadPayments();
-    loadUsuarios();
-  }, [residencialId]);
-
-  const loadPayments = async () => {
+  const loadPayments = useCallback(async () => {
     try {
       setLoading(true);
       const paymentsData = await CashPaymentService.getCashPayments(residencialId);
@@ -92,9 +87,9 @@ const CashPaymentManagement: React.FC<CashPaymentManagementProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [residencialId]);
 
-  const loadUsuarios = async () => {
+  const loadUsuarios = useCallback(async () => {
     try {
       setUsuariosLoading(true);
       const usuariosData = await getUsuariosPorResidencial(residencialId);
@@ -105,7 +100,12 @@ const CashPaymentManagement: React.FC<CashPaymentManagementProps> = ({
     } finally {
       setUsuariosLoading(false);
     }
-  };
+  }, [residencialId]);
+
+  useEffect(() => {
+    loadPayments();
+    loadUsuarios();
+  }, [loadPayments, loadUsuarios]);
 
   const openDialog = (payment?: CashPayment) => {
     if (payment) {
@@ -140,16 +140,16 @@ const CashPaymentManagement: React.FC<CashPaymentManagementProps> = ({
 
     try {
       setDialogLoading(true);
-      
+
       const paymentData = {
         residencialId,
         userId: selectedUser,
         userName: selectedUsuario.fullName,
         userEmail: selectedUsuario.email,
-        userAddress: selectedUsuario.domicilio || {
-          calle: '',
-          houseNumber: '',
-          pais: '',
+        userAddress: {
+          calle: selectedUsuario.domicilio?.calle || '',
+          houseNumber: selectedUsuario.domicilio?.houseNumber || '',
+          pais: (selectedUsuario.domicilio as any)?.pais || '',
           residencialID: residencialId,
         },
         amount: parseFloat(amount),
@@ -161,19 +161,9 @@ const CashPaymentManagement: React.FC<CashPaymentManagementProps> = ({
         montoEsperado: montoEsperado ? parseFloat(montoEsperado) : undefined,
       };
 
-      if (selectedPayment) {
-        // Actualizar pago existente
-        await CashPaymentService.updateCashPayment(
-          residencialId,
-          selectedPayment.id!,
-          paymentData
-        );
-        toast.success('Pago en efectivo actualizado exitosamente');
-      } else {
-        // Crear nuevo pago
-        await CashPaymentService.registerCashPayment(residencialId, paymentData);
-        toast.success('Pago en efectivo registrado exitosamente');
-      }
+      // Crear nuevo pago
+      await CashPaymentService.registerCashPayment(residencialId, paymentData);
+      toast.success('Pago en efectivo registrado exitosamente');
 
       setDialogOpen(false);
       await loadPayments();
@@ -187,7 +177,7 @@ const CashPaymentManagement: React.FC<CashPaymentManagementProps> = ({
 
   const formatDate = (timestamp: any) => {
     if (!timestamp) return 'Fecha desconocida';
-    
+
     try {
       const date = timestamp instanceof Date ? timestamp : timestamp.toDate();
       return format(date, 'dd/MM/yyyy HH:mm', { locale: es });
@@ -222,14 +212,14 @@ const CashPaymentManagement: React.FC<CashPaymentManagementProps> = ({
   };
 
   const filteredPayments = payments.filter(payment => {
-    const matchesSearch = 
+    const matchesSearch =
       searchTerm === '' ||
       payment.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       payment.userEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
       payment.concept.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (payment.userAddress?.calle && payment.userAddress.calle.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (payment.userAddress?.houseNumber && payment.userAddress.houseNumber.toLowerCase().includes(searchTerm.toLowerCase()));
-    
+
     return matchesSearch;
   });
 
@@ -421,15 +411,7 @@ const CashPaymentManagement: React.FC<CashPaymentManagementProps> = ({
                       </TableCell>
                       <TableCell>
                         <div className="flex space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openDialog(payment)}
-                            className="flex items-center space-x-1"
-                          >
-                            <Edit className="h-4 w-4" />
-                            <span>Editar</span>
-                          </Button>
+                          {/* Edición de pagos eliminada por Zero-Write */}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -446,16 +428,13 @@ const CashPaymentManagement: React.FC<CashPaymentManagementProps> = ({
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {selectedPayment ? 'Editar Pago en Efectivo' : 'Registrar Pago en Efectivo'}
+              Registrar Pago en Efectivo
             </DialogTitle>
             <DialogDescription>
-              {selectedPayment 
-                ? 'Modifica los detalles del pago en efectivo.'
-                : 'Registra un nuevo pago en efectivo recibido.'
-              }
+              Registra un nuevo pago en efectivo recibido.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -488,7 +467,7 @@ const CashPaymentManagement: React.FC<CashPaymentManagementProps> = ({
                 </div>
               </div>
             </div>
-            
+
             <div>
               <Label htmlFor="concepto">Concepto *</Label>
               <Input
@@ -498,7 +477,7 @@ const CashPaymentManagement: React.FC<CashPaymentManagementProps> = ({
                 placeholder="Ej: Mantenimiento Enero 2024"
               />
             </div>
-            
+
             <div>
               <Label htmlFor="montoEsperado">Monto Esperado</Label>
               <div className="relative">
@@ -513,7 +492,7 @@ const CashPaymentManagement: React.FC<CashPaymentManagementProps> = ({
                 />
               </div>
             </div>
-            
+
             <div>
               <Label htmlFor="observaciones">Observaciones</Label>
               <Textarea
@@ -539,7 +518,7 @@ const CashPaymentManagement: React.FC<CashPaymentManagementProps> = ({
               disabled={dialogLoading}
             >
               {dialogLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {selectedPayment ? 'Actualizar' : 'Registrar'}
+              Registrar
             </Button>
           </DialogFooter>
         </DialogContent>

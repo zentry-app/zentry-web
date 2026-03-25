@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AdminLayout } from '@/components/dashboard/admin-layout';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,7 +39,7 @@ export default function BlogAdminPage() {
     const { toast } = useToast();
     const router = useRouter();
 
-    const fetchPosts = async () => {
+    const fetchPosts = useCallback(async () => {
         try {
             setLoading(true);
             const data = await BlogService.getAllPosts();
@@ -53,11 +53,11 @@ export default function BlogAdminPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [toast]);
 
     useEffect(() => {
         fetchPosts();
-    }, []);
+    }, [fetchPosts]);
 
     const handleDeletePost = async () => {
         if (!selectedPost || !selectedPost.id) return;

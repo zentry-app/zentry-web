@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+/* eslint-disable @next/next/no-img-element */
+import { useCallback, useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Card,
@@ -107,7 +108,7 @@ export default function ReportesPage() {
     return userClaims?.managedResidencials?.[0] || userClaims?.residencialId || undefined;
   }, [userClaims]);
 
-  const fetchReportes = async () => {
+  const fetchReportes = useCallback(async () => {
     try {
       setLoading(true);
       const [list, statsData] = await Promise.all([
@@ -130,11 +131,11 @@ export default function ReportesPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [filterCategoria, filterEstado, residencialId, searchQuery]);
 
   useEffect(() => {
     if (isAdmin) fetchReportes();
-  }, [isAdmin, residencialId, filterEstado, filterCategoria]);
+  }, [fetchReportes, isAdmin]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -142,7 +143,7 @@ export default function ReportesPage() {
       fetchReportes();
     }, 400);
     return () => clearTimeout(t);
-  }, [searchQuery]);
+  }, [fetchReportes, isAdmin]);
 
   const handleRefresh = () => {
     setRefreshing(true);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,9 @@ import {
   User, 
   Clock, 
   Tag,
-  ArrowUpDown
+  ArrowUpDown,
+  XCircle
 } from "lucide-react";
-import { getTagAuditHistory } from "@/lib/firebase/tags-sync";
 
 interface AuditLog {
   id: string;
@@ -36,7 +36,7 @@ export function TagAuditHistory({ tagId, refreshInterval = 0 }: TagAuditHistoryP
   const [error, setError] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  const fetchAuditHistory = async () => {
+  const fetchAuditHistory = useCallback(async () => {
     if (!tagId) return;
     
     try {
@@ -57,7 +57,7 @@ export function TagAuditHistory({ tagId, refreshInterval = 0 }: TagAuditHistoryP
     } finally {
       setLoading(false);
     }
-  };
+  }, [tagId]);
 
   useEffect(() => {
     fetchAuditHistory();
@@ -66,7 +66,7 @@ export function TagAuditHistory({ tagId, refreshInterval = 0 }: TagAuditHistoryP
       const interval = setInterval(fetchAuditHistory, refreshInterval);
       return () => clearInterval(interval);
     }
-  }, [tagId, refreshInterval]);
+  }, [fetchAuditHistory, refreshInterval]);
 
   const getStatusColor = (status: string) => {
     switch (status) {

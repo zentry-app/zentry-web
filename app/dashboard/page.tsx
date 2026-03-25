@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminRequired } from "@/lib/hooks";
@@ -126,10 +126,19 @@ export default function DashboardPage() {
         return userClaims?.managedResidencials?.[0] || userClaims?.residencialId || null;
     }, [esAdminDeResidencial, userClaims]);
 
-    // Reloj
+    // Reloj y Resize
+    const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 60000);
-        return () => clearInterval(timer);
+
+        const handleResize = () => setWindowWidth(window.innerWidth);
+        window.addEventListener('resize', handleResize);
+
+        return () => {
+            clearInterval(timer);
+            window.removeEventListener('resize', handleResize);
+        };
     }, []);
 
     // Cargar nombre del residencial
@@ -166,7 +175,7 @@ export default function DashboardPage() {
     }, [esAdminDeResidencial, residencialId]);
 
     // Cargar datos básicos y financieros
-    const fetchAllStats = async () => {
+    const fetchAllStats = useCallback(async () => {
         try {
             setLoadingStats(true);
             setError(null);
@@ -353,13 +362,13 @@ export default function DashboardPage() {
             setLoadingStats(false);
             setRefreshing(false);
         }
-    };
+    }, [esAdminDeResidencial, residencialId]);
 
     useEffect(() => {
         if (isAdmin) {
             fetchAllStats();
         }
-    }, [isAdmin]);
+    }, [fetchAllStats, isAdmin]);
 
     const handleRefresh = async () => {
         setRefreshing(true);
@@ -391,7 +400,7 @@ export default function DashboardPage() {
     }
 
     return (
-        <div className="min-h-screen bg-premium px-4 lg:px-10 py-8 relative">
+        <div className="min-h-screen bg-premium px-4 sm:px-6 lg:px-10 py-6 sm:py-8 relative">
             {/* Hero Header */}
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
@@ -399,14 +408,14 @@ export default function DashboardPage() {
                 className="mb-10 flex flex-col md:flex-row md:items-end md:justify-between gap-6"
             >
                 <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-[0.2em]">
+                    <div className="flex items-center gap-2 text-primary font-bold text-[10px] sm:text-xs uppercase tracking-[0.2em]">
                         <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse"></span>
                         Overview del Sistema
                     </div>
-                    <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
+                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">
                         Hola, <span className="text-gradient-zentry">{userData?.fullName?.split(' ')[0] || "Admin"}</span> 👋
                     </h1>
-                    <p className="text-slate-500 font-medium text-lg">
+                    <p className="text-slate-500 font-medium text-base sm:text-lg">
                         {currentTime.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
                     </p>
                 </div>
@@ -474,15 +483,15 @@ export default function DashboardPage() {
                     >
                         <Card className="border-none shadow-zentry-lg dark:shadow-none bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl rounded-[2.5rem] overflow-hidden dark:ring-1 dark:ring-white/5">
                             <CardHeader className="p-8 pb-2">
-                                <div className="flex items-center justify-between gap-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                     <div>
-                                        <CardTitle className="text-2xl font-black flex items-center gap-3 dark:text-white">
-                                            <Car className="h-8 w-8 text-primary" />
+                                        <CardTitle className="text-xl sm:text-2xl font-black flex items-center gap-3 dark:text-white">
+                                            <Car className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
                                             Flujo de Accesos
                                         </CardTitle>
-                                        <p className="text-slate-500 dark:text-slate-400 font-medium">Volumen de ingresos semanal</p>
+                                        <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 font-medium">Volumen de ingresos semanal</p>
                                     </div>
-                                    <div className="flex items-center gap-3 overflow-x-auto no-scrollbar">
+                                    <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar pb-2 sm:pb-0">
                                         <div className="px-4 py-2 bg-blue-50 dark:bg-blue-500/10 rounded-2xl shrink-0">
                                             <p className="text-[10px] font-black text-blue-400 dark:text-blue-500 uppercase leading-none mb-1">Total Mes</p>
                                             <p className="text-lg font-black text-blue-600 dark:text-blue-400 leading-none">{ingresoStats?.totalIngresos || 0}</p>
@@ -511,13 +520,13 @@ export default function DashboardPage() {
 
                     {/* Estado del Sistema (Real) */}
                     <div className="grid grid-cols-1 gap-6">
-                        <Card className="border-none shadow-zentry-lg dark:shadow-none bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl rounded-[2.5rem] p-6 dark:ring-1 dark:ring-white/5">
-                            <div className="flex items-center justify-between">
+                        <Card className="border-none shadow-zentry-lg dark:shadow-none bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl rounded-3xl sm:rounded-[2.5rem] p-4 sm:p-6 dark:ring-1 dark:ring-white/5">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                                 <div className="flex items-center gap-4">
-                                    <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${dbStatus === 'online' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600' :
+                                    <div className={`h-10 w-10 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl flex items-center justify-center ${dbStatus === 'online' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600' :
                                         dbStatus === 'loading' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600'
                                         }`}>
-                                        <Database size={24} />
+                                        <Database className="h-5 w-5 sm:h-6 sm:w-6" />
                                     </div>
                                     <div>
                                         <h3 className="font-black text-slate-900 dark:text-white leading-none text-sm">Estado de Conexión</h3>
@@ -526,22 +535,22 @@ export default function DashboardPage() {
                                 </div>
                                 <Badge className={`${dbStatus === 'online' ? 'bg-emerald-500/10 text-emerald-600' :
                                     dbStatus === 'loading' ? 'bg-blue-500/10 text-blue-600' : 'bg-rose-500/10 text-rose-600'
-                                    } border-none text-[10px] font-black uppercase tracking-widest px-3 py-1`}>
+                                    } border-none text-[10px] font-black uppercase tracking-widest px-3 py-1 w-fit`}>
                                     {dbStatus === 'online' ? 'Online' : dbStatus === 'loading' ? 'Sincronizando' : 'Error'}
                                 </Badge>
                             </div>
                         </Card>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <QuickTile href="/dashboard/usuarios" icon={<Users size={20} />} label="Usuarios" color="blue" />
+                            <QuickTile href="/dashboard/usuarios" icon={<Users size={20} />} label="Usuarios" color="blue" windowWidth={windowWidth} />
                             {esAdminDeResidencial ? (
-                                <QuickTile href="/dashboard/ingresos" icon={<Car size={20} />} label="Ingresos" color="emerald" />
+                                <QuickTile href="/dashboard/ingresos" icon={<Car size={20} />} label="Ingresos" color="emerald" windowWidth={windowWidth} />
                             ) : (
-                                <QuickTile href="/dashboard/residenciales" icon={<Building size={20} />} label="Condos" color="purple" />
+                                <QuickTile href="/dashboard/residenciales" icon={<Building size={20} />} label="Condos" color="purple" windowWidth={windowWidth} />
                             )}
-                            <QuickTile href="/dashboard/reportes" icon={<FileText size={20} />} label="Reportes" color="slate" />
-                            <QuickTile href="/dashboard/reservas" icon={<Calendar size={20} />} label="Reservas" color="amber" />
-                            <QuickTile href="/dashboard/alertas-panico" icon={<ShieldAlert size={20} />} label="Pánico" color="red" />
+                            <QuickTile href="/dashboard/reportes" icon={<FileText size={20} />} label="Reportes" color="slate" windowWidth={windowWidth} />
+                            <QuickTile href="/dashboard/reservas" icon={<Calendar size={20} />} label="Reservas" color="amber" windowWidth={windowWidth} />
+                            <QuickTile href="/dashboard/alertas-panico" icon={<ShieldAlert size={20} />} label="Pánico" color="red" windowWidth={windowWidth} />
                         </div>
                     </div>
                 </div>
@@ -554,19 +563,19 @@ export default function DashboardPage() {
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.6 }}
                     >
-                        <div className="shadow-zentry-lg bg-[#0f172a] text-white rounded-[2.5rem] overflow-hidden border border-white/5">
-                            <div className="p-8 pb-4">
+                        <div className="shadow-zentry-lg bg-[#0f172a] text-white rounded-3xl sm:rounded-[2.5rem] overflow-hidden border border-white/5">
+                            <div className="p-6 sm:p-8 pb-4">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <h2 className="text-2xl font-black flex items-center gap-3 text-white">
-                                            <Database className="h-6 w-6 text-primary" /> Pases Faltantes
+                                        <h2 className="text-xl sm:text-2xl font-black flex items-center gap-3 text-white">
+                                            <Database className="h-5 w-5 sm:h-6 sm:w-6 text-primary" /> Pases Faltantes
                                         </h2>
-                                        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.2em] mt-1 ml-9">+1 SEMANA FUERA</p>
+                                        <p className="text-slate-400 font-bold uppercase text-[9px] sm:text-[10px] tracking-[0.2em] mt-1 ml-8 sm:ml-9">+1 SEMANA FUERA</p>
                                     </div>
-                                    <Badge className="bg-rose-500 hover:bg-rose-500 text-white border-none text-[10px] font-black px-3 py-1">ALERTA</Badge>
+                                    <Badge className="bg-rose-500 hover:bg-rose-500 text-white border-none text-[10px] font-black px-2 sm:px-3 py-1">ALERTA</Badge>
                                 </div>
                             </div>
-                            <div className="px-6 pb-8 space-y-4">
+                            <div className="px-4 sm:px-6 pb-6 sm:pb-8 space-y-3 sm:space-y-4">
                                 {loadingStats ? (
                                     <Skeleton className="h-48 w-full rounded-3xl opacity-10" />
                                 ) : pendingPasses.filter(p => (new Date().getTime() - p.time.getTime()) > 7 * 24 * 60 * 60 * 1000).length > 0 ? (
@@ -574,34 +583,36 @@ export default function DashboardPage() {
                                         .filter(p => (new Date().getTime() - p.time.getTime()) > 7 * 24 * 60 * 60 * 1000)
                                         .slice(0, 5)
                                         .map((pass) => (
-                                            <div key={pass.id} className="group flex items-center gap-4 p-4 rounded-[1.5rem] bg-white/[0.03] border border-white/[0.05] hover:bg-white/[0.06] transition-all">
-                                                <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0 font-black text-sm border border-primary/20">
+                                            <div key={pass.id} className="group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl sm:rounded-[1.5rem] bg-white/[0.03] border border-white/[0.05] hover:bg-white/[0.06] transition-all">
+                                                <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0 font-black text-xs sm:text-sm border border-primary/20">
                                                     #{pass.passNumber}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-lg font-black truncate text-white tracking-tight">{pass.house}</p>
-                                                    <p className="text-[11px] font-bold text-rose-400 uppercase flex items-center gap-1.5 opacity-90">
-                                                        <Clock size={12} className="text-rose-500" /> DESDE: {pass.time.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }).toUpperCase()}
+                                                    <p className="text-base sm:text-lg font-black truncate text-white tracking-tight">{pass.house}</p>
+                                                    <p className="text-[10px] sm:text-[11px] font-bold text-rose-400 uppercase flex items-center gap-1.5 opacity-90">
+                                                        <Clock size={10} className="sm:size-12 text-rose-500" /> {pass.time.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }).toUpperCase()}
                                                     </p>
                                                 </div>
                                                 <div className="text-right shrink-0">
-                                                    <Badge className="bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-black px-2 py-0.5 rounded-lg">
+                                                    <Badge className="bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[9px] sm:text-[10px] font-black px-1.5 sm:px-2 py-0.5 rounded-lg">
                                                         {pass.time.toLocaleDateString('es-MX', { year: 'numeric', month: 'numeric', day: 'numeric' })}
                                                     </Badge>
                                                 </div>
                                             </div>
                                         ))
                                 ) : (
-                                    <div className="text-center py-12 opacity-40 bg-white/[0.02] rounded-[2rem] border border-white/5">
-                                        <CheckCircle2 className="h-10 w-10 mx-auto mb-3 text-emerald-400" />
-                                        <p className="text-xs font-black uppercase tracking-widest text-emerald-400">Sin rezagos críticos</p>
+                                    <div className="text-center py-10 sm:py-12 opacity-40 bg-white/[0.02] rounded-3xl sm:rounded-[2rem] border border-white/5">
+                                        <CheckCircle2 className="h-8 w-8 sm:h-10 sm:w-10 mx-auto mb-3 text-emerald-400" />
+                                        <p className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-emerald-400">Sin rezagos críticos</p>
                                     </div>
                                 )}
 
                                 {pendingPasses.length > 0 && (
-                                    <div className="mt-6 pt-6 border-t border-white/5 flex items-center justify-between px-4">
-                                        <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Total en circulación</span>
-                                        <Badge variant="outline" className="border-white/10 text-white font-black text-xs px-3">{pendingPasses.length} pases</Badge>
+                                    <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-white/5 flex items-center justify-between px-2 sm:px-4">
+                                        <span className="text-[10px] sm:text-xs font-black text-slate-500 uppercase tracking-widest">Total en circulación</span>
+                                        <Badge variant="outline" className="border-white/10 text-white font-black text-[10px] sm:text-xs px-2 sm:px-3">
+                                            {pendingPasses.length} pases
+                                        </Badge>
                                     </div>
                                 )}
                             </div>
@@ -609,27 +620,27 @@ export default function DashboardPage() {
                     </motion.div>
 
                     {/* Actividad en Vivo (Compacto) */}
-                    <Card className="border-none shadow-zentry-lg dark:shadow-none bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl rounded-[2.5rem] overflow-hidden dark:ring-1 dark:ring-white/5">
-                        <CardHeader className="p-8 pb-4">
-                            <CardTitle className="text-lg font-black dark:text-white">Actividad Reciente</CardTitle>
+                    <Card className="border-none shadow-zentry-lg dark:shadow-none bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl rounded-3xl sm:rounded-[2.5rem] overflow-hidden dark:ring-1 dark:ring-white/5">
+                        <CardHeader className="p-6 sm:p-8 pb-4">
+                            <CardTitle className="text-base sm:text-lg font-black dark:text-white">Actividad Reciente</CardTitle>
                         </CardHeader>
-                        <CardContent className="px-6 pb-6 space-y-2">
+                        <CardContent className="px-4 sm:px-6 pb-6 space-y-2">
                             {loadingStats ? (
-                                Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-2xl dark:bg-white/5" />)
+                                Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-14 sm:h-16 w-full rounded-2xl dark:bg-white/5" />)
                             ) : recentActivities.slice(0, 4).map((activity) => (
                                 <div
                                     key={activity.id}
-                                    className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white dark:hover:bg-white/5 transition-all border border-transparent hover:border-slate-100 dark:hover:border-white/5 group cursor-pointer"
+                                    className="flex items-center gap-3 p-2.5 sm:p-3 rounded-2xl hover:bg-white dark:hover:bg-white/5 transition-all border border-transparent hover:border-slate-100 dark:hover:border-white/5 group cursor-pointer"
                                 >
-                                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${activity.status === 'active' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-slate-50 dark:bg-white/5 text-slate-400 dark:text-slate-500'
+                                    <div className={`h-9 w-9 sm:h-10 sm:w-10 rounded-xl flex items-center justify-center shrink-0 ${activity.status === 'active' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-slate-50 dark:bg-white/5 text-slate-400 dark:text-slate-500'
                                         }`}>
-                                        <Car size={20} />
+                                        <Car size={windowWidth < 640 ? 18 : 20} />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-black text-slate-900 dark:text-slate-100 truncate">{activity.title}</p>
-                                        <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase truncate">{activity.subtitle}</p>
+                                        <p className="text-[11px] sm:text-xs font-black text-slate-900 dark:text-slate-100 truncate">{activity.title}</p>
+                                        <p className="text-[8px] sm:text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase truncate">{activity.subtitle}</p>
                                     </div>
-                                    <span className="text-[9px] font-black text-primary uppercase shrink-0">{formatTimeAgo(activity.time)}</span>
+                                    <span className="text-[8px] sm:text-[9px] font-black text-primary uppercase shrink-0">{formatTimeAgo(activity.time)}</span>
                                 </div>
                             ))}
                         </CardContent>
@@ -648,23 +659,23 @@ function StatCard({ label, value, icon, gradient, delay, trend, loading }: any) 
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay }}
         >
-            <Card className="relative border-none shadow-zentry dark:shadow-none bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl rounded-[2.5rem] overflow-hidden group h-full dark:ring-1 dark:ring-white/5">
-                <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${gradient} opacity-[0.03] dark:opacity-[0.08] group-hover:scale-125 transition-transform duration-700`}></div>
-                <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">{label}</CardTitle>
-                    <div className={`h-14 w-14 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-lg group-hover:rotate-6 transition-all`}>
-                        {icon}
+            <Card className="relative border-none shadow-zentry dark:shadow-none bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl rounded-2xl sm:rounded-[2.5rem] overflow-hidden group h-full dark:ring-1 dark:ring-white/5">
+                <div className={`absolute top-0 right-0 w-24 sm:w-32 h-24 sm:h-32 bg-gradient-to-br ${gradient} opacity-[0.03] dark:opacity-[0.08] group-hover:scale-125 transition-transform duration-700`}></div>
+                <CardHeader className="p-4 sm:p-6 pb-2 flex-row items-center justify-between space-y-0">
+                    <CardTitle className="text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">{label}</CardTitle>
+                    <div className={`h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-lg group-hover:rotate-6 transition-all shrink-0 ml-2`}>
+                        {React.cloneElement(icon, { className: "h-5 w-5 sm:h-6 sm:w-6 text-white" })}
                     </div>
                 </CardHeader>
-                <CardContent>
-                    {loading ? <Skeleton className="h-12 w-28 dark:bg-white/5" /> : (
+                <CardContent className="p-4 sm:p-6 pt-0">
+                    {loading ? <Skeleton className="h-8 sm:h-12 w-20 sm:w-28 dark:bg-white/5" /> : (
                         <>
-                            <div className="text-4xl font-black text-slate-900 dark:text-white mb-2">
+                            <div className="text-2xl sm:text-4xl font-black text-slate-900 dark:text-white mb-1 sm:mb-2">
                                 <CountUp end={typeof value === 'number' ? value : parseInt(value)} duration={2.5} suffix={typeof value === 'string' && value.includes('%') ? '%' : ''} />
                             </div>
-                            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full w-fit text-[10px] font-black uppercase ${trend.up ? 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400'}`}>
-                                {trend.up ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                                {trend.val}% tendencia
+                            <div className={`flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full w-fit text-[8px] sm:text-[10px] font-black uppercase ${trend.up ? 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400'}`}>
+                                {trend.up ? <ArrowUpRight className="h-2.5 w-2.5 sm:h-3 w-3" /> : <ArrowDownRight className="h-2.5 w-2.5 sm:h-3 w-3" />}
+                                {trend.val}% <span className="hidden xs:inline">tendencia</span>
                             </div>
                         </>
                     )}
@@ -703,7 +714,7 @@ function HealthBadge({ label, status }: any) {
     );
 }
 
-function QuickTile({ href, icon, label, color }: any) {
+function QuickTile({ href, icon, label, color, windowWidth }: any) {
     const colors: any = {
         blue: "from-blue-600 to-sky-400 bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400",
         emerald: "from-emerald-500 to-teal-400 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
@@ -717,12 +728,12 @@ function QuickTile({ href, icon, label, color }: any) {
             <motion.div
                 whileHover={{ scale: 1.02, y: -4 }}
                 whileTap={{ scale: 0.98 }}
-                className="h-full p-6 rounded-[2.5rem] bg-white dark:bg-slate-900/40 backdrop-blur-md border border-slate-100 dark:border-white/5 shadow-zentry dark:shadow-none flex flex-col items-center justify-center gap-4 transition-all group"
+                className="h-full p-4 sm:p-6 rounded-2xl sm:rounded-[2.5rem] bg-white dark:bg-slate-900/40 backdrop-blur-md border border-slate-100 dark:border-white/5 shadow-zentry dark:shadow-none flex flex-col items-center justify-center gap-3 sm:gap-4 transition-all group"
             >
-                <div className={`h-16 w-16 rounded-[1.5rem] bg-gradient-to-br ${colors[color].split(' ')[0]} ${colors[color].split(' ')[1]} flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform`}>
-                    {icon}
+                <div className={`h-12 w-12 sm:h-16 sm:w-16 rounded-xl sm:rounded-[1.5rem] bg-gradient-to-br ${colors[color].split(' ')[0]} ${colors[color].split(' ')[1]} flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform`}>
+                    {React.cloneElement(icon, { size: windowWidth < 640 ? 18 : 20 })}
                 </div>
-                <span className="font-black text-sm uppercase tracking-widest text-slate-900 dark:text-white group-hover:text-primary transition-colors">{label}</span>
+                <span className="font-black text-[10px] sm:text-sm uppercase tracking-widest text-slate-900 dark:text-white group-hover:text-primary transition-colors text-center">{label}</span>
             </motion.div>
         </Link>
     );

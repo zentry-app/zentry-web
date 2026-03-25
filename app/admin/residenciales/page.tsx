@@ -5,14 +5,14 @@ import { AdminLayout } from '@/components/dashboard/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  Table, 
-  TableBody, 
-  TableCaption, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
 import { PlusCircle, Edit, Trash2, UsersRound } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -41,7 +41,7 @@ export default function ResidencialesPage() {
     country: 'México',
     totalHouses: 0
   });
-  
+
   const { toast } = useToast();
 
   useEffect(() => {
@@ -66,12 +66,12 @@ export default function ResidencialesPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     let processedValue: string | number = value;
-    
+
     // Convertir a número si es totalHouses
     if (name === 'totalHouses') {
       processedValue = value === '' ? 0 : parseInt(value, 10);
     }
-    
+
     setFormData({
       ...formData,
       [name]: processedValue
@@ -103,7 +103,7 @@ export default function ResidencialesPage() {
 
   const handleEditResidencial = async () => {
     if (!selectedResidencial) return;
-    
+
     try {
       setLoading(true);
       await ResidentialService.updateResidential(selectedResidencial.id, formData);
@@ -128,7 +128,7 @@ export default function ResidencialesPage() {
 
   const handleDeleteResidencial = async () => {
     if (!selectedResidencial) return;
-    
+
     try {
       setLoading(true);
       await ResidentialService.deleteResidential(selectedResidencial.id);
@@ -201,7 +201,7 @@ export default function ResidencialesPage() {
           Nuevo Residencial
         </Button>
       </div>
-      
+
       <Card>
         <CardHeader>
           <CardTitle>Residenciales</CardTitle>
@@ -245,22 +245,22 @@ export default function ResidencialesPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end space-x-2">
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="icon"
                           onClick={() => openManageAdminsDialog(residencial)}
                         >
                           <UsersRound className="h-4 w-4" />
                         </Button>
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="icon"
                           onClick={() => openEditDialog(residencial)}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="icon"
                           onClick={() => openDeleteDialog(residencial)}
                         >

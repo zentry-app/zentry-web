@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+/* eslint-disable @next/next/no-img-element */
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -71,11 +72,7 @@ const PaymentValidationTable: React.FC<PaymentValidationTableProps> = ({
   const [statusFilter, setStatusFilter] = useState('pending_validation');
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    loadPayments();
-  }, [residencialId, statusFilter]);
-
-  const loadPayments = async () => {
+  const loadPayments = useCallback(async () => {
     try {
       setLoading(true);
       const paymentsData = await PaymentValidationService.getAllPayments(
@@ -89,7 +86,11 @@ const PaymentValidationTable: React.FC<PaymentValidationTableProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [residencialId, statusFilter]);
+
+  useEffect(() => {
+    loadPayments();
+  }, [loadPayments]);
 
   const handleValidatePayment = async (status: 'validated' | 'rejected') => {
     if (!selectedPayment || !user) return;

@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 // Imágenes reales del flujo de acceso con QR
 const qrGenerationImg = '/assets/PhoneImg.webp';
@@ -134,16 +134,16 @@ const FeatureCarousel = () => {
     return () => window.removeEventListener('resize', updateDimensions);
   }, []);
 
-  const nextSlide = () => {
+  const nextSlide = useCallback(() => {
     // Modificado para permitir avanzar hasta que se vea el último elemento completo
     if (currentIndex >= maxIndex) return;
     setCurrentIndex((prevIndex) => Math.min(prevIndex + 1, maxIndex));
-  };
+  }, [currentIndex, maxIndex]);
 
-  const prevSlide = () => {
+  const prevSlide = useCallback(() => {
     if (currentIndex <= 0) return;
     setCurrentIndex((prevIndex) => prevIndex - 1);
-  };
+  }, [currentIndex]);
 
   useEffect(() => {
     // Solo aplicar el comportamiento de cursor follower en desktop
@@ -231,7 +231,7 @@ const FeatureCarousel = () => {
       document.removeEventListener('mousemove', updateCursorFollower);
       document.removeEventListener('click', handleClick);
     };
-  }, [currentIndex, maxIndex, isMobile]);
+  }, [currentIndex, isMobile, maxIndex, nextSlide, prevSlide]);
 
   // Aplicar transformación basada en el índice actual (solo en desktop)
   useEffect(() => {

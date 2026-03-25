@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { 
   Card, CardContent, CardDescription, 
   CardHeader, CardTitle, CardFooter
@@ -31,7 +31,7 @@ export default function AdminDashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -50,7 +50,7 @@ export default function AdminDashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     fetchStats();
@@ -65,7 +65,7 @@ export default function AdminDashboardPage() {
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [fetchStats]);
 
   const handleRefresh = async () => {
     setRefreshing(true);

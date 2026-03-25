@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -170,7 +170,7 @@ export function ReservationAuditHistory({
     return String(data);
   };
 
-  const loadAuditHistory = async () => {
+  const loadAuditHistory = useCallback(async () => {
     if (!reservationId) {
       console.log('❌ [AUDIT] Falta reservationId:', { reservationId, residencialId });
       return;
@@ -253,7 +253,7 @@ export function ReservationAuditHistory({
     } finally {
       setLoading(false);
     }
-  };
+  }, [reservationId, residencialId]);
 
   const generateRetroactiveHistory = async () => {
     if (!reservationId) return;
@@ -406,7 +406,7 @@ export function ReservationAuditHistory({
     if (open) {
       loadAuditHistory();
     }
-  }, [open, reservationId, residencialId]);
+  }, [loadAuditHistory, open]);
 
   const defaultTrigger = (
     <Button variant="outline" size="sm" className="gap-2">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -461,11 +462,16 @@ export function DocumentsStep({
             <div className="space-y-4">
               {preview && (
                 <div className="relative">
-                  <img
-                    src={preview}
-                    alt="Vista previa"
-                    className="w-full h-48 object-cover rounded-lg border"
-                  />
+                  <div className="relative w-full h-48">
+                    <Image
+                      src={preview}
+                      alt="Vista previa"
+                      fill
+                      className="object-cover rounded-lg border"
+                      sizes="(max-width: 768px) 100vw, 384px"
+                      unoptimized
+                    />
+                  </div>
                   <Button
                     type="button"
                     variant="destructive"

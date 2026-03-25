@@ -97,9 +97,13 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
 
   useEffect(() => {
     setIsMounted(true);
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   if (!isMounted) return null;
@@ -125,12 +129,12 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
           layout
           initial={false}
           animate={{
-            marginLeft: isCollapsed ? 120 : 296
+            marginLeft: windowWidth < 1024 ? 0 : (isCollapsed ? 120 : 296)
           }}
           transition={sidebarSpring}
           className={cn(
             "flex-1 overflow-auto relative",
-            "bg-premium px-8 pb-8 pt-10"
+            "bg-premium px-4 sm:px-8 pb-4 sm:pb-8 pt-6 sm:pt-10"
           )}
           style={{ height: '100vh' }}
         >
@@ -138,7 +142,7 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
             <div className="relative h-full">
               <motion.div
                 layout
-                className="relative h-full rounded-[2rem] border border-white/30 bg-white/60 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.04)] overflow-hidden transition-all duration-300 dark:bg-[#05080f]/40 dark:border-white/5 dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)] zentry:bg-white/10 zentry:border-white/15 zentry:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_8px_32px_rgba(0,0,0,0.1)]"
+                className="relative h-full rounded-xl sm:rounded-[2rem] border border-white/30 bg-white/60 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.04)] overflow-hidden transition-all duration-300 dark:bg-[#05080f]/40 dark:border-white/5 dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)] zentry:bg-white/10 zentry:border-white/15 zentry:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_8px_32px_rgba(0,0,0,0.1)]"
               >
                 <div className="h-full w-full overflow-y-auto">
                   {children}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { SupportTicket } from '@/types/support';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -89,7 +89,7 @@ export function TicketDetail({
 
   const puedeResponder = ticket.estado !== 'resuelto' && ticket.estado !== 'cerrado';
 
-  const loadRespuestas = async () => {
+  const loadRespuestas = useCallback(async () => {
     setLoadingRespuestas(true);
     try {
       const list = await SupportService.getTicketRespuestas(ticket.residencialId, ticket.ticketId);
@@ -99,11 +99,11 @@ export function TicketDetail({
     } finally {
       setLoadingRespuestas(false);
     }
-  };
+  }, [ticket.residencialId, ticket.ticketId]);
 
   useEffect(() => {
     loadRespuestas();
-  }, [ticket.ticketId, ticket.residencialId]);
+  }, [loadRespuestas]);
 
   const handleSendRespuesta = async () => {
     if (!respuestaTexto.trim() || !onAddRespuesta || !puedeResponder) return;

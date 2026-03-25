@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+/* eslint-disable @next/next/no-img-element */
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     DialogContent,
     DialogFooter,
@@ -23,6 +24,212 @@ interface RevisarDocumentosDialogProps {
     onAprobarUsuario: (usuario: Usuario) => void;
     onRechazarUsuario: (usuario: Usuario, motivo: string) => void;
 }
+
+interface UserTypeSummaryProps {
+    usuario: Usuario;
+    todosLosUsuarios: Usuario[];
+}
+
+interface TenantCodesPanelProps {
+    usuario: Usuario;
+}
+
+const UserTypeSummary: React.FC<UserTypeSummaryProps> = ({ usuario, todosLosUsuarios }) => {
+    const [showInfo, setShowInfo] = useState(false);
+    const principal = todosLosUsuarios.find(u => u.houseID === usuario.houseID && u.isPrimaryUser && u.status === 'approved');
+    const esOwner = (usuario as any).isOwner === true || usuario.ownershipStatus === 'own';
+    const esPrincipal = usuario.isPrimaryUser;
+    const principalYaExiste = principal && principal.id !== usuario.id;
+
+    return (
+        <div className="flex items-center gap-3 w-full">
+            <div className="flex items-center gap-2">
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 ${esOwner
+                    ? 'bg-blue-50 border-blue-200 text-blue-800'
+                    : esPrincipal
+                        ? 'bg-purple-50 border-purple-200 text-purple-800'
+                        : 'bg-green-50 border-green-200 text-green-800'
+                    }`}>
+                    {esOwner ? (
+                        <>
+                            <Building className="h-4 w-4 text-blue-600" />
+                            <span className="font-medium text-sm">Propietario</span>
+                        </>
+                    ) : esPrincipal ? (
+                        <>
+                            <Star className="h-4 w-4 text-yellow-500" />
+                            <span className="font-medium text-sm">Inquilino Principal</span>
+                        </>
+                    ) : (
+                        <>
+                            <UserIcon className="h-4 w-4 text-green-600" />
+                            <span className="font-medium text-sm">Inquilino Secundario</span>
+                        </>
+                    )}
+                </div>
+
+                <div className="text-xs text-muted-foreground">
+                    {esOwner
+                        ? "Dueño de la propiedad"
+                        : esPrincipal
+                            ? "Responsable de la aplicación"
+                            : "Usuario autorizado"
+                    }
+                </div>
+            </div>
+
+            <div className="relative">
+                <button
+                    type="button"
+                    className="p-2 rounded-full hover:bg-muted transition-colors"
+                    onClick={() => setShowInfo(!showInfo)}
+                    title="Información sobre tipos de usuario"
+                >
+                    <Info className="h-5 w-5 text-blue-500" />
+                </button>
+                {showInfo && (
+                    <div className="absolute left-12 top-0 z-50 bg-white border rounded shadow-lg p-3 text-xs w-80 max-w-sm">
+                        <div className="grid grid-cols-1 gap-3">
+                            <div>
+                                <div className="font-semibold mb-1 text-blue-700">🧑‍💼 Usuario Principal</div>
+                                <div className="text-xs mb-1">Responsable legal de la cuenta y uso de la aplicación. Se asigna automáticamente según el orden de registro.</div>
+                            </div>
+                            <div>
+                                <div className="font-semibold mb-1 text-green-700">👤 Usuario Secundario</div>
+                                <div className="text-xs mb-1">Usuario autorizado vinculado al principal. Familiar o habitante de la misma dirección.</div>
+                            </div>
+                        </div>
+                        <div className="border-t pt-2 mt-2">
+                            <div className="font-semibold text-xs mb-1">ℹ️ Detección automática:</div>
+                            <div className="text-xs">
+                                <b>Primer inquilino registrado</b> → Principal<br />
+                                <b>Segundo inquilino registrado</b> → Secundario<br />
+                                <span className="text-muted-foreground">Se determina automáticamente al crear la invitación</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {principalYaExiste && !esPrincipal && principal && (
+                <span className="text-xs text-blue-600 ml-2">
+                    <Info className="h-3 w-3 inline mr-1" />
+                    Principal: <strong>{principal.fullName} {principal.paternalLastName}</strong>
+                </span>
+            )}
+        </div>
+    );
+};
+
+const TenantCodesPanel: React.FC<TenantCodesPanelProps> = ({ usuario }) => {
+    const tenantCodes = useMemo(
+        () => (((usuario as any).tenantCodes as string[] | undefined) ?? []),
+        [usuario]
+    );
+    const [invitaciones, setInvitaciones] = useState<TenantInvitation[]>([]);
+    const [loadingInvitaciones, setLoadingInvitaciones] = useState(true);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const cargarInvitaciones = async () => {
+            try {
+                setLoadingInvitaciones(true);
+                const invitacionesData = await getTenantInvitations(usuario.residencialID);
+                if (!isMounted) {
+                    return;
+                }
+                const invitacionesDelPropietario = invitacionesData.filter(inv =>
+                    inv.ownerId === usuario.id && tenantCodes.includes(inv.code)
+                );
+                setInvitaciones(invitacionesDelPropietario);
+            } catch (error) {
+                if (isMounted) {
+                    console.error('Error cargando invitaciones:', error);
+                }
+            } finally {
+                if (isMounted) {
+                    setLoadingInvitaciones(false);
+                }
+            }
+        };
+
+        cargarInvitaciones();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [tenantCodes, usuario.id, usuario.residencialID]);
+
+    if (tenantCodes.length === 0) {
+        return null;
+    }
+
+    return (
+        <div className="w-full px-3 py-2 border-t">
+            <div className="flex items-center gap-2 font-semibold text-sm mb-2">
+                <Home className="h-4 w-4 text-purple-500" />
+                Códigos de Inquilinos Autorizados ({tenantCodes.length})
+            </div>
+
+            {loadingInvitaciones ? (
+                <div className="flex items-center justify-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-500"></div>
+                    <span className="ml-2 text-sm text-gray-500">Cargando invitaciones...</span>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {tenantCodes.map((codigo: string, index: number) => {
+                        const invitacion = invitaciones.find(inv => inv.code === codigo);
+
+                        return (
+                            <div key={codigo} className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-medium text-purple-700">Código #{index + 1}</span>
+                                        <span className="font-mono text-sm font-bold text-purple-800">{codigo}</span>
+                                    </div>
+                                    <span className={`text-xs px-2 py-1 rounded-full ${invitacion?.isUsed
+                                        ? 'bg-green-100 text-green-700'
+                                        : 'bg-yellow-100 text-yellow-700'
+                                        }`}>
+                                        {invitacion?.isUsed ? '✅ Registrado' : '⏳ Pendiente'}
+                                    </span>
+                                </div>
+
+                                {invitacion ? (
+                                    <div className="flex items-center gap-2">
+                                        <Avatar className="h-6 w-6">
+                                            <AvatarFallback className="text-xs">
+                                                {invitacion.tenantName?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || '?'}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-purple-900 truncate">
+                                                {invitacion.tenantName || 'Sin nombre'}
+                                            </p>
+                                            <p className="text-xs text-purple-600 truncate">
+                                                {invitacion.tenantEmail || 'Sin email'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2 text-purple-600">
+                                        <UserIcon className="h-4 w-4" />
+                                        <span className="text-sm">Sin usar</span>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+            <p className="text-xs text-purple-600 mt-3">
+                ℹ️ Estos códigos pueden ser usados por inquilinos para registrarse en esta propiedad
+            </p>
+        </div>
+    );
+};
 
 const RevisarDocumentosDialog: React.FC<RevisarDocumentosDialogProps> = ({
     usuario,
@@ -166,96 +373,7 @@ const RevisarDocumentosDialog: React.FC<RevisarDocumentosDialogProps> = ({
 
             {/* Tipo de usuario - Detección automática */}
             <div className="w-full flex flex-col md:flex-row items-center gap-2 px-3 py-3 border-b">
-                {(() => {
-                    const principal = todosLosUsuarios.find(u => u.houseID === usuario.houseID && u.isPrimaryUser && u.status === 'approved');
-                    const esOwner = (usuario as any).isOwner === true || usuario.ownershipStatus === 'own';
-                    const esPrincipal = usuario.isPrimaryUser;
-                    const [showInfo, setShowInfo] = useState(false);
-                    const principalYaExiste = principal && principal.id !== usuario.id;
-
-                    return (
-                        <div className="flex items-center gap-3 w-full">
-                            {/* Indicador automático de tipo de usuario */}
-                            <div className="flex items-center gap-2">
-                                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 ${esOwner
-                                        ? 'bg-blue-50 border-blue-200 text-blue-800'
-                                        : esPrincipal
-                                            ? 'bg-purple-50 border-purple-200 text-purple-800'
-                                            : 'bg-green-50 border-green-200 text-green-800'
-                                    }`}>
-                                    {esOwner ? (
-                                        <>
-                                            <Building className="h-4 w-4 text-blue-600" />
-                                            <span className="font-medium text-sm">Propietario</span>
-                                        </>
-                                    ) : esPrincipal ? (
-                                        <>
-                                            <Star className="h-4 w-4 text-yellow-500" />
-                                            <span className="font-medium text-sm">Inquilino Principal</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <UserIcon className="h-4 w-4 text-green-600" />
-                                            <span className="font-medium text-sm">Inquilino Secundario</span>
-                                        </>
-                                    )}
-                                </div>
-
-                                {/* Badge de información */}
-                                <div className="text-xs text-muted-foreground">
-                                    {esOwner
-                                        ? "Dueño de la propiedad"
-                                        : esPrincipal
-                                            ? "Responsable de la aplicación"
-                                            : "Usuario autorizado"
-                                    }
-                                </div>
-                            </div>
-
-                            {/* Botón de información */}
-                            <div className="relative">
-                                <button
-                                    type="button"
-                                    className="p-2 rounded-full hover:bg-muted transition-colors"
-                                    onClick={() => setShowInfo(!showInfo)}
-                                    title="Información sobre tipos de usuario"
-                                >
-                                    <Info className="h-5 w-5 text-blue-500" />
-                                </button>
-                                {showInfo && (
-                                    <div className="absolute left-12 top-0 z-50 bg-white border rounded shadow-lg p-3 text-xs w-80 max-w-sm">
-                                        <div className="grid grid-cols-1 gap-3">
-                                            <div>
-                                                <div className="font-semibold mb-1 text-blue-700">🧑‍💼 Usuario Principal</div>
-                                                <div className="text-xs mb-1">Responsable legal de la cuenta y uso de la aplicación. Se asigna automáticamente según el orden de registro.</div>
-                                            </div>
-                                            <div>
-                                                <div className="font-semibold mb-1 text-green-700">👤 Usuario Secundario</div>
-                                                <div className="text-xs mb-1">Usuario autorizado vinculado al principal. Familiar o habitante de la misma dirección.</div>
-                                            </div>
-                                        </div>
-                                        <div className="border-t pt-2 mt-2">
-                                            <div className="font-semibold text-xs mb-1">ℹ️ Detección automática:</div>
-                                            <div className="text-xs">
-                                                <b>Primer inquilino registrado</b> → Principal<br />
-                                                <b>Segundo inquilino registrado</b> → Secundario<br />
-                                                <span className="text-muted-foreground">Se determina automáticamente al crear la invitación</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Información adicional si es necesario */}
-                            {principalYaExiste && !esPrincipal && (
-                                <span className="text-xs text-blue-600 ml-2">
-                                    <Info className="h-3 w-3 inline mr-1" />
-                                    Principal: <strong>{principal.fullName} {principal.paternalLastName}</strong>
-                                </span>
-                            )}
-                        </div>
-                    );
-                })()}
+                <UserTypeSummary usuario={usuario} todosLosUsuarios={todosLosUsuarios} />
             </div>
 
             {/* Usuarios aprobados ligados compacto (solo para inquilinos) */}
@@ -292,98 +410,9 @@ const RevisarDocumentosDialog: React.FC<RevisarDocumentosDialogProps> = ({
             )}
 
             {/* Códigos de inquilinos (solo para propietarios que rentan) */}
-            {((usuario as any).isOwner === true || usuario.ownershipStatus === 'own') && (usuario as any).tenantCodes && (usuario as any).tenantCodes.length > 0 && (() => {
-                // Estado para las invitaciones
-                const [invitaciones, setInvitaciones] = useState<TenantInvitation[]>([]);
-                const [loadingInvitaciones, setLoadingInvitaciones] = useState(true);
-
-                // Cargar invitaciones cuando el componente se monta
-                useEffect(() => {
-                    const cargarInvitaciones = async () => {
-                        try {
-                            setLoadingInvitaciones(true);
-                            const invitacionesData = await getTenantInvitations(usuario.residencialID);
-                            const invitacionesDelPropietario = invitacionesData.filter(inv =>
-                                inv.ownerId === usuario.id &&
-                                (usuario as any).tenantCodes.includes(inv.code)
-                            );
-                            setInvitaciones(invitacionesDelPropietario);
-                        } catch (error) {
-                            console.error('Error cargando invitaciones:', error);
-                        } finally {
-                            setLoadingInvitaciones(false);
-                        }
-                    };
-
-                    cargarInvitaciones();
-                }, [usuario.id, usuario.residencialID]);
-
-                return (
-                    <div className="w-full px-3 py-2 border-t">
-                        <div className="flex items-center gap-2 font-semibold text-sm mb-2">
-                            <Home className="h-4 w-4 text-purple-500" />
-                            Códigos de Inquilinos Autorizados ({(usuario as any).tenantCodes.length})
-                        </div>
-
-                        {loadingInvitaciones ? (
-                            <div className="flex items-center justify-center py-4">
-                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-500"></div>
-                                <span className="ml-2 text-sm text-gray-500">Cargando invitaciones...</span>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {(usuario as any).tenantCodes.map((codigo: string, index: number) => {
-                                    // Buscar invitación para este código
-                                    const invitacion = invitaciones.find(inv => inv.code === codigo);
-
-                                    return (
-                                        <div key={index} className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-xs font-medium text-purple-700">Código #{index + 1}</span>
-                                                    <span className="font-mono text-sm font-bold text-purple-800">{codigo}</span>
-                                                </div>
-                                                <span className={`text-xs px-2 py-1 rounded-full ${invitacion?.isUsed
-                                                        ? 'bg-green-100 text-green-700'
-                                                        : 'bg-yellow-100 text-yellow-700'
-                                                    }`}>
-                                                    {invitacion?.isUsed ? '✅ Registrado' : '⏳ Pendiente'}
-                                                </span>
-                                            </div>
-
-                                            {invitacion ? (
-                                                <div className="flex items-center gap-2">
-                                                    <Avatar className="h-6 w-6">
-                                                        <AvatarFallback className="text-xs">
-                                                            {invitacion.tenantName?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || '?'}
-                                                        </AvatarFallback>
-                                                    </Avatar>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-medium text-purple-900 truncate">
-                                                            {invitacion.tenantName || 'Sin nombre'}
-                                                        </p>
-                                                        <p className="text-xs text-purple-600 truncate">
-                                                            {invitacion.tenantEmail || 'Sin email'}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center gap-2 text-purple-600">
-                                                    <UserIcon className="h-4 w-4" />
-                                                    <span className="text-sm">Sin usar</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                        <p className="text-xs text-purple-600 mt-3">
-                            ℹ️ Estos códigos pueden ser usados por inquilinos para registrarse en esta propiedad
-                        </p>
-                    </div>
-                );
-            })()}
+            {((usuario as any).isOwner === true || usuario.ownershipStatus === 'own') && (usuario as any).tenantCodes && (usuario as any).tenantCodes.length > 0 && (
+                <TenantCodesPanel usuario={usuario} />
+            )}
 
             {/* Documentos según tipo de usuario */}
             <div className="w-full mt-2 px-3 pb-3">

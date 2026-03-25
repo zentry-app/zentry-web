@@ -34,7 +34,7 @@ const RegistrarPagoDialog: React.FC<RegistrarPagoDialogProps> = ({
   onPaymentRegistered,
   residencialId,
 }) => {
-  const [usuarios, setUsuarios] = useState<{ value: string; label: string }[]>([]);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [amount, setAmount] = useState('');
   const [concept, setConcept] = useState('');
@@ -47,11 +47,7 @@ const RegistrarPagoDialog: React.FC<RegistrarPagoDialogProps> = ({
       setLoadingUsers(true);
       getUsuariosPorResidencial(residencialId)
         .then((users) => {
-          const formattedUsers = users.map((u) => ({
-            value: u.uid,
-            label: `${u.fullName} (${u.domicilio?.calle || ''} #${u.domicilio?.houseNumber || ''})`,
-          }));
-          setUsuarios(formattedUsers);
+          setUsuarios(users);
         })
         .catch((err) => {
           toast.error('Error al cargar la lista de residentes.');
@@ -67,10 +63,10 @@ const RegistrarPagoDialog: React.FC<RegistrarPagoDialogProps> = ({
       return;
     }
 
-    const selectedUser = usuarios.find(u => u.value === selectedUserId);
+    const selectedUser = usuarios.find(u => u.uid === selectedUserId);
     if (!selectedUser) {
-        toast.error('Usuario seleccionado no es válido.');
-        return;
+      toast.error('Usuario seleccionado no es válido.');
+      return;
     }
 
     setLoading(true);
@@ -78,7 +74,10 @@ const RegistrarPagoDialog: React.FC<RegistrarPagoDialogProps> = ({
       await registrarPagoEfectivo({
         residencialId,
         userId: selectedUserId,
-        userName: selectedUser.label.split('(')[0].trim(),
+        userName: selectedUser.fullName,
+        userEmail: selectedUser.email,
+        calle: selectedUser.domicilio?.calle || selectedUser.calle,
+        houseNumber: selectedUser.domicilio?.houseNumber || selectedUser.houseNumber,
         amount: parseFloat(amount),
         concept,
         paymentDate,
@@ -99,6 +98,11 @@ const RegistrarPagoDialog: React.FC<RegistrarPagoDialogProps> = ({
     }
   };
 
+  const usuariosOptions = usuarios.map((u) => ({
+    value: u.uid,
+    label: `${u.fullName} (${u.domicilio?.calle || u.calle || ''} #${u.domicilio?.houseNumber || u.houseNumber || ''})`,
+  }));
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
@@ -115,7 +119,7 @@ const RegistrarPagoDialog: React.FC<RegistrarPagoDialogProps> = ({
             </Label>
             <div className="col-span-3">
               <Combobox
-                options={usuarios}
+                options={usuariosOptions}
                 value={selectedUserId}
                 onChange={setSelectedUserId}
                 placeholder="Busca un residente..."
@@ -128,15 +132,15 @@ const RegistrarPagoDialog: React.FC<RegistrarPagoDialogProps> = ({
               Monto
             </Label>
             <div className="relative col-span-3">
-                <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                    id="amount"
-                    type="number"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="pl-8"
-                />
+              <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="amount"
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                className="pl-8"
+              />
             </div>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
@@ -151,32 +155,32 @@ const RegistrarPagoDialog: React.FC<RegistrarPagoDialogProps> = ({
               placeholder="Ej. Mantenimiento de Junio"
             />
           </div>
-           <div className="grid grid-cols-4 items-center gap-4">
+          <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="date" className="text-right">
               Fecha
             </Label>
-             <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={"outline"}
-                    className={cn(
-                      "col-span-3 justify-start text-left font-normal",
-                      !paymentDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {paymentDate ? format(paymentDate, "PPP", { locale: es }) : <span>Elige una fecha</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <CalendarComponent
-                    mode="single"
-                    selected={paymentDate}
-                    onSelect={setPaymentDate}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={"outline"}
+                  className={cn(
+                    "col-span-3 justify-start text-left font-normal",
+                    !paymentDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {paymentDate ? format(paymentDate, "PPP", { locale: es }) : <span>Elige una fecha</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <CalendarComponent
+                  mode="single"
+                  selected={paymentDate}
+                  onSelect={setPaymentDate}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
         <DialogFooter>

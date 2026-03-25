@@ -454,7 +454,7 @@ export function AddTagModal({
       setCasasFiltradas([]);
       setPanelesFiltrados([]);
     }
-  }, [formData.residencialId, casas, paneles, casasModal]);
+  }, [formData.casaId, formData.residencialId, casas, paneles, casasModal]);
 
   // Validar número de tarjeta único
   useEffect(() => {

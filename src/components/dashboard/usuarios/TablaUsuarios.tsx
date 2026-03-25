@@ -251,7 +251,7 @@ const TablaUsuarios: React.FC<TablaUsuariosProps> = memo(({
       const comparison = String(aValue).localeCompare(String(bValue));
       return sortDirection === 'asc' ? comparison : -comparison;
     });
-  }, [usuarios, sortField, sortDirection, filtroMorosos, getResidencialNombre]);
+  }, [usuarios, sortField, sortDirection, filtroMorosos, getResidencialNombre, mostrarColumnaMoroso, tipoVista]);
 
   // Calcular paginación
   const totalItems = usuariosFiltradosYOrdenados.length;
@@ -811,4 +811,6 @@ const TablaUsuarios: React.FC<TablaUsuariosProps> = memo(({
   );
 });
 
-export default TablaUsuarios; 
+TablaUsuarios.displayName = 'TablaUsuarios';
+
+export default TablaUsuarios;

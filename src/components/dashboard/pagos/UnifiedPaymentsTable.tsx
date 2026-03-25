@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import React from 'react';
 import {
   Table,
@@ -80,7 +81,7 @@ interface UnifiedPaymentsTableProps {
   loading: boolean;
   onValidatePayment?: (paymentId: string, validation: 'approved' | 'rejected', reason?: string) => void;
   onEditPayment?: (payment: UnifiedPayment) => void;
-  onDeletePayment?: (paymentId: string) => void;
+  onDeletePayment?: (payment: UnifiedPayment) => void;
   onViewReceipt?: (payment: UnifiedPayment) => void;
 }
 
@@ -104,6 +105,7 @@ const UnifiedPaymentsTable: React.FC<UnifiedPaymentsTableProps> = ({
   }>({ open: false, payment: null, action: 'approved' });
 
   const [rejectionReason, setRejectionReason] = React.useState('');
+  const [deleteReason, setDeleteReason] = React.useState('');
 
   const [zoomModal, setZoomModal] = React.useState<{
     open: boolean;
@@ -219,13 +221,18 @@ const UnifiedPaymentsTable: React.FC<UnifiedPaymentsTableProps> = ({
   // Función para manejar eliminación
   const handleDelete = (payment: UnifiedPayment) => {
     setDeleteDialog({ open: true, payment });
+    setDeleteReason('');
   };
 
   // Función para confirmar eliminación
   const confirmDelete = () => {
     if (deleteDialog.payment && onDeletePayment) {
-      onDeletePayment(deleteDialog.payment.id);
+      // Si el pago está validado, forzamos a que tenga motivo para pasarlo en lugar del paymentId normal o dentro del objeto
+      // Podemos pasarlo inyectándolo mutuamente. Por compatibilidad, dejaremos que SimplifiedPaymentsDashboardV2 
+      // resuelva qué hacer con payment y deleteReason. Pasaremos deleteReason como propiedad temporal
+      onDeletePayment({ ...deleteDialog.payment, concept: deleteReason ? deleteReason : deleteDialog.payment.concept } as any);
       setDeleteDialog({ open: false, payment: null });
+      setDeleteReason('');
     }
   };
 
@@ -349,9 +356,9 @@ const UnifiedPaymentsTable: React.FC<UnifiedPaymentsTableProps> = ({
                     <Home className="h-4 w-4 text-gray-400" />
                     <div>
                       <div className="text-sm font-medium">
-                        {payment.houseAddress && payment.houseNumber
-                          ? `${payment.houseAddress} ${payment.houseNumber}`
-                          : 'N/A'
+                        {payment.houseAddress || payment.houseNumber
+                          ? `${payment.houseAddress || ''} ${payment.houseNumber || ''}`.trim()
+                          : (payment as any).casaId || 'N/A'
                         }
                       </div>
                     </div>
@@ -432,16 +439,39 @@ const UnifiedPaymentsTable: React.FC<UnifiedPaymentsTableProps> = ({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar pago?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción no se puede deshacer. Se eliminará permanentemente el pago de{' '}
-              <strong>{formatAmount(deleteDialog.payment?.amount || 0)}</strong> de{' '}
-              <strong>{deleteDialog.payment?.userName}</strong>.
+            <AlertDialogDescription asChild>
+              <div className="space-y-4 text-sm text-gray-500 mt-2">
+                <p>
+                  Esta acción no se puede deshacer. Se eliminará o revertirá el pago de{' '}
+                  <strong>{formatAmount(deleteDialog.payment?.amount || 0)}</strong> de{' '}
+                  <strong>{deleteDialog.payment?.userName}</strong>.
+                </p>
+                {deleteDialog.payment && ['validated', 'completed', 'paid'].includes(deleteDialog.payment.status) && (
+                  <div className="space-y-2">
+                    <label className="text-gray-900 font-medium font-semibold">
+                      Motivo de la reversión (obligatorio)
+                    </label>
+                    <textarea
+                      value={deleteReason}
+                      onChange={(e) => setDeleteReason(e.target.value)}
+                      placeholder="Ej. Pago duplicado, error en monto, etc."
+                      className="w-full border rounded-md p-2 h-20 bg-white"
+                      required
+                    />
+                    <p className="text-xs text-red-500 font-medium">Este pago ya impactó el Libro Mayor. Al eliminarlo, se creará un registro de reversión contable.</p>
+                  </div>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
-              Eliminar
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={!!deleteDialog.payment && ['validated', 'completed', 'paid'].includes(deleteDialog.payment.status) && deleteReason.trim().length === 0}
+            >
+              Confirmar Eliminación
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

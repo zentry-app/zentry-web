@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
@@ -40,7 +40,7 @@ export function TagPanelStatus({
   const [loading, setLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
-  const fetchPanelJobs = async () => {
+  const fetchPanelJobs = useCallback(async () => {
     if (!tagId || panels.length === 0) return;
 
     try {
@@ -71,7 +71,7 @@ export function TagPanelStatus({
     } finally {
       setLoading(false);
     }
-  };
+  }, [panels, tagId]);
 
   useEffect(() => {
     fetchPanelJobs();
@@ -80,7 +80,7 @@ export function TagPanelStatus({
       const interval = setInterval(fetchPanelJobs, refreshInterval);
       return () => clearInterval(interval);
     }
-  }, [tagId, panels, refreshInterval]);
+  }, [fetchPanelJobs, refreshInterval]);
 
   const getPanelStatus = (panelId: string) => {
     const job = panelJobs[panelId];

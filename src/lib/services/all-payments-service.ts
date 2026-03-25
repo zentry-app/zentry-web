@@ -51,20 +51,20 @@ export class AllPaymentsService {
     fechaFin?: Date
   ): Promise<AllPayment[]> {
     try {
-      console.log(`🔍 Obteniendo TODOS los pagos para residencial: ${residencialId}`);
+      console.log(`🔍 Obteniendo TODOS los pagos para residencial: ${residencialId} — [paymentIntents SoT]`);
 
-      const pagosRef = collection(db, 'residenciales', residencialId, 'pagos');
+      const pagosRef = collection(db, 'residenciales', residencialId, 'paymentIntents');
 
-      // Obtener TODOS los pagos sin filtros de paymentMethod
-      let q = query(pagosRef, orderBy('fechaPago', 'desc'));
+      // Obtener TODOS los pagos de la nueva colección SoT
+      let q = query(pagosRef, orderBy('createdAt', 'desc'));
 
       // Si se especifican fechas, filtrar por ellas
       if (fechaInicio && fechaFin) {
         q = query(
           pagosRef,
-          where('fechaPago', '>=', Timestamp.fromDate(fechaInicio)),
-          where('fechaPago', '<=', Timestamp.fromDate(fechaFin)),
-          orderBy('fechaPago', 'desc')
+          where('createdAt', '>=', Timestamp.fromDate(fechaInicio)),
+          where('createdAt', '<=', Timestamp.fromDate(fechaFin)),
+          orderBy('createdAt', 'desc')
         );
       }
 
@@ -75,48 +75,41 @@ export class AllPaymentsService {
 
       querySnapshot.forEach((docSnapshot) => {
         const data = docSnapshot.data();
-        console.log(`🔍 [ALL] Procesando documento ${docSnapshot.id}:`, {
-          paymentMethod: data.paymentMethod,
-          paymentType: data.paymentType,
-          amount: data.amount,
-          userName: data.userName,
-          fechaPago: data.fechaPago
-        });
 
-        const pago: AllPayment = {
+        // El monto en paymentIntents está en CENTS
+        const amount = data.amountCents ? data.amountCents / 100 : (data.amount || 0);
+
+        const payment: AllPayment = {
           id: docSnapshot.id,
-          residencialId: data.residencialId || '',
-          userId: data.userId || '',
-          userName: data.userName || '',
-          userEmail: data.userEmail || '',
+          residencialId: data.residencialId || residencialId,
+          userId: data.residentId || data.userId || '',
+          userName: data.userName || data.fullName || 'N/A',
+          userEmail: data.userEmail || data.email || '',
           userAddress: {
-            calle: data.houseName ? data.houseName.split('-')[1] || '' : (data.userAddress?.calle || ''),
-            houseNumber: data.houseName ? data.houseName.split('-')[2] || '' : (data.userAddress?.houseNumber || ''),
+            calle: data.userAddress?.calle || (data.houseId && data.houseId.includes('-') ? data.houseId.split('-')[0] : data.houseId || ''),
+            houseNumber: data.userAddress?.houseNumber || (data.houseId && data.houseId.includes('-') ? data.houseId.split('-')[1] : ''),
             pais: data.userAddress?.pais || 'México',
-            residencialID: data.residencialId || '',
+            residencialID: data.residencialId || residencialId,
           },
-          amount: data.amount || 0,
+          amount: amount,
           currency: data.currency || 'MXN',
-          concept: data.concepto || data.concept || '',
-          paymentMethod: data.paymentMethod || 'transfer', // Default a transfer si no está definido
-          paymentType: data.paymentType || (data.paymentMethod === 'cash' ? 'efectivo' : 'transferencia'),
-          status: data.status || 'completed',
-          fechaPago: data.fechaPago || data.fechaSubida || new Date(),
-          registradoPor: data.registradoPor || '',
-          observaciones: data.observaciones || '',
-          montoEsperado: data.montoEsperado || null,
-          diferencia: data.diferencia || null,
-          comprobanteEfectivo: data.comprobanteEfectivo || '',
-          comprobanteUrl: data.comprobanteUrl || '',
-          numeroMovimiento: data.referencia || data.numeroMovimiento || '',
-          bancoOrigen: data.bancoOrigen || '',
-          fechaSubida: data.fechaSubida || null,
-          fechaValidacion: data.fechaValidacion || null,
-          validadoPor: data.validadoPor || '',
+          concept: data.concept || '',
+          paymentMethod: data.method === 'cash' ? 'cash' : 'transfer',
+          paymentType: data.method === 'cash' ? 'efectivo' : 'transferencia',
+          status: data.status || 'pending_validation',
+          fechaPago: data.createdAt || new Date(),
+          registradoPor: data.registeredBy || data.reportedBy || '',
+          observaciones: data.observations || data.validationNote || '',
+          comprobanteUrl: data.proofUrl || data.receiptUrl || '',
+          numeroMovimiento: data.referenceNumber || '',
+          fechaSubida: data.createdAt || null,
+          fechaValidacion: data.validatedAt || null,
+          validadoPor: data.validatedBy || '',
         };
 
-        pagos.push(pago);
+        pagos.push(payment);
       });
+
 
       console.log(`✅ ${pagos.length} pagos obtenidos (todos los tipos)`);
       return pagos;

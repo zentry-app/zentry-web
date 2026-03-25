@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import {
     collection,
@@ -120,8 +120,11 @@ export default function GlobalNotificationsMonitor() {
     const [userNamesMap, setUserNamesMap] = useState<Record<string, string>>({});
 
     // Cargar nombres de usuarios destinatarios (para mostrar en columna Destinatario)
-    const logUserIds = logs.map((l) => l.userId).filter((id) => id && id.length >= 10 && id !== 'unknown');
-    const uniqueUserIds = Array.from(new Set(logUserIds));
+    const uniqueUserIds = useMemo(
+        () => Array.from(new Set(logs.map((l) => l.userId).filter((id) => id && id.length >= 10 && id !== 'unknown'))),
+        [logs]
+    );
+    const uniqueUserIdsKey = useMemo(() => uniqueUserIds.join(','), [uniqueUserIds]);
     useEffect(() => {
         if (uniqueUserIds.length === 0) return;
         let cancelled = false;
@@ -142,7 +145,7 @@ export default function GlobalNotificationsMonitor() {
             });
         });
         return () => { cancelled = true; };
-    }, [uniqueUserIds.join(',')]);
+    }, [uniqueUserIds, uniqueUserIdsKey, userNamesMap]);
 
     // Cargar residenciales para el simulador
     useEffect(() => {

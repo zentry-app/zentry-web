@@ -137,7 +137,7 @@ async function validateUser(email: string): Promise<ValidationResult> {
           supportTicketsSnap,
           supportConversationsSnap
         ] = await Promise.all([
-          residencialRef.collection('pagos').where('userId', '==', authUser.uid).count().get(),
+          residencialRef.collection('paymentIntents').where('userId', '==', authUser.uid).count().get(),
           residencialRef.collection('tags').where('userId', '==', authUser.uid).count().get(),
           residencialRef.collection('chats').where('participants', 'array-contains', authUser.uid).count().get(),
           residencialRef.collection('messageNotifications').where('userId', '==', authUser.uid).count().get(),
@@ -299,23 +299,23 @@ async function migrateUser(
 
     // 2. Migrar datos en colecciones del residencial (si existen)
     // Pagos
-    console.log(`💰 [Migrate User] Migrando pagos del residencial...`);
+    console.log(`💰 [Migrate User] Migrando paymentIntents del residencial...`);
     try {
-      const pagosSnap = await residencialRef.collection('pagos')
+      const paymentIntentsSnap = await residencialRef.collection('paymentIntents')
         .where('userId', '==', sourceUid).get();
 
-      for (const doc of pagosSnap.docs) {
+      for (const doc of paymentIntentsSnap.docs) {
         batch.update(doc.ref, {
           userId: destUid,
           migratedFrom: sourceUid,
           migratedAt: FieldValue.serverTimestamp()
         });
         operationsCount++;
-        result.migratedData.pagos++;
+        result.migratedData.paymentIntents++;
         await commitBatchIfNeeded();
       }
     } catch (e) {
-      console.log(`⚠️ [Migrate User] Error migrando pagos:`, e);
+      console.log(`⚠️ [Migrate User] Error migrando paymentIntents:`, e);
     }
 
     // Tags

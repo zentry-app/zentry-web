@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -100,23 +100,7 @@ const UnifiedPaymentsDashboard: React.FC<UnifiedPaymentsDashboardProps> = ({
   });
   const [casaSearchTerm, setCasaSearchTerm] = useState('');
 
-  useEffect(() => {
-    console.log(`🏠 [EFFECT] ResidencialId recibido: ${residencialId}`);
-    loadAllData();
-    
-    // Escuchar el evento para abrir el modal de pago en efectivo
-    const handleOpenCashPaymentModal = () => {
-      setCashPaymentDialog(true);
-    };
-    
-    window.addEventListener('openCashPaymentModal', handleOpenCashPaymentModal);
-    
-    return () => {
-      window.removeEventListener('openCashPaymentModal', handleOpenCashPaymentModal);
-    };
-  }, [residencialId]);
-
-  const loadAllData = async () => {
+  const loadAllData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -154,7 +138,22 @@ const UnifiedPaymentsDashboard: React.FC<UnifiedPaymentsDashboardProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [residencialId]);
+
+  useEffect(() => {
+    console.log(`🏠 [EFFECT] ResidencialId recibido: ${residencialId}`);
+    loadAllData();
+    
+    const handleOpenCashPaymentModal = () => {
+      setCashPaymentDialog(true);
+    };
+    
+    window.addEventListener('openCashPaymentModal', handleOpenCashPaymentModal);
+    
+    return () => {
+      window.removeEventListener('openCashPaymentModal', handleOpenCashPaymentModal);
+    };
+  }, [loadAllData, residencialId]);
 
   const handleValidatePayment = async (paymentId: string, action: 'approve' | 'reject', comment?: string) => {
     try {

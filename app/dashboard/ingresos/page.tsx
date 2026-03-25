@@ -367,24 +367,24 @@ export default function IngresosMasterPage() {
     return (
         <div className="min-h-screen bg-premium p-4 lg:p-10 space-y-8 pb-20">
             {/* Header Premium */}
-            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col lg:flex-row justify-between gap-6 items-start">
-                <div className="space-y-2">
+            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col xl:flex-row justify-between gap-6 items-start">
+                <div className="space-y-4 max-w-2xl">
                     <Badge className="bg-primary/10 text-primary border-none font-black px-4 py-1 rounded-full flex gap-2 w-fit items-center shadow-sm">
                         <span className="h-2 w-2 rounded-full bg-primary animate-ping" />
                         Vigilancia en Tiempo Real
                     </Badge>
-                    <h1 className="text-5xl font-extrabold tracking-tighter text-slate-900">
+                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
                         Análisis de <span className="text-gradient-zentry">Accesos</span>
                     </h1>
-                    <p className="text-slate-600 font-bold max-w-lg">Control total de ingresos y auditoría mensual avanzada del recinto.</p>
+                    <p className="text-slate-600 font-bold text-base sm:text-lg max-w-lg">Control total de ingresos y auditoría mensual avanzada del recinto.</p>
                 </div>
-                <div className="flex gap-4">
-                    <Button variant="outline" className="rounded-2xl h-14 px-6 font-black shadow-zentry bg-white/60 border-slate-300 text-slate-800 hover:bg-slate-50 transition-all">
+                <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
+                    <Button variant="outline" className="rounded-2xl h-12 sm:h-14 px-6 font-black shadow-zentry bg-white/60 border-slate-300 text-slate-800 hover:bg-slate-50 transition-all w-full sm:w-auto">
                         <Download className="mr-2 h-5 w-5" /> REPORTE XLS
                     </Button>
                     <Button
                         onClick={() => setRefreshing(true)}
-                        className="rounded-2xl h-14 px-8 font-black shadow-zentry-lg bg-slate-900 text-white hover:bg-slate-800 hover-lift transition-all"
+                        className="rounded-2xl h-12 sm:h-14 px-8 font-black shadow-zentry-lg bg-slate-900 text-white hover:bg-slate-800 hover-lift transition-all w-full sm:w-auto"
                     >
                         <RefreshCw className={`mr-2 h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} /> ACTUALIZAR
                     </Button>
@@ -414,7 +414,7 @@ export default function IngresosMasterPage() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                     <StatTile icon={<User />} label={`Ingresos ${monthFilter === 'todos' ? 'Totales' : 'Mes'}`} value={stats.total} color="blue" description="Accesos registrados" />
                     <StatTile icon={<Clock />} label="En Recinto" value={stats.activos} color="green" description="Activos actualmente" />
                     <StatTile icon={<Car />} label="Vehiculares" value={stats.vehiculares} color="purple" description="Con placa auditada" />
@@ -423,15 +423,17 @@ export default function IngresosMasterPage() {
             </div>
 
             {/* SMART FILTERS SECTION */}
-            <Card className="border-none shadow-zentry-lg bg-white/80 backdrop-blur-2xl rounded-[2.5rem] overflow-hidden">
-                <div className="p-8 pb-4 border-b border-white/10 space-y-6">
+            <Card className="border-none shadow-zentry-lg bg-white/80 backdrop-blur-2xl rounded-2xl sm:rounded-[2.5rem] overflow-hidden">
+                <div className="p-4 sm:p-8 pb-4 border-b border-white/10 space-y-6">
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                        <div className="flex flex-wrap items-center gap-3">
-                            <Filter className="h-5 w-5 text-primary" />
-                            <h2 className="text-sm font-black uppercase tracking-widest mr-4 text-slate-800">Filtrado Maestro</h2>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                            <div className="flex items-center gap-2">
+                                <Filter className="h-5 w-5 text-primary" />
+                                <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Filtrado Maestro</h2>
+                            </div>
 
                             {/* Botones de Filtro - UI Refinada con Alto Contraste */}
-                            <div className="flex bg-slate-200/50 p-1.5 rounded-2xl shadow-inner gap-1.5">
+                            <div className="flex bg-slate-200/50 p-1 rounded-xl sm:rounded-2xl shadow-inner gap-1 overflow-x-auto scrollbar-hide">
                                 <FilterButton
                                     active={tipoIngresoFilter === 'todos'}
                                     onClick={() => setTipoIngresoFilter("todos")}
@@ -440,13 +442,13 @@ export default function IngresosMasterPage() {
                                 <FilterButton
                                     active={tipoIngresoFilter === 'temporal'}
                                     onClick={() => setTipoIngresoFilter("temporal")}
-                                    label="1 Solo Uso"
+                                    label="1 Uso"
                                     icon={<Zap className="h-3 w-3" />}
                                 />
                                 <FilterButton
                                     active={tipoIngresoFilter === 'autorizada'}
                                     onClick={() => setTipoIngresoFilter("autorizada")}
-                                    label="Visita Autorizada"
+                                    label="Visita"
                                     icon={<ShieldCheck className="h-3 w-3" />}
                                 />
                                 <FilterButton
@@ -458,48 +460,48 @@ export default function IngresosMasterPage() {
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-4">
-                            <Tabs value={activeView} onValueChange={v => setActiveView(v as any)} className="bg-slate-200/50 p-1 rounded-2xl shadow-inner">
-                                <TabsList className="bg-transparent border-none gap-1">
-                                    <TabsTrigger value="general" className="h-9 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-lg text-slate-700">
-                                        <ArrowRightLeft className="w-3.5 h-3.5 mr-2" /> Historial
+                        <div className="flex flex-col sm:flex-row items-center gap-4">
+                            <Tabs value={activeView} onValueChange={v => setActiveView(v as any)} className="bg-slate-200/50 p-1 rounded-xl sm:rounded-2xl shadow-inner w-full sm:w-auto">
+                                <TabsList className="bg-transparent border-none gap-1 flex justify-center">
+                                    <TabsTrigger value="general" className="flex-1 sm:flex-none h-9 px-4 sm:px-6 rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase tracking-widest data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-lg text-slate-700">
+                                        <ArrowRightLeft className="w-3.5 h-3.5 mr-2 hidden sm:inline" /> Historial
                                     </TabsTrigger>
-                                    <TabsTrigger value="casas" className="h-9 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-lg text-slate-700">
-                                        <Home className="w-3.5 h-3.5 mr-2" /> Agrupado
+                                    <TabsTrigger value="casas" className="flex-1 sm:flex-none h-9 px-4 sm:px-6 rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase tracking-widest data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-lg text-slate-700">
+                                        <Home className="w-3.5 h-3.5 mr-2 hidden sm:inline" /> Agrupado
                                     </TabsTrigger>
-                                    <TabsTrigger value="analitica" className="h-9 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-lg text-slate-700">
-                                        <TrendingUp className="w-3.5 h-3.5 mr-2" /> Analítica
+                                    <TabsTrigger value="analitica" className="flex-1 sm:flex-none h-9 px-4 sm:px-6 rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] uppercase tracking-widest data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-lg text-slate-700">
+                                        <TrendingUp className="w-3.5 h-3.5 mr-2 hidden sm:inline" /> Analítica
                                     </TabsTrigger>
                                 </TabsList>
                             </Tabs>
                             {(searchTerm || dateFilter || (isGlobalAdmin && residencialFilter !== 'todos') || statusFilter !== 'todos') && (
-                                <Button variant="secondary" onClick={clearFilters} className="rounded-2xl font-black text-[10px] uppercase tracking-widest h-11 px-6 shadow-sm bg-white border border-slate-200 hover:bg-slate-50 text-slate-700">
+                                <Button variant="secondary" onClick={clearFilters} className="rounded-xl sm:rounded-2xl font-black text-[10px] uppercase tracking-widest h-11 px-6 shadow-sm bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 w-full sm:w-auto">
                                     <X className="h-4 w-4 mr-2" /> Limpiar
                                 </Button>
                             )}
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                         {/* Búsqueda General */}
-                        <div className="md:col-span-2 lg:col-span-3 relative">
+                        <div className="sm:col-span-2 md:col-span-2 lg:col-span-3 relative">
                             <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-600" />
                             <Input
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
                                 placeholder="Buscar visitante, placa, casa o código QR..."
-                                className="pl-12 h-14 bg-white border border-slate-300 shadow-sm rounded-2xl font-bold focus-visible:ring-primary/20 text-slate-900 placeholder:text-slate-500"
+                                className="pl-12 h-12 sm:h-14 bg-white border border-slate-300 shadow-sm rounded-xl sm:rounded-2xl font-bold focus-visible:ring-primary/20 text-slate-900 placeholder:text-slate-500 w-full"
                             />
                         </div>
 
                         {/* Filtro de Estado Discreto */}
                         <div className="relative">
                             <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                <SelectTrigger className="h-14 bg-white border border-slate-300 shadow-sm rounded-2xl font-bold px-6 text-slate-900">
+                                <SelectTrigger className="h-12 sm:h-14 bg-white border border-slate-300 shadow-sm rounded-xl sm:rounded-2xl font-bold px-6 text-slate-900 w-full">
                                     <Wifi className="mr-2 h-4 w-4 text-emerald-500" />
                                     <SelectValue placeholder="Estado" />
                                 </SelectTrigger>
-                                <SelectContent className="rounded-3xl border-none shadow-2xl bg-white/95 backdrop-blur-3xl">
+                                <SelectContent className="rounded-2xl sm:rounded-3xl border-none shadow-2xl bg-white/95 backdrop-blur-3xl">
                                     <SelectItem value="todos" className="font-bold">Todos los Estados</SelectItem>
                                     <SelectItem value="active" className="font-bold text-emerald-600">En Recinto</SelectItem>
                                     <SelectItem value="completed" className="font-bold text-blue-600">Finalizado</SelectItem>
@@ -509,11 +511,11 @@ export default function IngresosMasterPage() {
 
                         {isGlobalAdmin ? (
                             <Select value={residencialFilter} onValueChange={setResidencialFilter}>
-                                <SelectTrigger className="h-14 bg-white border border-slate-300 shadow-sm rounded-2xl font-bold px-6 text-slate-900">
+                                <SelectTrigger className="h-12 sm:h-14 bg-white border border-slate-300 shadow-sm rounded-xl sm:rounded-2xl font-bold px-6 text-slate-900 w-full">
                                     <Building className="mr-2 h-5 w-5 text-primary" />
                                     <SelectValue placeholder="Residencial" />
                                 </SelectTrigger>
-                                <SelectContent className="rounded-3xl border-none shadow-2xl bg-white/95 backdrop-blur-3xl">
+                                <SelectContent className="rounded-2xl sm:rounded-3xl border-none shadow-2xl bg-white/95 backdrop-blur-3xl">
                                     <SelectItem value="todos" className="font-bold">Todos los Residenciales</SelectItem>
                                     {residenciales.map(r => (
                                         <SelectItem key={r.id} value={r.id} className="font-bold">{r.nombre}</SelectItem>
@@ -527,7 +529,7 @@ export default function IngresosMasterPage() {
                                     type="date"
                                     value={dateFilter}
                                     onChange={e => setDateFilter(e.target.value)}
-                                    className="pl-12 h-14 bg-white border border-slate-300 shadow-sm rounded-2xl font-bold focus-visible:ring-primary/20 text-slate-900"
+                                    className="pl-12 h-12 sm:h-14 bg-white border border-slate-300 shadow-sm rounded-xl sm:rounded-2xl font-bold focus-visible:ring-primary/20 text-slate-900 w-full"
                                 />
                             </div>
                         )}
@@ -713,18 +715,18 @@ function StatTile({ icon, label, value, color, description }: any) {
         orange: "bg-orange-50 text-orange-700 border-orange-200"
     };
     return (
-        <Card className="border-none shadow-zentry-lg bg-white/70 backdrop-blur-2xl rounded-[2.2rem] p-6 group hover:translate-y-[-4px] hover:shadow-2xl transition-all duration-300 ring-1 ring-slate-100">
-            <div className="flex items-start gap-5">
-                <div className={`h-14 w-14 rounded-2xl ${colors[color]} border flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:rotate-3 transition-all shadow-sm`}>
-                    {React.cloneElement(icon, { size: 28 })}
+        <Card className="border-none shadow-zentry-lg bg-white/70 backdrop-blur-2xl rounded-2xl sm:rounded-[2.2rem] p-4 sm:p-6 group hover:translate-y-[-4px] hover:shadow-2xl transition-all duration-300 ring-1 ring-slate-100 min-w-0">
+            <div className="flex items-start gap-3 sm:gap-5">
+                <div className={`h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl ${colors[color]} border flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:rotate-3 transition-all shadow-sm`}>
+                    {React.cloneElement(icon, { className: "h-5 w-5 sm:h-7 sm:w-7" })}
                 </div>
-                <div className="space-y-0.5">
-                    <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">{label}</p>
+                <div className="space-y-0.5 min-w-0">
+                    <p className="text-[9px] sm:text-[10px] font-black text-slate-600 uppercase tracking-widest sm:tracking-[0.2em] truncate">{label}</p>
                     <div className="flex items-baseline gap-1">
-                        <p className="text-3xl font-black text-slate-900 tracking-tighter leading-none">{value}</p>
+                        <p className="text-xl sm:text-3xl font-black text-slate-900 tracking-tighter leading-none">{value}</p>
                         <span className="text-emerald-500 font-black text-[10px] animate-pulse">●</span>
                     </div>
-                    <p className="text-[10px] font-bold text-slate-500 truncate mt-1">{description}</p>
+                    <p className="text-[9px] sm:text-[10px] font-bold text-slate-500 truncate mt-1">{description}</p>
                 </div>
             </div>
         </Card>

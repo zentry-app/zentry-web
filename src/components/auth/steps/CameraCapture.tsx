@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -122,6 +123,12 @@ export function CameraCapture({
   }, [isStreaming, startCamera, stopCamera]);
 
   // Confirmar captura
+  const handleClose = useCallback(() => {
+    stopCamera();
+    setCapturedImage(null);
+    onClose();
+  }, [stopCamera, onClose]);
+
   const confirmCapture = useCallback(() => {
     if (!capturedImage) return;
 
@@ -144,20 +151,13 @@ export function CameraCapture({
           variant: "destructive"
         });
       });
-  }, [capturedImage, onCapture, toast]);
+  }, [capturedImage, handleClose, onCapture, toast]);
 
   // Reintentar captura
   const retakePhoto = useCallback(() => {
     setCapturedImage(null);
     startCamera();
   }, [startCamera]);
-
-  // Manejar cierre
-  const handleClose = useCallback(() => {
-    stopCamera();
-    setCapturedImage(null);
-    onClose();
-  }, [stopCamera, onClose]);
 
   // Iniciar cámara al abrir
   useEffect(() => {
@@ -233,11 +233,16 @@ export function CameraCapture({
             // Vista previa de captura
             <div className="space-y-4">
               <div className="aspect-[4/3] bg-black rounded-lg overflow-hidden">
-                <img
-                  src={capturedImage}
-                  alt="Captura"
-                  className="w-full h-full object-cover"
-                />
+                <div className="relative w-full h-full">
+                  <Image
+                    src={capturedImage}
+                    alt="Captura"
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 448px"
+                    unoptimized
+                  />
+                </div>
               </div>
 
               <div className="flex gap-3">

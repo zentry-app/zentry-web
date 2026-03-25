@@ -81,8 +81,10 @@ import {
   Percent,
   Info,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Download
 } from "lucide-react";
+import { exportUsersToExcel } from "@/lib/utils/exportUtils";
 import { getUsuarios, getUsuariosPendientes, getUsuariosPorResidencial, cambiarEstadoUsuario, cambiarEstadoMoroso, crearUsuario, eliminarUsuario, Usuario, getResidenciales, Residencial, suscribirseAUsuarios, suscribirseAUsuariosPendientes, suscribirseAResidenciales, cambiarMorosidadPorCasa } from "@/lib/firebase/firestore";
 import {
   documentExistsSimplificado,
@@ -459,7 +461,7 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
     } finally {
       setIsLoading(false);
     }
-  }, [cargarCallesDelResidencial, codigoResidencialAdmin, configurarSuscripcionesEnTiempoReal, mapeoResidenciales, residenciales.length]);
+  }, [cargarCallesDelResidencial, codigoResidencialAdmin, mapeoResidenciales, residenciales.length]);
 
   // Función para configurar suscripciones en tiempo real
   const configurarSuscripcionesEnTiempoReal = useCallback(() => {
@@ -1893,8 +1895,35 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
     setUsuarioSeleccionado(usuario);
     setShowDetallesUsuarioDialog(true);
   };
+  
+  // Función para manejar la exportación a Excel
+  const handleExportExcel = () => {
+    try {
+      const residencialNombre = residencialSeleccionado === "todos"
+        ? "Todos_los_Residenciales"
+        : getResidencialNombre(residencialSeleccionado);
 
+      const tabNombre = activeTab === "residentes" ? "Residentes"
+        : activeTab === "seguridad" ? "Seguridad"
+        : activeTab === "administradores" ? "Administradores"
+        : activeTab === "pendientes" ? "Pendientes"
+        : activeTab === "rechazados" ? "Rechazados" : "Usuarios";
 
+      const dateStr = new Date().toISOString().split('T')[0];
+      const filename = `Zentry_${residencialNombre.replace(/\s+/g, '_')}_${tabNombre}_${dateStr}.xlsx`;
+
+      exportUsersToExcel(listaActiva, getResidencialNombre, filename);
+
+      sonnerToast.success("Excel generado correctamente", {
+        description: `Se han exportado ${listaActiva.length} registros.`
+      });
+    } catch (error) {
+      console.error("Error al exportar Excel:", error);
+      sonnerToast.error("Error al exportar", {
+        description: "No se pudo generar el archivo Excel. Inténtalo de nuevo."
+      });
+    }
+  };
 
   return (
     <div className="space-y-8 pb-20 p-2 sm:p-4">
@@ -1927,6 +1956,14 @@ function UsuariosPageContent({ onReset }: { onReset: () => void }): JSX.Element 
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
+          <Button
+            onClick={handleExportExcel}
+            variant="outline"
+            className="bg-white text-slate-900 border-slate-200 hover:bg-slate-50 rounded-2xl shadow-sm px-6 h-12 sm:h-14 font-bold text-sm transition-all hover:scale-[1.02] active:scale-[0.98] w-full sm:w-auto"
+          >
+            <Download className="mr-2 h-5 w-5" />
+            Exportar Excel
+          </Button>
           <Button
             onClick={() => setShowNuevoUsuarioDialog(true)}
             className="bg-slate-900 text-white hover:bg-slate-800 rounded-2xl shadow-xl shadow-slate-900/20 px-6 h-12 sm:h-14 font-bold text-sm transition-all hover:scale-[1.02] active:scale-[0.98] w-full sm:w-auto"

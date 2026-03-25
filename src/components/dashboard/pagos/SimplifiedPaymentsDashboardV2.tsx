@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { onSnapshot, collection, query, where, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import {
@@ -28,10 +28,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { 
-  DollarSign, 
-  TrendingUp, 
-  Home, 
+import {
+  DollarSign,
+  TrendingUp,
+  Home,
   Clock,
   AlertTriangle,
   Banknote,
@@ -46,9 +46,9 @@ import {
   Settings,
 } from 'lucide-react';
 import PaymentConfigurationDialog from './PaymentConfigurationDialog';
-import { 
-  AccountingSummary, 
-  AccountingService 
+import {
+  AccountingSummary,
+  AccountingService
 } from '@/lib/services/accounting-service';
 import { PaymentValidationService, PaymentReceipt } from '@/lib/services/payment-validation-service';
 import { CashPaymentService, CashPayment } from '@/lib/services/cash-payment-service';
@@ -56,6 +56,7 @@ import { AllPaymentsService, AllPayment } from '@/lib/services/all-payments-serv
 import { HousePaymentStatusService, HousePaymentStatus } from '@/lib/services/house-payment-status-service';
 import { CasasResidencialService, CasaResidencial } from '@/lib/services/casas-residencial-service';
 import { UnifiedPaymentsService, UnifiedPayment } from '@/lib/services/unified-payments-service';
+import { CatalogService, ProductoCatalog } from '@/lib/services/catalog-service';
 import UnifiedPaymentsTable from './UnifiedPaymentsTable';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -64,29 +65,23 @@ interface SimplifiedPaymentsDashboardProps {
   residencialId: string;
 }
 
-// Conceptos predefinidos para pagos
-const PREDEFINED_CONCEPTS = [
-  'Cuota Mensual',
-  'Reserva',
-  'Otros'
-];
-
 const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = ({
   residencialId,
 }) => {
   const [loading, setLoading] = useState(true);
-  
+
   // Estados para datos
   const [unifiedPayments, setUnifiedPayments] = useState<UnifiedPayment[]>([]);
   const [houseStatuses, setHouseStatuses] = useState<HousePaymentStatus[]>([]);
   const [casas, setCasas] = useState<CasaResidencial[]>([]);
-  
+  const [productos, setProductos] = useState<ProductoCatalog[]>([]);
+
   // Estados para filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
-  
+
   // Estados para modales
   const [cashPaymentDialog, setCashPaymentDialog] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(false);
@@ -102,53 +97,20 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
   });
   const [casaSearchTerm, setCasaSearchTerm] = useState('');
 
-  useEffect(() => {
-    console.log(`🏠 [EFFECT] ResidencialId recibido: ${residencialId}`);
-    if (residencialId) {
-      loadAllData();
-    }
-  }, [residencialId]);
-
-  // Listener en tiempo real para pagos
-  useEffect(() => {
+  const loadAllData = useCallback(async () => {
     if (!residencialId) return;
 
-    console.log(`🔄 [REALTIME] Configurando listener para residencial: ${residencialId}`);
-    
-    const paymentsRef = collection(db, 'residenciales', residencialId, 'pagos');
-    const q = query(paymentsRef, orderBy('fechaRegistro', 'desc'));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      console.log(`🔄 [REALTIME] Cambio detectado: ${snapshot.docs.length} documentos`);
-      
-      // Solo recargar si hay cambios reales (no en la carga inicial)
-      if (snapshot.docs.length > 0) {
-        console.log('🔄 [REALTIME] Recargando datos automáticamente...');
-        loadAllData();
-      }
-    }, (error) => {
-      console.error('❌ [REALTIME] Error en listener:', error);
-    });
-
-    return () => {
-      console.log('🔄 [REALTIME] Limpiando listener');
-      unsubscribe();
-    };
-  }, [residencialId]);
-
-  const loadAllData = async () => {
-    if (!residencialId) return;
-    
     setLoading(true);
     try {
       console.log(`📊 [LOAD] Cargando datos para residencial: ${residencialId}`);
-      
+
       // Cargar datos usando los servicios originales
-      const [allPayments, cashPayments, houseStatusesData, casasData] = await Promise.all([
+      const [allPayments, cashPayments, houseStatusesData, casasData, productosData] = await Promise.all([
         AllPaymentsService.getAllPayments(residencialId),
         CashPaymentService.getCashPayments(residencialId),
         HousePaymentStatusService.getHousePaymentStatuses(residencialId),
         CasasResidencialService.getCasasPorResidencial(residencialId),
+        CatalogService.getProductos(residencialId),
       ]);
 
       console.log(`📊 [LOAD] Datos cargados:`, {
@@ -156,10 +118,11 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
         cashPayments: cashPayments.length,
         houseStatuses: houseStatusesData.length,
         casas: casasData.length,
+        productos: productosData.length,
       });
 
       // Convertir a formato unificado usando AllPaymentsService
-      const unifiedPaymentsData: UnifiedPayment[] = allPayments.map(payment => 
+      const unifiedPaymentsData: UnifiedPayment[] = allPayments.map(payment =>
         UnifiedPaymentsService.convertAllPaymentToUnified(payment)
       );
 
@@ -173,14 +136,48 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
       setUnifiedPayments(unifiedPaymentsData);
       setHouseStatuses(houseStatusesData);
       setCasas(casasData);
-      
+      setProductos(productosData);
+
     } catch (error) {
       console.error('Error cargando datos:', error);
       toast.error('Error cargando datos del dashboard');
     } finally {
       setLoading(false);
     }
-  };
+  }, [residencialId]);
+
+  useEffect(() => {
+    console.log(`🏠 [EFFECT] ResidencialId recibido: ${residencialId}`);
+    if (residencialId) {
+      loadAllData();
+    }
+  }, [loadAllData, residencialId]);
+
+  // Listener en tiempo real para pagos
+  useEffect(() => {
+    if (!residencialId) return;
+
+    console.log(`🔄 [REALTIME] Configurando listener para residencial: ${residencialId}`);
+
+    const paymentsRef = collection(db, 'residenciales', residencialId, 'paymentIntents');
+    const q = query(paymentsRef, orderBy('createdAt', 'desc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      console.log(`🔄 [REALTIME] Cambio detectado: ${snapshot.docs.length} documentos`);
+
+      if (snapshot.docs.length > 0) {
+        console.log('🔄 [REALTIME] Recargando datos automáticamente...');
+        loadAllData();
+      }
+    }, (error) => {
+      console.error('❌ [REALTIME] Error en listener:', error);
+    });
+
+    return () => {
+      console.log('🔄 [REALTIME] Limpiando listener');
+      unsubscribe();
+    };
+  }, [loadAllData, residencialId]);
 
   // Filtrar pagos unificados
   const filteredPayments = UnifiedPaymentsService.filterPayments(unifiedPayments, {
@@ -198,7 +195,7 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
     casaSearchTerm === '' ||
     casa.calle.toLowerCase().includes(casaSearchTerm.toLowerCase()) ||
     casa.houseNumber.toLowerCase().includes(casaSearchTerm.toLowerCase()) ||
-    casa.usuarios.some(usuario => 
+    casa.usuarios.some(usuario =>
       usuario.fullName.toLowerCase().includes(casaSearchTerm.toLowerCase())
     )
   );
@@ -249,7 +246,7 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
         observaciones: reason || '',
       });
 
-      toast.success(validation === 'approved' ? 'Pago aprobado' : 'Pago rechazado');
+      toast.success(validation === 'approved' ? 'Pago aprobado y saldo actualizado' : 'Pago rechazado');
       loadAllData(); // Recargar datos
     } catch (error) {
       console.error('Error validando pago:', error);
@@ -286,15 +283,35 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
     }
   };
 
-  // Manejar eliminación de pagos
-  const handleDeletePayment = async (paymentId: string) => {
+  // Manejar eliminación o reversión de pagos
+  const handleDeletePayment = async (payment: UnifiedPayment) => {
     try {
-      await CashPaymentService.deleteCashPayment(residencialId, paymentId);
-      toast.success('Pago eliminado');
+      if (['validated', 'completed', 'paid'].includes(payment.status)) {
+        // En lugar de borrarlo de Firestore, pedimos al LedgerEngine que genere un REVERSAL contable
+        const reason = payment.concept || 'Reversión solicitada por administrador';
+        await PaymentValidationService.reversePayment(residencialId, payment.id, reason);
+        toast.success(`Pago revertido exitosamente. La deuda ha sido devuelta al residente.`);
+      } else {
+        // Si el pago no había tocado el Ledger (efectivo ingresado por error o transferencia rechazada)
+        if (payment.type === 'cash') {
+          // El servicio puede borrar el draft
+          await CashPaymentService.deleteCashPayment(residencialId, payment.id);
+        } else {
+          // Si es transferencia y está pediente, simplemente lo rechazamos (soft-delete visual)
+          await PaymentValidationService.validatePayment(residencialId, payment.id, {
+            pagoId: payment.id,
+            status: 'rejected',
+            validadoPor: 'admin',
+            observaciones: 'Cancelado por el administrador antes de su validación.'
+          });
+        }
+        toast.success('Pago eliminado');
+      }
+
       loadAllData(); // Recargar datos
-    } catch (error) {
-      console.error('Error eliminando pago:', error);
-      toast.error('Error al eliminar el pago');
+    } catch (error: any) {
+      console.error('Error eliminando/revirtiendo pago:', error);
+      toast.error(error.message || 'Error al procesar la cancelación del pago');
     }
   };
 
@@ -321,9 +338,9 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
         console.log('⚠️ No hay usuarios en la casa, saltando notificaciones');
         return;
       }
-      
+
       console.log(`🔔 Creando notificaciones para ${selectedCasa.usuarios.length} usuarios de la casa`);
-      
+
       // Crear notificaciones para cada usuario de la casa
       for (const usuario of selectedCasa.usuarios) {
         await addDoc(collection(db, 'usuarios', usuario.uid, 'notificaciones'), {
@@ -347,10 +364,10 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
           },
           titleColor: '#000000',
         });
-        
+
         console.log(`✅ Notificación creada para usuario: ${usuario.fullName} (${usuario.email})`);
       }
-      
+
       console.log(`✅ ${selectedCasa.usuarios.length} notificaciones de pago en efectivo creadas exitosamente`);
     } catch (error) {
       console.error('❌ Error al crear notificaciones de pago en efectivo:', error);
@@ -367,13 +384,16 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
         return;
       }
 
+      // Buscar si el concepto es un producto para pasar sus metadatos
+      const selectedProduct = productos.find(p => p.nombre === newCashPayment.concept);
+
       // Registrar el pago en efectivo
-      await CashPaymentService.registerCashPayment(residencialId, {
+      const docId = await CashPaymentService.registerCashPayment(residencialId, {
         amount: parseFloat(newCashPayment.amount),
         concept: newCashPayment.concept,
         currency: 'MXN',
         paymentMethod: 'cash',
-        status: 'completed',
+        status: 'pending_validation',
         residencialId: residencialId,
         userId: selectedCasa.usuarios[0]?.uid || '',
         userName: selectedCasa.usuarios[0]?.fullName || '',
@@ -384,15 +404,18 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
           pais: 'México',
           residencialID: residencialId,
         },
-        // 🆕 Campos adicionales para compatibilidad con Flutter
-        houseId: selectedCasa.houseId, // Campo crítico para Flutter
-        mes: newCashPayment.month, // Mes del pago
-        concepto: newCashPayment.concept, // Concepto del pago
+        // 🆕 Campos adicionales para compatibilidad con Flutter y ERP v2
+        houseId: selectedCasa.houseId,
+        mes: newCashPayment.month,
+        concepto: newCashPayment.concept,
+        isProduct: !!selectedProduct && selectedProduct.id !== 'default_cuota',
+        productId: selectedProduct?.id || undefined,
+        productPrice: selectedProduct?.precioSugerido || 0
       });
 
       // 🆕 Crear notificaciones para TODOS los usuarios de la casa
       const paymentData = {
-        paymentId: `cash-${Date.now()}`, // Generar ID único
+        paymentId: docId, // Usar el ID real
         amount: parseFloat(newCashPayment.amount),
         concept: newCashPayment.concept,
         mes: newCashPayment.month,
@@ -430,7 +453,7 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
   // Manejar actualización de pago
   const handleUpdatePayment = async () => {
     if (!editingPayment) return;
-    
+
     try {
       // Aquí implementarías la lógica de actualización
       toast.success('Pago actualizado');
@@ -440,6 +463,21 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
     } catch (error) {
       console.error('Error actualizando pago:', error);
       toast.error('Error al actualizar el pago');
+    }
+  };
+
+  // Manejar gatillo de facturación
+  const handleTriggerBilling = async () => {
+    try {
+      setLoading(true);
+      await PaymentValidationService.triggerManualBilling(residencialId);
+      toast.success('Facturación mensual iniciada con éxito');
+      loadAllData();
+    } catch (error: any) {
+      console.error('Error disparando facturación:', error);
+      toast.error(error.message || 'Error al disparar facturación');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -600,7 +638,19 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
                 Lista completa de pagos (efectivo y transferencias)
               </CardDescription>
             </div>
-            <div className="flex space-x-2">
+            <div className="flex items-center space-x-2">
+              {process.env.NODE_ENV !== 'production' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleTriggerBilling}
+                  disabled={loading}
+                  className="text-[10px] text-muted-foreground opacity-30 hover:opacity-100 h-8 px-2"
+                >
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  Gatillo Facturación (Dev)
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -649,7 +699,7 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
               Registra un pago en efectivo realizado por un residente
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-6">
             {/* Selección de casa */}
             <div className="space-y-2">
@@ -663,7 +713,7 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
                   className="pl-10 h-11"
                 />
               </div>
-              
+
               {/* Lista de casas */}
               <div className="max-h-64 overflow-y-auto border rounded-lg bg-gray-50">
                 {filteredCasas.length === 0 ? (
@@ -674,11 +724,10 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
                   filteredCasas.map((casa) => (
                     <div
                       key={casa.houseId}
-                      className={`p-4 cursor-pointer hover:bg-white transition-colors border-b last:border-b-0 ${
-                        newCashPayment.casaId === casa.houseId ? 'bg-blue-50 border-blue-200' : ''
-                      }`}
+                      className={`p-4 cursor-pointer hover:bg-white transition-colors border-b last:border-b-0 ${newCashPayment.casaId === casa.houseId ? 'bg-blue-50 border-blue-200' : ''
+                        }`}
                       onClick={() => {
-                        setNewCashPayment({...newCashPayment, casaId: casa.houseId});
+                        setNewCashPayment({ ...newCashPayment, casaId: casa.houseId });
                         setCasaSearchTerm('');
                       }}
                     >
@@ -715,7 +764,7 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
                     type="number"
                     step="0.01"
                     value={newCashPayment.amount}
-                    onChange={(e) => setNewCashPayment({...newCashPayment, amount: e.target.value})}
+                    onChange={(e) => setNewCashPayment({ ...newCashPayment, amount: e.target.value })}
                     placeholder="0.00"
                     className="pl-10 h-11"
                   />
@@ -729,7 +778,7 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
                   id="paymentDate"
                   type="date"
                   value={newCashPayment.paymentDate}
-                  onChange={(e) => setNewCashPayment({...newCashPayment, paymentDate: e.target.value})}
+                  onChange={(e) => setNewCashPayment({ ...newCashPayment, paymentDate: e.target.value })}
                   className="h-11"
                 />
               </div>
@@ -738,17 +787,34 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
             {/* Concepto del pago */}
             <div className="space-y-2">
               <Label htmlFor="concept" className="text-sm font-medium">Concepto del Pago *</Label>
-              <Select 
-                value={newCashPayment.concept} 
-                onValueChange={(value) => setNewCashPayment({...newCashPayment, concept: value})}
+              <Select
+                value={newCashPayment.concept}
+                onValueChange={(value) => {
+                  const prod = productos.find(p => p.nombre === value);
+                  const newAmount = prod && prod.precioSugerido > 0 && (!newCashPayment.amount || newCashPayment.amount === '0')
+                    ? prod.precioSugerido.toString()
+                    : newCashPayment.amount;
+
+                  setNewCashPayment({
+                    ...newCashPayment,
+                    concept: value,
+                    amount: newAmount
+                  });
+                }}
               >
                 <SelectTrigger className="h-11">
                   <SelectValue placeholder="Selecciona un concepto" />
                 </SelectTrigger>
                 <SelectContent>
-                  {PREDEFINED_CONCEPTS.map((concept) => (
-                    <SelectItem key={concept} value={concept}>
-                      {concept}
+                  {/* Inyectar Cuota Mensual si no está en productos */}
+                  {(!productos.some(p => p.nombre.toLowerCase().includes('cuota') || p.nombre.toLowerCase().includes('mantenimiento'))) && (
+                    <SelectItem value="Cuota Mensual">
+                      Cuota Mensual
+                    </SelectItem>
+                  )}
+                  {productos.map((prod) => (
+                    <SelectItem key={prod.id} value={prod.nombre}>
+                      {prod.nombre} {prod.precioSugerido > 0 ? `(${formatAmount(prod.precioSugerido)})` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -793,7 +859,7 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
             >
               Cancelar
             </Button>
-            <Button 
+            <Button
               onClick={handleAddCashPayment}
               disabled={!newCashPayment.casaId || !newCashPayment.amount || !newCashPayment.concept}
               className="bg-green-600 hover:bg-green-700"
@@ -814,7 +880,7 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
               ¿Estás seguro de que quieres registrar este pago?
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-4">
             <div className="bg-gray-50 p-4 rounded-lg space-y-2 text-sm">
               <div className="flex justify-between">
@@ -865,7 +931,7 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
               Modifica los datos del pago seleccionado
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             {editingPayment && (
               <>
@@ -877,7 +943,7 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
                     placeholder="Descripción del pago"
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="edit-amount">Monto</Label>
                   <div className="relative">
@@ -891,7 +957,7 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
                     />
                   </div>
                 </div>
-                
+
                 <div>
                   <Label htmlFor="edit-date">Fecha de Pago</Label>
                   <Input

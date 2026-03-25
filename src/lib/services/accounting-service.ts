@@ -28,7 +28,7 @@ export interface AccountingRecord {
   referencia?: string; // Número de movimiento, referencia, etc.
   mesReferencia?: string; // Formato: "2024-01"
   observaciones?: string;
-  registradoPor: string; // Admin que registró
+  registradoPor?: string; // Admin que registró
   fechaRegistro: Timestamp | Date;
 }
 
@@ -126,21 +126,23 @@ export class AccountingService {
     try {
       console.log(`📊 Obteniendo movimientos contables para período: ${fechaInicio.toISOString()} - ${fechaFin.toISOString()}`);
 
-      const accountingRef = collection(db, 'residenciales', residencialId, 'contabilidad');
+      const accountingRef = collection(db, 'residenciales', residencialId, 'financialEvents');
       let q = query(
         accountingRef,
-        where('fecha', '>=', Timestamp.fromDate(fechaInicio)),
-        where('fecha', '<=', Timestamp.fromDate(fechaFin)),
-        orderBy('fecha', 'desc')
+        where('timestamp', '>=', Timestamp.fromDate(fechaInicio)),
+        where('timestamp', '<=', Timestamp.fromDate(fechaFin)),
+        orderBy('timestamp', 'desc')
       );
 
       if (tipo) {
+        // En v2, filtramos por impacto (DECREASE_DEBT = ingreso, INCREASE_DEBT = egreso/vencimiento)
+        const impact = tipo === 'ingreso' ? 'DECREASE_DEBT' : 'INCREASE_DEBT';
         q = query(
           accountingRef,
-          where('fecha', '>=', Timestamp.fromDate(fechaInicio)),
-          where('fecha', '<=', Timestamp.fromDate(fechaFin)),
-          where('tipo', '==', tipo),
-          orderBy('fecha', 'desc')
+          where('timestamp', '>=', Timestamp.fromDate(fechaInicio)),
+          where('timestamp', '<=', Timestamp.fromDate(fechaFin)),
+          where('impact', '==', impact),
+          orderBy('timestamp', 'desc')
         );
       }
 
@@ -193,33 +195,36 @@ export class AccountingService {
       const fechaInicio = new Date(año, mes - 1, 1);
       const fechaFin = new Date(año, mes, 0, 23, 59, 59);
 
-      // Obtener todos los pagos del mes
-      const pagosRef = collection(db, 'residenciales', residencialId, 'pagos');
-      const pagosQuery = query(
-        pagosRef,
-        where('fechaSubida', '>=', Timestamp.fromDate(fechaInicio)),
-        where('fechaSubida', '<=', Timestamp.fromDate(fechaFin)),
-        where('status', 'in', ['validated', 'completed'])
+      // Obtener todos los eventos financieros validados del mes
+      const financialRef = collection(db, 'residenciales', residencialId, 'financialEvents');
+      const financialQuery = query(
+        financialRef,
+        where('timestamp', '>=', Timestamp.fromDate(fechaInicio)),
+        where('timestamp', '<=', Timestamp.fromDate(fechaFin))
       );
 
-      const pagosSnapshot = await getDocs(pagosQuery);
-      const pagos: any[] = [];
+      const fSnapshot = await getDocs(financialQuery);
+      const eventos: any[] = [];
 
-      pagosSnapshot.forEach((doc) => {
-        pagos.push({ id: doc.id, ...doc.data() });
+      fSnapshot.forEach((doc) => {
+        eventos.push({ id: doc.id, ...doc.data() });
       });
 
-      // Calcular estadísticas
-      const totalIngresos = pagos.reduce((sum, pago) => sum + (pago.amount || 0), 0);
-      const ingresosTransferencia = pagos
-        .filter(p => p.paymentMethod === 'transferencia' || p.comprobanteUrl)
-        .reduce((sum, pago) => sum + (pago.amount || 0), 0);
-      const ingresosEfectivo = pagos
-        .filter(p => p.paymentMethod === 'cash')
-        .reduce((sum, pago) => sum + (pago.amount || 0), 0);
-      const ingresosTarjeta = pagos
-        .filter(p => p.paymentMethod === 'card')
-        .reduce((sum, pago) => sum + (pago.amount || 0), 0);
+      // Calcular estadísticas basadas en eventos (v2)
+      const totalIngresos = eventos
+        .filter(ev => ev.impact === 'DECREASE_DEBT')
+        .reduce((sum, ev) => sum + (ev.amount || 0), 0);
+
+      const ingresosTransferencia = eventos
+        .filter(ev => ev.impact === 'DECREASE_DEBT' && ev.subType === 'transfer_payment')
+        .reduce((sum, ev) => sum + (ev.amount || 0), 0);
+
+      const ingresosEfectivo = eventos
+        .filter(ev => ev.impact === 'DECREASE_DEBT' && ev.subType === 'cash_payment')
+        .reduce((sum, ev) => sum + (ev.amount || 0), 0);
+      const ingresosTarjeta = eventos
+        .filter(ev => ev.impact === 'DECREASE_DEBT' && ev.subType === 'card_payment')
+        .reduce((sum, ev) => sum + (ev.amount || 0), 0);
 
       // Obtener información de casas
       const casasRef = collection(db, 'residenciales', residencialId, 'housePaymentStatus');
@@ -227,17 +232,21 @@ export class AccountingService {
       const totalCasas = casasSnapshot.size;
 
       // Calcular casas pagadas y morosas
-      const casasPagadas = pagos.filter((pago, index, self) =>
-        self.findIndex(p => p.houseId === pago.houseId) === index
-      ).length;
+      const casasPagadas = eventos
+        .filter(ev => ev.impact === 'DECREASE_DEBT' && ev.houseId)
+        .filter((ev, index, self) =>
+          self.findIndex(e => e.houseId === ev.houseId) === index
+        ).length;
       const casasMorosas = totalCasas - casasPagadas;
       const porcentajeCobranza = totalCasas > 0 ? (casasPagadas / totalCasas) * 100 : 0;
 
       // Crear detalle por casa
       const detallePorCasa = casasSnapshot.docs.map(doc => {
         const casaData = doc.data();
-        const pagosCasa = pagos.filter(p => p.houseId === casaData.houseId);
-        const montoPagado = pagosCasa.reduce((sum, p) => sum + (p.amount || 0), 0);
+        const eventosCasa = eventos.filter(ev => ev.houseId === (casaData.houseId || doc.id));
+        const montoPagado = eventosCasa
+          .filter(ev => ev.impact === 'DECREASE_DEBT')
+          .reduce((sum, ev) => sum + (ev.amount || 0), 0);
 
         return {
           houseId: casaData.houseId || doc.id,
@@ -245,20 +254,20 @@ export class AccountingService {
           houseNumber: casaData.houseNumber || '',
           montoEsperado: casaData.montoEsperado || 0,
           montoPagado,
-          estado: montoPagado >= (casaData.montoEsperado || 0) ? 'pagado' :
-            montoPagado > 0 ? 'parcial' : 'moroso',
-          fechaPago: pagosCasa.length > 0 ?
-            (pagosCasa[0].fechaSubida instanceof Timestamp ?
-              pagosCasa[0].fechaSubida.toDate() :
-              new Date(pagosCasa[0].fechaSubida)) : undefined,
+          estado: (montoPagado >= (casaData.montoEsperado || 0) ? 'pagado' :
+            montoPagado > 0 ? 'parcial' : 'moroso') as 'pagado' | 'moroso' | 'parcial',
+          fechaPago: eventosCasa.length > 0 ?
+            (eventosCasa[0].timestamp instanceof Timestamp ?
+              eventosCasa[0].timestamp.toDate() :
+              new Date(eventosCasa[0].timestamp)) : undefined,
         };
       });
 
       const egresosQuery = query(
-        collection(db, 'residenciales', residencialId, 'contabilidad'),
-        where('fecha', '>=', Timestamp.fromDate(fechaInicio)),
-        where('fecha', '<=', Timestamp.fromDate(fechaFin)),
-        where('tipo', '==', 'egreso')
+        collection(db, 'residenciales', residencialId, 'financialEvents'),
+        where('timestamp', '>=', Timestamp.fromDate(fechaInicio)),
+        where('timestamp', '<=', Timestamp.fromDate(fechaFin)),
+        where('impact', '==', 'INCREASE_DEBT')
       );
 
       const egresosSnapshot = await getDocs(egresosQuery);
@@ -467,8 +476,8 @@ export class AccountingService {
   ): () => void {
     console.log(`🔔 Suscribiéndose a movimientos contables para residencial: ${residencialId}`);
 
-    const accountingRef = collection(db, 'residenciales', residencialId, 'contabilidad');
-    const q = query(accountingRef, orderBy('fecha', 'desc'));
+    const accountingRef = collection(db, 'residenciales', residencialId, 'financialEvents');
+    const q = query(accountingRef, orderBy('timestamp', 'desc'));
 
     return onSnapshot(q, (querySnapshot) => {
       const records: AccountingRecord[] = [];
@@ -477,21 +486,20 @@ export class AccountingService {
         const data = docSnapshot.data();
         const record: AccountingRecord = {
           id: docSnapshot.id,
-          residencialId: data.residencialId || '',
-          fecha: data.fecha || new Date(),
-          tipo: data.tipo || 'ingreso',
-          categoria: data.categoria || '',
-          concepto: data.concepto || '',
-          monto: data.monto || 0,
+          residencialId: data.residencialId || residencialId,
+          fecha: data.timestamp || new Date(),
+          tipo: data.impact === 'DECREASE_DEBT' ? 'ingreso' : 'egreso',
+          categoria: data.subType || data.type || '',
+          concepto: data.description || data.concepto || '',
+          monto: data.amount || 0,
           currency: data.currency || 'MXN',
           metodoPago: data.metodoPago || 'transferencia',
           houseId: data.houseId || '',
           userId: data.userId || '',
           userName: data.userName || '',
-          referencia: data.referencia || '',
+          referencia: data.referenceId || '',
           observaciones: data.observaciones || '',
-          registradoPor: data.registradoPor || '',
-          fechaRegistro: data.fechaRegistro || new Date(),
+          fechaRegistro: data.timestamp || new Date(),
         };
 
         records.push(record);
@@ -519,38 +527,59 @@ export class AccountingService {
     try {
       console.log(`📊 Generando estado de cuenta para casa ${houseId}`);
 
-      // Obtener todos los pagos validados de esta casa
-      const pagosRef = collection(db, 'residenciales', residencialId, 'pagos');
+      // Obtener todos los pagos validados de esta casa (desde paymentIntents SoT)
+      const pagosRef = collection(db, 'residenciales', residencialId, 'paymentIntents');
       let pagosQuery = query(
         pagosRef,
         where('houseId', '==', houseId),
-        where('status', 'in', ['validated', 'completed'])
+        where('status', '==', 'validated')
       );
-
-      if (mes) {
-        pagosQuery = query(
-          pagosRef,
-          where('houseId', '==', houseId),
-          where('mes', '==', mes),
-          where('status', 'in', ['validated', 'completed'])
-        );
-      }
 
       const querySnapshot = await getDocs(pagosQuery);
       const pagosRealizados: any[] = [];
-      querySnapshot.forEach(doc => pagosRealizados.push({ id: doc.id, ...doc.data() }));
+      querySnapshot.forEach(docSnapshot => {
+        const data = docSnapshot.data();
+        pagosRealizados.push({
+          id: docSnapshot.id,
+          ...data,
+          // Convert cents to amount for UI consistency
+          amount: data.amountCents ? data.amountCents / 100 : (data.amount || 0)
+        });
+      });
 
       const totalPagado = pagosRealizados.reduce((sum, p) => sum + (p.amount || 0), 0);
 
-      // TODO: Obtener cuota configurada del residencial
-      const cuotaMes = 1500; // Valor por defecto para desarrollo
+
+      // Obtener saldo real y cuota
+      const balanceDoc = await getDoc(doc(db, 'residenciales', residencialId, 'housePaymentBalance', houseId));
+      let saldoAnterior = 0;
+      let cuotaMes = 1500;
+      let deudaAcumulada = 0;
+      let saldoAFavor = 0;
+
+      if (balanceDoc.exists()) {
+        const data = balanceDoc.data();
+        cuotaMes = data?.cuotaMensual || 1500;
+        deudaAcumulada = data?.deudaAcumulada || 0;
+        saldoAFavor = data?.saldoAFavor || 0;
+        saldoAnterior = deudaAcumulada;
+      } else {
+        try {
+          const configDoc = await getDoc(doc(db, 'residenciales', residencialId, 'configuracion', 'pagos'));
+          if (configDoc.exists()) {
+            cuotaMes = configDoc.data()?.cuotaMensual || 1500;
+          }
+        } catch (e) { }
+      }
+
+      const saldoActual = (saldoAnterior + cuotaMes) - totalPagado - saldoAFavor;
 
       return {
-        saldoAnterior: 0, // Por ahora no calculamos arrastre
+        saldoAnterior,
         cuotaMes,
         pagosRealizados,
         totalPagado,
-        saldoActual: cuotaMes - totalPagado
+        saldoActual
       };
     } catch (error) {
       console.error('❌ Error al obtener estado de cuenta de casa:', error);

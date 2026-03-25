@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -84,15 +84,23 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
     observaciones: '',
   });
 
-  useEffect(() => {
-    loadAccountingData();
-  }, [residencialId, periodoFilter]);
-
-  const loadAccountingData = async () => {
+  const loadAccountingData = useCallback(async () => {
     try {
       setLoading(true);
 
-      const fechaInicio = getFechaInicio();
+      const ahora = new Date();
+      const fechaInicio = (() => {
+        switch (periodoFilter) {
+          case 'mes_actual':
+            return new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+          case 'ultimos_3_meses':
+            return new Date(ahora.getFullYear(), ahora.getMonth() - 3, 1);
+          case 'año_actual':
+            return new Date(ahora.getFullYear(), 0, 1);
+          default:
+            return new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+        }
+      })();
       const fechaFin = new Date();
 
       const [summaryData, recordsData, reportsData] = await Promise.all([
@@ -110,21 +118,11 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [periodoFilter, residencialId]);
 
-  const getFechaInicio = (): Date => {
-    const ahora = new Date();
-    switch (periodoFilter) {
-      case 'mes_actual':
-        return new Date(ahora.getFullYear(), ahora.getMonth(), 1);
-      case 'ultimos_3_meses':
-        return new Date(ahora.getFullYear(), ahora.getMonth() - 3, 1);
-      case 'año_actual':
-        return new Date(ahora.getFullYear(), 0, 1);
-      default:
-        return new Date(ahora.getFullYear(), ahora.getMonth(), 1);
-    }
-  };
+  useEffect(() => {
+    loadAccountingData();
+  }, [loadAccountingData]);
 
   const handleAddRecord = async () => {
     if (!newRecord.concepto || !newRecord.monto) {
@@ -374,6 +372,9 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
               </CardDescription>
             </div>
             <div className="flex space-x-2">
+              <Button variant="secondary" onClick={() => window.location.href = '/dashboard/pagos/carga-historica'}>
+                Importar Saldos
+              </Button>
               <Button onClick={() => setNewRecordDialog(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Nuevo Movimiento

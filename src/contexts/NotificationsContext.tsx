@@ -35,13 +35,13 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     try {
       const snapById = await getDoc(doc(db, 'residenciales', residencialId));
       if (snapById.exists()) return residencialId;
-    } catch {}
+    } catch { }
     try {
       const resRef = collection(db, 'residenciales');
       const qByCode = query(resRef, where('residencialID', '==', residencialId), fbLimit(1));
       const snap = await getDocs(qByCode);
       if (!snap.empty) return snap.docs[0].id;
-    } catch {}
+    } catch { }
     return null;
   };
 
@@ -56,9 +56,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       try {
         const esGlobal = userClaims.isGlobalAdmin === true;
         const esAdminResid = userClaims.role === 'admin' && !esGlobal;
-        
+
         let residencialId: string | null = null;
-        
+
         if (esAdminResid) {
           const codigoResidencial = userClaims.managedResidencials?.[0] || userClaims.residencialId;
           if (codigoResidencial) {
@@ -100,9 +100,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       try {
         const esGlobal = userClaims.isGlobalAdmin === true;
         const esAdminResid = userClaims.role === 'admin' && !esGlobal;
-        
+
         let residencialId: string | null = null;
-        
+
         if (esAdminResid) {
           // Para admin de residencial
           const codigoResidencial = userClaims.managedResidencials?.[0] || userClaims.residencialId;
@@ -144,8 +144,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     const loadCounts = async () => {
       try {
         setIsLoading(true);
-        
-        if (!userClaims) { 
+
+        if (!userClaims) {
           setPanicAlertsCount(0);
           setPendingReservationsCount(0);
           setPendingUsersCount(0);
@@ -153,11 +153,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           setIsLoading(false);
           return;
         }
-        
+
         const esGlobal = userClaims.isGlobalAdmin === true;
         const esAdminResid = userClaims.role === 'admin' && !esGlobal;
-        
-        if (!esAdminResid) { 
+
+        if (!esAdminResid) {
           setPanicAlertsCount(0);
           setPendingReservationsCount(0);
           setPendingUsersCount(0);
@@ -165,9 +165,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           setIsLoading(false);
           return;
         }
-        
+
         const codigoResidencial = userClaims.managedResidencials?.[0] || userClaims.residencialId;
-        if (!codigoResidencial) { 
+        if (!codigoResidencial) {
           setPanicAlertsCount(0);
           setPendingReservationsCount(0);
           setPendingUsersCount(0);
@@ -175,9 +175,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           setIsLoading(false);
           return;
         }
-        
+
         const docId = await resolveResidencialDocId(codigoResidencial);
-        
+
         // Conteo de alertas de pánico activas
         let panicCount = 0;
         if (docId) {
@@ -187,7 +187,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           } catch { panicCount = 0; }
         }
         setPanicAlertsCount(panicCount);
-        
+
         // Conteo de reservas pendientes
         let reservasCount = 0;
         if (docId) {
@@ -199,7 +199,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           } catch { reservasCount = 0; }
         }
         setPendingReservationsCount(reservasCount);
-        
+
         // Conteo de usuarios pendientes (filtrar por código residencial)
         let usersCount = 0;
         try {
@@ -207,28 +207,20 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           usersCount = pend.filter((u: any) => u.residencialID === codigoResidencial).length;
         } catch { usersCount = 0; }
         setPendingUsersCount(usersCount);
-        
-        // Conteo de pagos pendientes (transferencias/efectivo por validar)
+
+        // Conteo de pagos pendientes de validación (desde paymentIntents SoT)
         let paymentsCount = 0;
         if (docId) {
           try {
-            // Contar transferencias pendientes
-            const transfersRef = collection(db, 'residenciales', docId, 'bankTransferReceipts');
-            const qTransfers = query(transfersRef, where('status', '==', 'pending'));
-            const snapTransfers = await getDocs(qTransfers);
-            paymentsCount += snapTransfers.size;
-            
-            // Contar pagos en efectivo pendientes de validación si existe la colección
-            try {
-              const cashRef = collection(db, 'residenciales', docId, 'cashPayments');
-              const qCash = query(cashRef, where('status', '==', 'pending'));
-              const snapCash = await getDocs(qCash);
-              paymentsCount += snapCash.size;
-            } catch { /* No existe la colección o no hay permisos */ }
+            const pagosRef = collection(db, 'residenciales', docId, 'paymentIntents');
+            const qPagos = query(pagosRef, where('status', '==', 'pending_validation'));
+            const snapPagos = await getDocs(qPagos);
+            paymentsCount = snapPagos.size;
           } catch { paymentsCount = 0; }
         }
         setPendingPaymentsCount(paymentsCount);
-        
+
+
         setIsLoading(false);
       } catch (error) {
         console.error('Error loading notification counts:', error);
@@ -242,9 +234,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     loadCounts();
     timer = setInterval(loadCounts, 60000); // Actualizar cada 60 segundos
-    
-    return () => { 
-      if (timer) clearInterval(timer); 
+
+    return () => {
+      if (timer) clearInterval(timer);
     };
   }, [userClaims]);
 

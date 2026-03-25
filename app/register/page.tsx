@@ -143,7 +143,7 @@ export default function RegisterPage() {
   useEffect(() => {
     // Forzar logout al montar la página de registro para evitar sesión persistente
     logout().catch(() => {});
-  }, []);
+  }, [logout]);
 
   // Workaround para manejar redirect de Google en producción
   useEffect(() => {

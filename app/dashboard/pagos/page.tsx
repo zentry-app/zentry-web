@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +36,7 @@ import {
   DialogTitle
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Search, CreditCard, DollarSign, Clock, CheckCircle, XCircle, Eye, Wifi, Loader2, Calendar, Plus, FileText, Download } from "lucide-react";
+import { Search, CreditCard, DollarSign, Clock, CheckCircle, XCircle, Eye, Wifi, Loader2, Calendar, Plus, FileText, Download, BookOpen, Settings2, ShieldCheck, BarChart3 } from "lucide-react";
 import {
   Residencial,
   getResidenciales,
@@ -87,8 +88,14 @@ interface PagoCombinado {
   _residencialNombre?: string;
 }
 import StripeConnectAlert from '@/components/dashboard/pagos/StripeConnectAlert';
+import { PendingValidationBanner } from '@/components/dashboard/pagos/PendingValidationBanner';
 import UnifiedPaymentsDashboard from '@/components/dashboard/pagos/UnifiedPaymentsDashboard';
 import SimplifiedPaymentsDashboard from '@/components/dashboard/pagos/SimplifiedPaymentsDashboardV2';
+import AccountingDashboard from '@/components/dashboard/pagos/AccountingDashboard';
+import CatalogManagement from '@/components/dashboard/pagos/CatalogManagement';
+import LedgerViewer from '@/components/dashboard/pagos/LedgerViewer';
+import BillingPeriodManager from '@/components/billing/BillingPeriodManager';
+import ReportingDashboard from '@/components/dashboard/pagos/ReportingDashboard';
 import {
   Tooltip,
   TooltipContent,
@@ -879,9 +886,12 @@ export default function PagosPage() {
         </TooltipProvider>
       </motion.div>
 
-      {/* Alerta de Stripe Connect */}
-      {residencialFilter !== 'todos' && residencialFilter && (
-        <StripeConnectAlert />
+      {/* Banner de comprobantes pendientes de validación — visible para admins */}
+      {(esAdminDeResidencial && residencialIdDocDelAdmin) && (
+        <PendingValidationBanner residencialId={residencialIdDocDelAdmin} />
+      )}
+      {(userClaims?.isGlobalAdmin && residencialFilter !== 'todos' && residencialFilter) && (
+        <PendingValidationBanner residencialId={residencialFilter} />
       )}
 
       {/* Filtro de Residencial */}
@@ -920,7 +930,60 @@ export default function PagosPage() {
 
       {/* Dashboard principal de pagos */}
       {residencialFilter !== 'todos' && residencialFilter ? (
-        <SimplifiedPaymentsDashboard residencialId={residencialFilter} />
+        <Tabs defaultValue="pagos" className="space-y-6">
+          <div className="flex overflow-x-auto pb-4 scrollbar-hide -mx-2 px-2">
+            <TabsList className="bg-slate-100/80 p-1 h-auto rounded-2xl inline-flex border border-slate-200/60 backdrop-blur-sm min-w-max mx-auto">
+              <TabsTrigger value="pagos" className="rounded-xl px-4 py-2.5 font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                <CreditCard className="w-4 h-4 mr-2" />
+                Operativa
+              </TabsTrigger>
+              <TabsTrigger value="periodos" className="rounded-xl px-4 py-2.5 font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                <Calendar className="w-4 h-4 mr-2 text-orange-500" />
+                Gestión de Periodos
+              </TabsTrigger>
+              <TabsTrigger value="analytics" className="rounded-xl px-4 py-2.5 font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                <BarChart3 className="w-4 h-4 mr-2 text-blue-500" />
+                Analytics & Tesorería
+              </TabsTrigger>
+              <TabsTrigger value="contabilidad" className="rounded-xl px-4 py-2.5 font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                <BookOpen className="w-4 h-4 mr-2 text-green-500" />
+                Libro Mayor
+              </TabsTrigger>
+              <TabsTrigger value="estado_cuenta" className="rounded-xl px-4 py-2.5 font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                <ShieldCheck className="w-4 h-4 mr-2 text-indigo-500" />
+                Edo. Cuenta
+              </TabsTrigger>
+              <TabsTrigger value="catalogos" className="rounded-xl px-4 py-2.5 font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                <Settings2 className="w-4 h-4 mr-2" />
+                Catálogos
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="pagos" className="mt-0 border-none p-0 outline-none">
+            <SimplifiedPaymentsDashboard residencialId={residencialFilter} />
+          </TabsContent>
+
+          <TabsContent value="periodos" className="mt-0 border-none p-0 outline-none">
+            <BillingPeriodManager residencialId={residencialFilter} />
+          </TabsContent>
+
+          <TabsContent value="analytics" className="mt-0 border-none p-0 outline-none">
+            <ReportingDashboard residencialId={residencialFilter} />
+          </TabsContent>
+
+          <TabsContent value="contabilidad" className="mt-0 border-none p-0 outline-none">
+            <AccountingDashboard residencialId={residencialFilter} />
+          </TabsContent>
+
+          <TabsContent value="estado_cuenta" className="mt-0 border-none p-0 outline-none">
+            <LedgerViewer residencialId={residencialFilter} />
+          </TabsContent>
+
+          <TabsContent value="catalogos" className="mt-0 border-none p-0 outline-none">
+            <CatalogManagement residencialId={residencialFilter} />
+          </TabsContent>
+        </Tabs>
       ) : (
         <Card className="border-none shadow-zentry-lg bg-white/80 backdrop-blur-2xl rounded-[2.5rem] overflow-hidden">
           <CardContent className="text-center py-12">

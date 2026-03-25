@@ -301,7 +301,7 @@ export default function GuardiasPage() {
         unsubscribe();
       }
     };
-  }, [authLoading, userClaims, esAdminDeResidencial, residencialIdDocDelAdmin, residencialFilter, suscribirseAGuardias]);
+  }, [authLoading, userClaims, esAdminDeResidencial, residencialIdDocDelAdmin, residencialFilter]);
 
   const handleOpenDialog = (guardia?: Guardia & { _residencialId?: string }) => {
     if (guardia) {

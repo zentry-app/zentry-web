@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { IBlogPost } from '@/types/models';
 import Link from 'next/link';
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -32,10 +33,12 @@ export const BlogCard = ({ post, className, isFeatured = false }: BlogCardProps)
                     isFeatured ? "h-[60%]" : "h-[200px]"
                 )}>
                     {post.coverImage ? (
-                        <img
+                        <Image
                             src={post.coverImage}
                             alt={post.title}
-                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                            fill
+                            className="object-cover transition-transform duration-700 group-hover:scale-105"
+                            sizes={isFeatured ? "(max-width: 1024px) 100vw, 66vw" : "(max-width: 1024px) 100vw, 33vw"}
                         />
                     ) : (
                         <div className="w-full h-full bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
@@ -72,7 +75,13 @@ export const BlogCard = ({ post, className, isFeatured = false }: BlogCardProps)
 
                     <div className="flex items-center gap-2 mt-auto pt-4 border-t border-gray-100">
                         {post.author?.photoURL ? (
-                            <img src={post.author.photoURL} alt={post.author.name} className="w-6 h-6 rounded-full object-cover" />
+                            <Image
+                                src={post.author.photoURL}
+                                alt={post.author.name}
+                                width={24}
+                                height={24}
+                                className="w-6 h-6 rounded-full object-cover"
+                            />
                         ) : (
                             <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-600">
                                 {post.author?.name?.charAt(0) || 'A'}

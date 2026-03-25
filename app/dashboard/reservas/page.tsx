@@ -327,7 +327,7 @@ export default function ReservasPage() {
     });
   }, [deleteDialogOpen, deleteTargetId]);
 
-  const resolveResidencialDocId = async (rawId: string): Promise<string> => {
+  const resolveResidencialDocId = useCallback(async (rawId: string): Promise<string> => {
     if (residencialDocIdCache[rawId]) return residencialDocIdCache[rawId];
     try {
       // 1) Buscar por campos 'codigo' o 'codigoAlfa' (preferido)
@@ -381,10 +381,10 @@ export default function ReservasPage() {
     }
     // Fallback a rawId (puede no existir)
     return rawId;
-  };
+  }, [residencialDocIdCache]);
 
   // Función para procesar datos de reservas (usada por el listener en tiempo real)
-  const processReservationsData = async (rawReservations: any[]) => {
+  const processReservationsData = useCallback(async (rawReservations: any[]) => {
     console.log('🔄 [ReservasPage] Procesando datos de reservas optimizado:', rawReservations.length);
     console.log('🔍 [DEBUG] processReservationsData - Estado actual:', {
       dayDialogOpen,
@@ -608,7 +608,7 @@ export default function ReservasPage() {
       console.log('🔍 [DEBUG] processReservationsData finalizando, setLoading(false)');
       setLoading(false);
     }
-  };
+  }, [toast, userClaims?.residencialId]);
 
   // Cargar reservas y áreas
   useEffect(() => {
@@ -622,7 +622,7 @@ export default function ReservasPage() {
     }
     loadAreas();
     loadResidenciales();
-  }, [user, userClaims]);
+  }, [user?.uid, userClaims?.residencialId, userClaims?.isGlobalAdmin]);
 
   // Listener en tiempo real para reservas
   useEffect(() => {
@@ -729,9 +729,9 @@ export default function ReservasPage() {
         unsubscribe();
       }
     };
-  }, [user, userClaims]);
+  }, [dayDialogOpen, processReservationsData, resolveResidencialDocId, user?.uid, userClaims?.residencialId]);
 
-  const loadReservations = async () => {
+  const loadReservations = useCallback(async () => {
     console.log('🔍 [ReservasPage] loadReservations iniciado (carga manual)');
     console.log('🔍 [DEBUG] loadReservations - Estado actual:', {
       user: !!user,
@@ -806,9 +806,9 @@ export default function ReservasPage() {
         variant: "destructive",
       });
     }
-  };
+  }, [processReservationsData, resolveResidencialDocId, toast, user?.uid, userClaims?.residencialId]);
 
-  const loadAreas = async (overrideResidencialId?: string | 'all') => {
+  const loadAreas = useCallback(async (overrideResidencialId?: string | 'all') => {
     // Asegurar que claims estén disponibles, salvo que se fuerce por override
     if (!overrideResidencialId && !userClaims) {
       console.log('⏸️ [ReservasPage] loadAreas abortado: claims no disponibles');
@@ -865,9 +865,9 @@ export default function ReservasPage() {
     } catch (error) {
       console.error('Error loading areas:', error);
     }
-  };
+  }, [resolveResidencialDocId, userClaims]);
 
-  const loadResidenciales = async () => {
+  const loadResidenciales = useCallback(async () => {
     console.log('🏢 [ReservasPage] loadResidenciales iniciado');
 
     try {
@@ -883,14 +883,14 @@ export default function ReservasPage() {
     } catch (error) {
       console.error('❌ [ReservasPage] Error cargando residenciales:', error);
     }
-  };
+  }, []);
 
   // Si es admin global, actualizar áreas cuando cambia el filtro de residencial
   useEffect(() => {
     if (userClaims?.residencialId === 'global') {
       loadAreas(residencialFilter !== 'all' ? residencialFilter : 'all');
     }
-  }, [residencialFilter, userClaims?.residencialId]);
+  }, [loadAreas, residencialFilter, userClaims?.residencialId]);
 
   // Eliminado: la vista ahora deriva bloques directamente de las reservas del día
 
@@ -1547,7 +1547,7 @@ export default function ReservasPage() {
 
     console.log('🚀 [ReservasPage] Iniciando carga inicial de reservas');
     loadReservations();
-  }, [user, userClaims]);
+  }, [loadReservations, user?.uid, userClaims?.residencialId]);
 
   const updateMultipleReservationsStatus = async (ids: string[], newStatus: string, reason?: string) => {
     console.log('🔍 [DEBUG] updateMultipleReservationsStatus iniciado:', { ids, newStatus, reason });
@@ -1917,41 +1917,41 @@ export default function ReservasPage() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="flex flex-col lg:flex-row justify-between gap-6 items-start"
+        className="flex flex-col xl:flex-row justify-between gap-6 items-start"
       >
-        <div className="space-y-2">
+        <div className="space-y-4 max-w-2xl">
           <Badge className="bg-indigo-100 text-indigo-700 border-none font-black px-4 py-1 rounded-full flex gap-2 w-fit items-center shadow-sm">
             <span className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
             Gestión de Espacios
           </Badge>
-          <h1 className="text-5xl font-extrabold tracking-tighter text-slate-900">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
             <span className="text-gradient-zentry">Reservas</span>
           </h1>
-          <p className="text-slate-600 font-bold max-w-lg">
+          <p className="text-slate-600 font-bold text-base sm:text-lg max-w-lg">
             {filteredReservations.length} de {reservations.length} reservas activas
           </p>
 
           {/* Indicadores de estado general */}
-          <div className="flex items-center gap-3 mt-4">
-            <div className="flex items-center gap-1.5 text-xs bg-green-50 px-3 py-1.5 rounded-full">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-4">
+            <div className="flex items-center gap-1.5 text-[10px] sm:text-xs bg-green-50 px-3 py-1.5 rounded-full border border-green-100/50">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <span className="text-green-700 font-bold">
                 {reservations.filter(r => r.status === 'aprobada').length} Aprobadas
               </span>
             </div>
-            <div className="flex items-center gap-1.5 text-xs bg-blue-50 px-3 py-1.5 rounded-full">
+            <div className="flex items-center gap-1.5 text-[10px] sm:text-xs bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100/50">
               <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
               <span className="text-blue-700 font-bold">
                 {reservations.filter(r => r.status === 'en_curso').length} En Curso
               </span>
             </div>
-            <div className="flex items-center gap-1.5 text-xs bg-purple-50 px-3 py-1.5 rounded-full">
+            <div className="flex items-center gap-1.5 text-[10px] sm:text-xs bg-purple-50 px-3 py-1.5 rounded-full border border-purple-100/50">
               <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
               <span className="text-purple-700 font-bold">
                 {reservations.filter(r => r.status === 'finalizada').length} Finalizadas
               </span>
             </div>
-            <div className="flex items-center gap-1.5 text-xs bg-yellow-50 px-3 py-1.5 rounded-full">
+            <div className="flex items-center gap-1.5 text-[10px] sm:text-xs bg-yellow-50 px-3 py-1.5 rounded-full border border-yellow-100/50">
               <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
               <span className="text-yellow-700 font-bold">
                 {reservations.filter(r => r.status === 'pendiente').length} Pendientes
@@ -1961,11 +1961,11 @@ export default function ReservasPage() {
         </div>
 
         {/* Controles de vista */}
-        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex items-center gap-2">
+        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex items-center gap-2 w-full xl:w-auto mt-4 xl:mt-0">
           <Button
             variant="outline"
             onClick={() => setViewMode(viewMode === 'table' ? 'month' : 'table')}
-            className="rounded-2xl h-14 px-8 font-black shadow-zentry-lg bg-white text-slate-900 hover:bg-slate-50 hover-lift transition-all border-slate-200"
+            className="rounded-2xl h-12 sm:h-14 px-6 sm:px-8 font-black shadow-zentry-lg bg-white text-slate-900 hover:bg-slate-50 hover-lift transition-all border-slate-200 w-full xl:w-auto"
           >
             <CalendarIcon2 className="mr-2 h-5 w-5" />
             {viewMode === 'table' ? 'Vista Calendario' : 'Vista Tabla'}
@@ -1983,78 +1983,78 @@ export default function ReservasPage() {
         <>
           {/* Sistema de pestañas con diseño premium */}
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 bg-white/80 backdrop-blur-xl p-2 rounded-3xl shadow-zentry border-none h-auto">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 bg-white/80 backdrop-blur-xl p-1.5 sm:p-2 rounded-2xl sm:rounded-3xl shadow-zentry border-none h-auto gap-1">
               <TabsTrigger
                 value="hoy"
-                className="flex items-center gap-2 rounded-2xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-bold transition-all h-12"
+                className="flex items-center justify-center gap-2 rounded-xl sm:rounded-2xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-bold transition-all h-10 sm:h-12 text-[10px] sm:text-sm"
               >
-                <CalendarIcon2 className="h-4 w-4" />
+                <CalendarIcon2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 Hoy
               </TabsTrigger>
               <TabsTrigger
                 value="proximas"
-                className="flex items-center gap-2 rounded-2xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-bold transition-all h-12"
+                className="flex items-center justify-center gap-2 rounded-xl sm:rounded-2xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-bold transition-all h-10 sm:h-12 text-[10px] sm:text-sm"
               >
-                <Clock className="h-4 w-4" />
+                <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 Próximas
               </TabsTrigger>
               <TabsTrigger
                 value="completadas"
-                className="flex items-center gap-2 rounded-2xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-bold transition-all h-12"
+                className="flex items-center justify-center gap-2 rounded-xl sm:rounded-2xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-bold transition-all h-10 sm:h-12 text-[10px] sm:text-sm"
               >
-                <CheckCircle className="h-4 w-4" />
-                Completadas
+                <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                Hechas
               </TabsTrigger>
               <TabsTrigger
                 value="todas"
-                className="flex items-center gap-2 rounded-2xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-bold transition-all h-12"
+                className="flex items-center justify-center gap-2 rounded-xl sm:rounded-2xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-bold transition-all h-10 sm:h-12 text-[10px] sm:text-sm"
               >
-                <Filter className="h-4 w-4" />
+                <Filter className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 Todas
               </TabsTrigger>
             </TabsList>
 
             {/* Pestaña: Hoy */}
             <TabsContent value="hoy" className="space-y-6 mt-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-black text-slate-900">Reservaciones de Hoy</h2>
-                <Badge className="bg-indigo-100 text-indigo-700 border-none font-black px-4 py-2 rounded-full text-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900">Reservaciones de Hoy</h2>
+                <Badge className="bg-indigo-100 text-indigo-700 border-none font-black px-4 py-2 rounded-full text-xs sm:text-sm w-fit">
                   {filteredReservations.filter(r => isToday(r.fecha)).length} reservaciones
                 </Badge>
               </div>
 
               {/* Grid de estadísticas premium */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-zentry border border-blue-100">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-zentry border border-blue-100">
                   <div className="text-center">
-                    <div className="text-4xl font-black text-blue-600 mb-2">
+                    <div className="text-2xl sm:text-4xl font-black text-blue-600 mb-1 sm:mb-2">
                       {filteredReservations.filter(r => isToday(r.fecha) && r.status === 'aprobada').length}
                     </div>
-                    <div className="text-xs font-black uppercase tracking-widest text-slate-500">Aprobadas</div>
+                    <div className="text-[9px] sm:text-xs font-black uppercase tracking-widest text-slate-500">Aprobadas</div>
                   </div>
                 </motion.div>
-                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-zentry border border-blue-100">
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-zentry border border-blue-100">
                   <div className="text-center">
-                    <div className="text-4xl font-black text-blue-600 mb-2">
+                    <div className="text-2xl sm:text-4xl font-black text-blue-600 mb-1 sm:mb-2">
                       {filteredReservations.filter(r => isToday(r.fecha) && r.status === 'en_curso').length}
                     </div>
-                    <div className="text-xs font-black uppercase tracking-widest text-slate-500">En Curso</div>
+                    <div className="text-[9px] sm:text-xs font-black uppercase tracking-widest text-slate-500">En Curso</div>
                   </div>
                 </motion.div>
-                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-zentry border border-green-100">
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-zentry border border-green-100">
                   <div className="text-center">
-                    <div className="text-4xl font-black text-green-600 mb-2">
+                    <div className="text-2xl sm:text-4xl font-black text-green-600 mb-1 sm:mb-2">
                       {filteredReservations.filter(r => isToday(r.fecha) && r.estadoLlaves === 'entregadas').length}
                     </div>
-                    <div className="text-xs font-black uppercase tracking-widest text-slate-500">Llaves Entregadas</div>
+                    <div className="text-[9px] sm:text-xs font-black uppercase tracking-widest text-slate-500">Llaves Out</div>
                   </div>
                 </motion.div>
-                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-zentry border border-purple-100">
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-white/80 backdrop-blur-xl rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-zentry border border-purple-100">
                   <div className="text-center">
-                    <div className="text-4xl font-black text-purple-600 mb-2">
+                    <div className="text-2xl sm:text-4xl font-black text-purple-600 mb-1 sm:mb-2">
                       {filteredReservations.filter(r => isToday(r.fecha) && r.status === 'finalizada').length}
                     </div>
-                    <div className="text-xs font-black uppercase tracking-widest text-slate-500">Finalizadas</div>
+                    <div className="text-[9px] sm:text-xs font-black uppercase tracking-widest text-slate-500">Finalizadas</div>
                   </div>
                 </motion.div>
               </div>

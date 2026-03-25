@@ -115,6 +115,7 @@ export function GlobalAdminNav() {
           Blog
         </Button>
       </Link>
+
       <Button
         variant={pathname?.startsWith("/admin/support/tickets") ? "default" : "ghost"}
         className="w-full justify-start"

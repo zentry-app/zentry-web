@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import React, { useState, useEffect, useCallback } from 'react';
 import { DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -193,10 +194,10 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
     };
 
     cargarDatos();
-  }, [usuario, cargarCallesDelResidencial]);
+  }, [usuario, cargarCallesDelResidencial, cargarDocumentosExistentes]);
 
   // Función separada para cargar documentos existentes
-  const cargarDocumentosExistentes = async () => {
+  const cargarDocumentosExistentes = useCallback(async () => {
     try {
       const usuarioData = usuario as any;
 
@@ -282,7 +283,7 @@ const EditarUsuarioRechazadoDialog: React.FC<EditarUsuarioRechazadoDialogProps> 
       console.error('Error general al cargar documentos:', error);
       sonnerToast.warning('Error al cargar algunos documentos del historial');
     }
-  };
+  }, [usuario]);
 
   // Manejar cambios en inputs
   const handleInputChange = useCallback((field: keyof FormData, value: string | boolean) => {

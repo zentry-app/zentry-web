@@ -74,7 +74,7 @@ export const useOptimizedFilters = (
   }, [allUsers, pendingUsers, filterState, activeTab, getResidencialIdFromUser]);
 
   // Debounce para la búsqueda
-  const debouncedSearch = useCallback(
+  const debouncedSearch = useMemo(() =>
     debounce((term: string) => {
       setFilterState(prev => ({ ...prev, searchTerm: term }));
     }, 300),

@@ -1,0 +1,7 @@
+**/*.backup
+**/*.old
+**/*backup*.tsx
+complete_pdf_section.txt
+temp_*
+debug_*
+with_working_pdf.tsx

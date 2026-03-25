@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -26,22 +26,33 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { 
-  Home, 
-  AlertTriangle, 
-  CheckCircle, 
-  Clock, 
-  DollarSign, 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  Home,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  DollarSign,
   Search,
   Filter,
   Loader2,
   Eye,
   Calendar,
-  User
+  User,
+  Settings2,
+  Save
 } from 'lucide-react';
-import { 
-  HousePaymentStatus, 
-  HousePaymentStatusService 
+import {
+  HousePaymentStatus,
+  HousePaymentStatusService
 } from '@/lib/services/house-payment-status-service';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -65,19 +76,26 @@ const MorososManagement: React.FC<MorososManagementProps> = ({
     porcentajeMorosidad: 0,
     montoTotalAdeudado: 0,
   });
+  const { user } = useAuth();
 
-  useEffect(() => {
-    loadHouseStatuses();
-  }, [residencialId]);
+  // Estados para el modal de ajuste
+  const [isAdjustModelOpen, setIsAdjustModalOpen] = useState(false);
+  const [selectedHouse, setSelectedHouse] = useState<HousePaymentStatus | null>(null);
+  const [adjustmentLoading, setAdjustmentLoading] = useState(false);
+  const [adjustmentForm, setAdjustmentForm] = useState({
+    deudaAcumulada: 0,
+    saldoAFavor: 0,
+    razon: ''
+  });
 
-  const loadHouseStatuses = async () => {
+  const loadHouseStatuses = useCallback(async () => {
     try {
       setLoading(true);
       const [estados, estadisticas] = await Promise.all([
         HousePaymentStatusService.getHousePaymentStatuses(residencialId),
         HousePaymentStatusService.getMorosidadStats(residencialId)
       ]);
-      
+
       setHouseStatuses(estados);
       setStats(estadisticas);
     } catch (error) {
@@ -86,11 +104,66 @@ const MorososManagement: React.FC<MorososManagementProps> = ({
     } finally {
       setLoading(false);
     }
+  }, [residencialId]);
+
+  useEffect(() => {
+    loadHouseStatuses();
+  }, [loadHouseStatuses]);
+
+  const openAdjustmentModal = async (house: HousePaymentStatus) => {
+    try {
+      setSelectedHouse(house);
+      setAdjustmentLoading(true);
+
+      const balance = await HousePaymentStatusService.getHouseBalance(residencialId, house.houseId);
+
+      setAdjustmentForm({
+        deudaAcumulada: balance?.deudaAcumulada || 0,
+        saldoAFavor: balance?.saldoAFavor || 0,
+        razon: ''
+      });
+
+      setIsAdjustModalOpen(true);
+    } catch (error) {
+      toast.error('Error al obtener balance actual');
+    } finally {
+      setAdjustmentLoading(false);
+    }
+  };
+
+  const handleSaveAdjustment = async () => {
+    if (!selectedHouse || !user) return;
+
+    try {
+      setAdjustmentLoading(true);
+      const success = await HousePaymentStatusService.updateHouseBalance(
+        residencialId,
+        selectedHouse.houseId,
+        {
+          deudaAcumulada: adjustmentForm.deudaAcumulada,
+          saldoAFavor: adjustmentForm.saldoAFavor,
+          razon: adjustmentForm.razon
+        },
+        user.uid
+      );
+
+      if (success) {
+        toast.success('Balance actualizado correctamente');
+        setIsAdjustModalOpen(false);
+        loadHouseStatuses();
+      } else {
+        toast.error('No se pudo actualizar el balance');
+      }
+    } catch (error) {
+      toast.error('Error al guardar el ajuste');
+    } finally {
+      setAdjustmentLoading(false);
+    }
   };
 
   const formatDate = (timestamp: any) => {
     if (!timestamp) return 'Sin fecha';
-    
+
     try {
       const date = timestamp instanceof Date ? timestamp : timestamp.toDate();
       return format(date, 'dd/MM/yyyy', { locale: es });
@@ -135,13 +208,13 @@ const MorososManagement: React.FC<MorososManagementProps> = ({
 
   const filteredHouses = houseStatuses.filter(house => {
     const matchesStatus = statusFilter === 'todos' || house.status === statusFilter;
-    const matchesSearch = 
+    const matchesSearch =
       searchTerm === '' ||
       house.calle.toLowerCase().includes(searchTerm.toLowerCase()) ||
       house.houseNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (house.userName && house.userName.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (house.userEmail && house.userEmail.toLowerCase().includes(searchTerm.toLowerCase()));
-    
+
     return matchesStatus && matchesSearch;
   });
 
@@ -160,7 +233,7 @@ const MorososManagement: React.FC<MorososManagementProps> = ({
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center space-x-2">
@@ -172,7 +245,7 @@ const MorososManagement: React.FC<MorososManagementProps> = ({
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center space-x-2">
@@ -184,7 +257,7 @@ const MorososManagement: React.FC<MorososManagementProps> = ({
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center space-x-2">
@@ -196,7 +269,7 @@ const MorososManagement: React.FC<MorososManagementProps> = ({
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center space-x-2">
@@ -212,7 +285,7 @@ const MorososManagement: React.FC<MorososManagementProps> = ({
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center space-x-2">
@@ -302,7 +375,7 @@ const MorososManagement: React.FC<MorososManagementProps> = ({
                 <TableBody>
                   {filteredHouses.map((house) => {
                     const StatusIcon = getStatusIcon(house.status);
-                    
+
                     return (
                       <TableRow key={house.houseId}>
                         <TableCell>
@@ -392,6 +465,15 @@ const MorososManagement: React.FC<MorososManagementProps> = ({
                               variant="outline"
                               size="sm"
                               className="flex items-center space-x-1"
+                              onClick={() => openAdjustmentModal(house)}
+                            >
+                              <Settings2 className="h-4 w-4" />
+                              <span>Ajustar</span>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex items-center space-x-1"
                             >
                               <Eye className="h-4 w-4" />
                               <span>Ver</span>
@@ -407,6 +489,73 @@ const MorososManagement: React.FC<MorososManagementProps> = ({
           )}
         </CardContent>
       </Card>
+
+      {/* Modal de Ajuste de Saldo */}
+      <Dialog open={isAdjustModelOpen} onOpenChange={setIsAdjustModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Ajuste Contable / Carga Inicial</DialogTitle>
+            <DialogDescription>
+              Modifica directamente el balance de la casa {selectedHouse?.calle} #{selectedHouse?.houseNumber}.
+              Esto afectará el estado de morosidad inmediatamente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="deuda" className="text-right">Adeudo</Label>
+              <div className="col-span-3">
+                <Input
+                  id="deuda"
+                  type="number"
+                  value={adjustmentForm.deudaAcumulada}
+                  onChange={(e) => setAdjustmentForm({ ...adjustmentForm, deudaAcumulada: Number(e.target.value) })}
+                  placeholder="Monto de deuda histórica"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Monto total que la casa debe al residencial.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="saldo" className="text-right">S. Favor</Label>
+              <div className="col-span-3">
+                <Input
+                  id="saldo"
+                  type="number"
+                  value={adjustmentForm.saldoAFavor}
+                  onChange={(e) => setAdjustmentForm({ ...adjustmentForm, saldoAFavor: Number(e.target.value) })}
+                  placeholder="Monto a favor"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Crédito que la casa tiene disponible.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="razon" className="text-right">Razon</Label>
+              <div className="col-span-3">
+                <Input
+                  id="razon"
+                  value={adjustmentForm.razon}
+                  onChange={(e) => setAdjustmentForm({ ...adjustmentForm, razon: e.target.value })}
+                  placeholder="Ej: Carga inicial de deuda"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAdjustModalOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveAdjustment} disabled={adjustmentLoading}>
+              {adjustmentLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              Guardar Ajuste
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

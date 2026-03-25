@@ -244,7 +244,7 @@ export function MultiStepRegisterForm({
   }, [registrationData, currentStep, dataRestored, registrationCompleted]);
 
   // Limpiar localStorage al completar registro
-  const clearStoredData = () => {
+  const clearStoredData = useCallback(() => {
     try {
       localStorage.removeItem(STORAGE_KEY);
       localStorage.removeItem(STEP_KEY);
@@ -252,10 +252,12 @@ export function MultiStepRegisterForm({
     } catch (error) {
       console.error('[MultiStepRegisterForm] ❌ Error al limpiar localStorage:', error);
     }
-  };
+  }, []);
 
   // Calcular progreso
   const progress = (currentStep / STEPS.length) * 100;
+  const authMethod = registrationData.authMethod;
+  const authMethodEmail = authMethod.email;
 
   // La verificación de rate limiting ahora se hace en el AuthContext
   useEffect(() => {
@@ -264,7 +266,7 @@ export function MultiStepRegisterForm({
 
   // Efecto para pre-cargar datos personales desde Google/Apple
   useEffect(() => {
-    const { method, firstName, lastName, email } = registrationData.authMethod;
+    const { method, firstName, lastName, email } = authMethod;
     
     // Si se usó Google o Apple y tenemos datos de nombre
     if ((method === 'google' || method === 'apple') && firstName && email) {
@@ -289,7 +291,7 @@ export function MultiStepRegisterForm({
         }
       }));
     }
-  }, [registrationData.authMethod.method, registrationData.authMethod.firstName, registrationData.authMethod.lastName, registrationData.authMethod.email]);
+  }, [authMethod]);
 
   // Efecto para detectar usuario autenticado con Google tras redirect y pre-cargar datos
   useEffect(() => {
@@ -297,7 +299,7 @@ export function MultiStepRegisterForm({
     if (
       user &&
       user.providerData?.[0]?.providerId === 'google.com' &&
-      !registrationData.authMethod.email
+      !authMethodEmail
     ) {
       console.error('[MultiStepRegisterForm] Usuario de Google detectado tras redirect/recarga, pre-cargando datos...');
       
@@ -330,7 +332,7 @@ export function MultiStepRegisterForm({
       console.error('[MultiStepRegisterForm] Avanzando al paso 2 automáticamente...');
       setCurrentStep(2);
     }
-  }, [user, registrationData.authMethod.email]);
+  }, [authMethod, authMethodEmail, user]);
 
   // Actualizar datos del paso actual
   const updateStepData = useCallback((stepData: any) => {

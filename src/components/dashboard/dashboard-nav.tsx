@@ -36,6 +36,7 @@ import {
   ArrowRightLeft,
   PenTool,
   Activity,
+  ReceiptText,
 } from "lucide-react";
 import React from "react";
 import { useAuth, UserClaims } from "@/contexts/AuthContext";
@@ -213,10 +214,18 @@ const baseNavSections: NavSection[] = [
         color: "text-blue-600",
       },
       {
-        title: "Contabilidad",
-        href: "/dashboard/contabilidad",
-        icon: <Landmark className="h-5 w-5" />,
-        color: "text-emerald-500",
+        title: "Cotizaciones",
+        href: "/dashboard/cotizaciones",
+        icon: <FileSpreadsheet className="h-5 w-5" />,
+        color: "text-indigo-600",
+        requiresGlobalAdmin: true,
+      },
+      {
+        title: "Notas de Venta",
+        href: "/dashboard/ventas",
+        icon: <ReceiptText className="h-5 w-5" />,
+        color: "text-emerald-600",
+        requiresGlobalAdmin: true,
       },
       {
         title: "Uso y Costos Firebase",
@@ -267,6 +276,7 @@ export function DashboardNav({ isCollapsed = false, onCollapse }: DashboardNavPr
     panicAlertsCount,
     pendingReservationsCount,
     pendingUsersCount,
+    pendingPaymentsCount,
   } = useNotifications();
 
   // Función para obtener el badge dinámico según la ruta
@@ -280,6 +290,8 @@ export function DashboardNav({ isCollapsed = false, onCollapse }: DashboardNavPr
         return pendingReservationsCount > 0 ? pendingReservationsCount.toString() : undefined;
       case '/dashboard/alertas-panico':
         return panicAlertsCount > 0 ? panicAlertsCount.toString() : undefined;
+      case '/dashboard/pagos':
+        return pendingPaymentsCount > 0 ? pendingPaymentsCount.toString() : undefined;
       default:
         return undefined;
     }
@@ -511,8 +523,9 @@ const NavItemComponent = React.memo(({ item, isActive, isCollapsed, badge }: {
                     item.href.includes("mensajes") && "bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400",
                     item.href.includes("usuarios") && "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400",
                     item.href.includes("reservas") && "bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400",
+                    item.href.includes("pagos") && "bg-pink-500/10 text-pink-600 dark:bg-pink-500/20 dark:text-pink-400",
                     !item.href.includes("alertas-panico") && !item.href.includes("mensajes") &&
-                    !item.href.includes("usuarios") && !item.href.includes("reservas") &&
+                    !item.href.includes("usuarios") && !item.href.includes("reservas") && !item.href.includes("pagos") &&
                     (isActive ? "bg-primary/20 text-primary dark:bg-primary/20 dark:text-primary zentry:bg-white/20 zentry:text-white" : "bg-slate-100 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400 zentry:bg-white/10 zentry:text-white")
                   )}
                 >

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { MessageSquare, Search, Plus, ArrowLeft, Send } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -36,7 +36,7 @@ export default function MensajesPageV2() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Utilidades
-  const buildFullName = (user: any): string => {
+  const buildFullName = useCallback((user: any): string => {
     if (user.fullName && user.fullName.trim()) {
       const fullNameParts = user.fullName.trim().split(' ');
       if (fullNameParts.length >= 3) {
@@ -52,7 +52,7 @@ export default function MensajesPageV2() {
       .filter((part: string) => Boolean(part && String(part).trim()));
     
     return fullNameParts.join(' ') || 'Usuario sin nombre';
-  };
+  }, []);
 
   const getInitials = (fullName: string): string => {
     if (!fullName) return 'U';
@@ -105,51 +105,10 @@ export default function MensajesPageV2() {
 
   // Cargar datos iniciales
   useEffect(() => {
-    if (user && userClaims) {
-      loadUserData();
-    }
-  }, [user, userClaims]);
-
-  useEffect(() => {
-    if (residencialId) {
-      loadChats();
-      loadUsers();
-      
-      const unsubscribeChats = MessagesService.subscribeToChats(
-        residencialId, 
-        (updatedChats) => setChats(updatedChats),
-        user?.uid
-      );
-
-      return () => unsubscribeChats();
-    }
-  }, [residencialId, user?.uid]);
-
-  useEffect(() => {
-    if (selectedChat) {
-      loadMessages(selectedChat.id);
-      
-      const unsubscribeMessages = MessagesService.subscribeToMessages(
-        residencialId, 
-        selectedChat.id, 
-        (updatedMessages) => setMessages(updatedMessages)
-      );
-
-      return () => unsubscribeMessages();
-    }
-  }, [selectedChat, residencialId]);
-
-  useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  useEffect(() => {
-    if (showNewChatModal && residencialId) {
-      loadAvailableUsers();
-    }
-  }, [showNewChatModal, residencialId]);
-
-  const loadUserData = async () => {
+  const loadUserData = useCallback(async () => {
     try {
       if (userClaims?.managedResidencialId) {
         const residencialDoc = await MessagesService.getResidencialDocId(userClaims.managedResidencialId);
@@ -177,9 +136,9 @@ export default function MensajesPageV2() {
         variant: "destructive",
       });
     }
-  };
+  }, [toast, userClaims?.managedResidencialId]);
 
-  const loadChats = async () => {
+  const loadChats = useCallback(async () => {
     try {
       setLoading(true);
       const chatsData = await MessagesService.getChats(residencialId, user?.uid || undefined);
@@ -194,9 +153,9 @@ export default function MensajesPageV2() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [residencialId, toast, user?.uid]);
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       const usersData = await MessagesService.getUsers(residencialId);
       const usersMap: Record<string, User> = {};
@@ -216,9 +175,9 @@ export default function MensajesPageV2() {
         variant: "destructive",
       });
     }
-  };
+  }, [buildFullName, residencialId, toast]);
 
-  const loadAvailableUsers = async () => {
+  const loadAvailableUsers = useCallback(async () => {
     try {
       const usersData = await MessagesService.getUsers(residencialId);
       const otherUsers = usersData.filter(u => 
@@ -237,9 +196,9 @@ export default function MensajesPageV2() {
         variant: "destructive",
       });
     }
-  };
+  }, [buildFullName, residencialId, toast, user?.uid]);
 
-  const loadMessages = async (chatId: string) => {
+  const loadMessages = useCallback(async (chatId: string) => {
     try {
       setLoadingMessages(true);
       const messagesData = await MessagesService.getMessages(residencialId, chatId);
@@ -258,7 +217,48 @@ export default function MensajesPageV2() {
     } finally {
       setLoadingMessages(false);
     }
-  };
+  }, [residencialId, toast, user?.uid]);
+
+  useEffect(() => {
+    if (user && userClaims) {
+      loadUserData();
+    }
+  }, [loadUserData, user, userClaims]);
+
+  useEffect(() => {
+    if (residencialId) {
+      loadChats();
+      loadUsers();
+
+      const unsubscribeChats = MessagesService.subscribeToChats(
+        residencialId,
+        (updatedChats) => setChats(updatedChats),
+        user?.uid
+      );
+
+      return () => unsubscribeChats();
+    }
+  }, [loadChats, loadUsers, residencialId, user?.uid]);
+
+  useEffect(() => {
+    if (selectedChat) {
+      loadMessages(selectedChat.id);
+
+      const unsubscribeMessages = MessagesService.subscribeToMessages(
+        residencialId,
+        selectedChat.id,
+        (updatedMessages) => setMessages(updatedMessages)
+      );
+
+      return () => unsubscribeMessages();
+    }
+  }, [loadMessages, residencialId, selectedChat]);
+
+  useEffect(() => {
+    if (showNewChatModal && residencialId) {
+      loadAvailableUsers();
+    }
+  }, [loadAvailableUsers, residencialId, showNewChatModal]);
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedChat || !user?.uid) return;
