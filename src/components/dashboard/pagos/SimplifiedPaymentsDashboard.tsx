@@ -99,43 +99,38 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
   const loadAllData = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       const fechaInicio = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
       const fechaFin = new Date();
-      
-      const [
-        summaryData,
-        pendingData,
-        cashData,
-        houseData,
-        casasData,
-        allPaymentsData
-      ] = await Promise.all([
+
+      // Load critical data first (summary + pending validations)
+      const [summaryData, pendingData] = await Promise.all([
         AccountingService.getAccountingSummary(residencialId, fechaInicio, fechaFin),
         PaymentValidationService.getPendingPayments(residencialId),
+      ]);
+
+      setSummary(summaryData);
+      setPendingPayments(pendingData);
+      setLoading(false);
+
+      // Load secondary data in background (non-blocking)
+      Promise.all([
         CashPaymentService.getCashPayments(residencialId),
         HousePaymentStatusService.getHousePaymentStatuses(residencialId),
         CasasResidencialService.getCasasPorResidencial(residencialId),
         AllPaymentsService.getAllPayments(residencialId, fechaInicio, fechaFin)
-      ]);
-      
-      setSummary(summaryData);
-      setPendingPayments(pendingData);
-      setCashPayments(cashData);
-      setHouseStatuses(houseData);
-      setCasas(casasData);
-      setAllPayments(allPaymentsData);
-      
-      console.log(`🏠 [LOAD] Casas cargadas: ${casasData.length}`, casasData);
-      console.log(`💰 [LOAD] Pagos en efectivo cargados: ${cashData.length}`, cashData);
-      console.log(`📊 [LOAD] Summary cargado:`, summaryData);
-      console.log(`📋 [LOAD] Pagos pendientes: ${pendingData.length}`, pendingData);
-      console.log(`🏘️ [LOAD] Estados de casas: ${houseData.length}`, houseData);
-      console.log(`💳 [LOAD] Todos los pagos: ${allPaymentsData.length}`, allPaymentsData);
+      ]).then(([cashData, houseData, casasData, allPaymentsData]) => {
+        setCashPayments(cashData);
+        setHouseStatuses(houseData);
+        setCasas(casasData);
+        setAllPayments(allPaymentsData);
+      }).catch(error => {
+        console.error('Error al cargar datos secundarios:', error);
+      });
+
     } catch (error) {
       console.error('Error al cargar datos:', error);
       toast.error('Error al cargar datos');
-    } finally {
       setLoading(false);
     }
   }, [residencialId]);

@@ -233,7 +233,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     };
 
     loadCounts();
-    timer = setInterval(loadCounts, 60000); // Actualizar cada 60 segundos
+    timer = setInterval(loadCounts, 300000); // Actualizar cada 5 minutos
 
     return () => {
       if (timer) clearInterval(timer);
