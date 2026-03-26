@@ -109,7 +109,7 @@ const DetallesIngresoDialogContent: React.FC<DetallesIngresoDialogContentProps> 
               <div className="h-1 w-1 bg-slate-600 rounded-full" />
               <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest">
                 <Shield className="h-3.5 w-3.5 text-primary" />
-                {selectedIngreso.entryMethod || 'REGISTRADO'}
+                {selectedIngreso.entryMethod === 'moroso_vehicular' ? 'MOROSO VEHICULAR' : selectedIngreso.entryMethod === 'moroso_pedestrian' ? 'MOROSO PEATONAL' : selectedIngreso.entryMethod || 'REGISTRADO'}
               </div>
             </div>
           </div>

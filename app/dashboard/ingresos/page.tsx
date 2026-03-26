@@ -59,7 +59,8 @@ import {
     ChevronDown,
     ShieldCheck,
     UserCheck,
-    Zap
+    Zap,
+    AlertTriangle
 } from "lucide-react";
 
 // Firebase & Utils
@@ -281,7 +282,7 @@ export default function IngresosMasterPage() {
                 codigoAcceso.includes(search);
 
             const matchesTipo = tipoIngresoFilter === 'todos' ||
-                (tipoIngresoFilter === 'autorizada' ? (ing.category !== 'temporal' && ing.category !== 'evento') : ing.category === tipoIngresoFilter);
+                (tipoIngresoFilter === 'autorizada' ? (ing.category !== 'temporal' && ing.category !== 'evento' && ing.category !== 'moroso_entry') : ing.category === tipoIngresoFilter);
 
             const matchesStatus = statusFilter === 'todos' || ing.status === statusFilter;
 
@@ -457,6 +458,12 @@ export default function IngresosMasterPage() {
                                     label="Eventos"
                                     icon={<Calendar className="h-3 w-3" />}
                                 />
+                                <FilterButton
+                                    active={tipoIngresoFilter === 'moroso_entry'}
+                                    onClick={() => setTipoIngresoFilter("moroso_entry")}
+                                    label="Morosos"
+                                    icon={<AlertTriangle className="h-3 w-3" />}
+                                />
                             </div>
                         </div>
 
@@ -579,10 +586,11 @@ export default function IngresosMasterPage() {
                                                                     <Badge
                                                                         className={`text-[9px] h-5 rounded-md px-2 font-black uppercase tracking-widest border-none shadow-sm ${ing.category === 'temporal' ? 'bg-amber-100 text-amber-700' :
                                                                             ing.category === 'evento' ? 'bg-purple-100 text-purple-700' :
-                                                                                'bg-blue-100 text-blue-700'
+                                                                                ing.category === 'moroso_entry' ? 'bg-orange-100 text-orange-700' :
+                                                                                    'bg-blue-100 text-blue-700'
                                                                             }`}
                                                                     >
-                                                                        {ing.category === 'temporal' ? '1 SOLO USO' : ing.category === 'evento' ? 'EVENTO' : 'AUTORIZADA'}
+                                                                        {ing.category === 'temporal' ? '1 SOLO USO' : ing.category === 'evento' ? 'EVENTO' : ing.category === 'moroso_entry' ? 'MOROSO' : 'AUTORIZADA'}
                                                                     </Badge>
                                                                 </div>
                                                             </div>

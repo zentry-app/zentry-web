@@ -91,7 +91,8 @@ export default function EstadisticasIngresos({ ingresos, monthFilter, isGlobalAd
         const categories: any = {};
         ingresos.forEach(ing => {
             const cat = ing.category === 'temporal' ? '1 Solo Uso' :
-                ing.category === 'evento' ? 'Evento' : 'Autorizada';
+                ing.category === 'evento' ? 'Evento' :
+                    ing.category === 'moroso_entry' ? 'Moroso' : 'Autorizada';
             categories[cat] = (categories[cat] || 0) + 1;
         });
 
