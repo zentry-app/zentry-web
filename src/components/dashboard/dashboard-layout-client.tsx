@@ -33,10 +33,10 @@ const MemoizedSidebar = memo(({ isCollapsed, onToggle }: {
       className={cn(
         "hidden lg:block fixed top-20 bottom-6 left-6 z-30",
         "rounded-[2rem] overflow-hidden",
-        "bg-white/40 backdrop-blur-2xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.04)]",
+        "bg-white/95 border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.04)]",
         "dark:bg-[#020408]/90 dark:border-white/10 dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)]",
         "ring-1 ring-white/20 ring-inset dark:ring-white/5",
-        "zentry:bg-white/10 zentry:backdrop-blur-3xl zentry:border-white/20 zentry:shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_8px_32px_rgba(0,0,0,0.15)] zentry:ring-white/10",
+        "zentry:bg-white/95 zentry:border-white/20 zentry:shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_8px_32px_rgba(0,0,0,0.15)] zentry:ring-white/10",
         "transition-all duration-300 hover:shadow-[0_8px_32px_rgba(0,0,0,0.08)] hover:border-white/60 dark:hover:border-white/20 zentry:hover:border-white/30"
       )}
     >
@@ -72,10 +72,10 @@ const MobileMenu = memo(({ isOpen, onClose }: {
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
             className={cn(
               "fixed top-20 left-6 bottom-6 w-72 rounded-[2rem] overflow-hidden",
-              "bg-white/85 backdrop-blur-2xl border border-white/40 shadow-[0_8px_32px_rgba(0,0,0,0.1)]",
+              "bg-white/95 border border-white/40 shadow-[0_8px_32px_rgba(0,0,0,0.1)]",
               "dark:bg-[#020408]/95 dark:border-white/10 dark:shadow-[0_8px_32px_rgba(0,0,0,0.5)]",
               "ring-1 ring-white/20 ring-inset dark:ring-white/5",
-              "zentry:bg-white/10 zentry:backdrop-blur-3xl zentry:border-white/20 zentry:shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_8px_32px_rgba(0,0,0,0.3)] zentry:ring-white/10"
+              "zentry:bg-white/95 zentry:border-white/20 zentry:shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_8px_32px_rgba(0,0,0,0.3)] zentry:ring-white/10"
             )}
           >
             <DashboardNav
@@ -111,7 +111,7 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
   return (
     <NotificationsProvider>
       <div className="fixed top-0 left-0 right-0 z-50">
-        <div className="bg-background/80 backdrop-blur-md border-b border-white/10">
+        <div className="bg-white/95 border-b border-slate-200/50">
           <Navbar onMenuClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} />
         </div>
       </div>
@@ -142,7 +142,7 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
             <div className="relative h-full">
               <motion.div
                 layout
-                className="relative h-full rounded-xl sm:rounded-[2rem] border border-white/30 bg-white/60 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.04)] overflow-hidden transition-all duration-300 dark:bg-[#05080f]/40 dark:border-white/5 dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)] zentry:bg-white/10 zentry:border-white/15 zentry:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_8px_32px_rgba(0,0,0,0.1)]"
+                className="relative h-full rounded-xl sm:rounded-[2rem] border border-white/30 bg-white shadow-[0_8px_32px_rgba(0,0,0,0.04)] overflow-hidden transition-all duration-300 dark:bg-[#05080f]/40 dark:border-white/5 dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)] zentry:bg-white zentry:border-white/15 zentry:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_8px_32px_rgba(0,0,0,0.1)]"
               >
                 <div className="h-full w-full overflow-y-auto">
                   {children}

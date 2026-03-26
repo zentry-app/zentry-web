@@ -54,9 +54,8 @@ interface LedgerEntry {
 }
 
 const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
-  al_dia:    { label: "Al día",  color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
-  pendiente: { label: "Debe",    color: "text-amber-700",   bg: "bg-amber-50 border-amber-200" },
-  moroso:    { label: "Moroso",  color: "text-red-700",     bg: "bg-red-50 border-red-200" },
+  al_dia:    { label: "Al día",    color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
+  con_deuda: { label: "Con deuda", color: "text-red-700",     bg: "bg-red-50 border-red-200" },
 };
 
 const entryIcon: Record<string, { icon: any; color: string }> = {
@@ -135,7 +134,8 @@ export default function HouseDetailSheet({ open, onClose, residencialId, house, 
     }
   };
 
-  const cfg = statusConfig[house.status] || statusConfig.al_dia;
+  const houseDisplayStatus = (house.deudaCents || 0) > 0 ? "con_deuda" : "al_dia";
+  const cfg = statusConfig[houseDisplayStatus];
 
   return (
     <>

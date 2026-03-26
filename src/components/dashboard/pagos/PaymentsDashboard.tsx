@@ -25,7 +25,7 @@ import dynamic from "next/dynamic";
 
 import HouseDetailSheet from "./HouseDetailSheet";
 import CashTerminal from "./CashTerminal";
-import { KPIData, PendingValidation, HouseStatus, fmtFull, statusDot, statusLabel } from "./payments-types";
+import { KPIData, PendingValidation, HouseStatus, fmtFull, statusDot, statusLabel, normalizeStatus } from "./payments-types";
 
 // Lazy-loaded tool components
 const AccountingDashboard = dynamic(() => import("./AccountingDashboard"), { ssr: false, loading: () => <p className="py-12 text-center text-muted-foreground">Cargando...</p> });
@@ -41,7 +41,7 @@ const tabs = [
   { id: "estado_cuenta",  label: "Estado de Cuenta", icon: Home },
   { id: "libro_mayor",    label: "Libro Mayor",   icon: BookOpen },
   { id: "movimientos",    label: "Movimientos",   icon: ArrowLeftRight },
-  { id: "catalogos",      label: "Catálogos",     icon: Tag },
+  { id: "admin",      label: "Administración",     icon: Tag },
   { id: "configuracion",  label: "Configuración", icon: Settings },
 ];
 
@@ -100,7 +100,8 @@ export default function PaymentsDashboard({ residencialId }: { residencialId: st
       toast.success(folio ? `Pago validado · Folio ${folio}` : "Pago validado");
       setSelectedPayment(null);
       setPending(prev => prev.filter(p => p.id !== paymentId));
-      triggerRefresh(1200);
+      setRefreshing(true); // show animation immediately
+      triggerRefresh(2500); // longer delay for Firestore propagation
     } catch { toast.error("Error al validar"); }
     finally { setValidating(false); }
   };
@@ -113,7 +114,8 @@ export default function PaymentsDashboard({ residencialId }: { residencialId: st
       toast.success("Pago rechazado");
       setSelectedPayment(null); setRejectReason("");
       setPending(prev => prev.filter(p => p.id !== paymentId));
-      triggerRefresh(1200);
+      setRefreshing(true);
+      triggerRefresh(2500);
     } catch { toast.error("Error al rechazar"); }
     finally { setRejecting(false); }
   };
@@ -122,8 +124,8 @@ export default function PaymentsDashboard({ residencialId }: { residencialId: st
   const localDebt = houses.reduce((s, h) => s + (h.deudaCents || 0), 0);
   const localWithDebt = houses.filter(h => (h.deudaCents || 0) > 0).length;
   const counts = useMemo(() => {
-    const c = { al_dia: 0, pendiente: 0, moroso: 0 };
-    houses.forEach(h => { if (c[h.status] !== undefined) c[h.status]++; });
+    const c = { al_dia: 0, con_deuda: 0 };
+    houses.forEach(h => { c[normalizeStatus(h)]++; });
     return c;
   }, [houses]);
 
@@ -158,20 +160,27 @@ export default function PaymentsDashboard({ residencialId }: { residencialId: st
       {/* KPIs */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         {loading ? Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i} className="border-none shadow-zentry bg-white/70 backdrop-blur-xl rounded-[1.5rem]">
+          <Card key={i} className="border-none shadow-zentry bg-white rounded-[1.5rem]">
             <CardContent className="pt-5 pb-4"><Skeleton className="h-4 w-20 mb-2" /><Skeleton className="h-8 w-28" /></CardContent>
           </Card>
         )) : kpiCards.map((c, i) => (
-          <Card key={i} className="border-none shadow-zentry bg-white/70 backdrop-blur-xl rounded-[1.5rem] hover:shadow-zentry-lg transition-all duration-300 group overflow-hidden">
+          <Card key={i} className={`border-none shadow-zentry bg-white rounded-[1.5rem] hover:shadow-zentry-lg transition-all duration-300 group overflow-hidden ${refreshing ? "animate-pulse" : ""}`}>
             <CardContent className="pt-5 pb-4 relative">
               <div className={`absolute top-0 right-0 w-20 h-20 bg-gradient-to-br ${c.grad} opacity-[0.07] rounded-bl-[2rem] -mr-1 -mt-1 group-hover:opacity-[0.12] transition-opacity`} />
+              {/* Shimmer overlay when refreshing */}
+              {refreshing && (
+                <div className="absolute inset-0 overflow-hidden rounded-[1.5rem]">
+                  <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/60 to-transparent" />
+                </div>
+              )}
               <div className="flex items-center gap-2 mb-1.5">
-                <div className={`h-7 w-7 rounded-lg bg-gradient-to-br ${c.grad} flex items-center justify-center`}>
+                <div className={`h-7 w-7 rounded-lg bg-gradient-to-br ${c.grad} flex items-center justify-center ${refreshing ? "animate-spin" : ""}`}>
                   <c.icon className="h-3.5 w-3.5 text-white" />
                 </div>
                 <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">{c.label}</span>
+                {refreshing && <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-ping" />}
               </div>
-              <div className={`text-xl font-black ${c.pulse ? "text-amber-600" : "text-slate-900"}`}>{c.value}</div>
+              <div className={`text-xl font-black ${c.pulse ? "text-amber-600" : "text-slate-900"} ${refreshing ? "opacity-50" : ""} transition-opacity`}>{c.value}</div>
             </CardContent>
           </Card>
         ))}
@@ -190,8 +199,8 @@ export default function PaymentsDashboard({ residencialId }: { residencialId: st
             {t.id === "validacion" && pending.length > 0 && (
               <span className="text-[9px] bg-amber-500 text-white rounded-full px-1.5 py-0.5">{pending.length}</span>
             )}
-            {t.id === "estado_cuenta" && counts.pendiente + counts.moroso > 0 && (
-              <span className="text-[9px] bg-red-500 text-white rounded-full px-1.5 py-0.5">{counts.pendiente + counts.moroso}</span>
+            {t.id === "estado_cuenta" && counts.con_deuda > 0 && (
+              <span className="text-[9px] bg-red-500 text-white rounded-full px-1.5 py-0.5">{counts.con_deuda}</span>
             )}
           </button>
         ))}
@@ -199,7 +208,7 @@ export default function PaymentsDashboard({ residencialId }: { residencialId: st
 
       {/* ─── Tab: Validación ─────────────────────────────────────── */}
       {activeTab === "validacion" && (
-        <Card className="border-none shadow-zentry-lg bg-white/80 backdrop-blur-2xl rounded-[2rem] overflow-hidden animate-fadeIn">
+        <Card className="border-none shadow-zentry-lg bg-white rounded-[2rem] overflow-hidden animate-fadeIn">
           <CardHeader className="px-6 pt-5 pb-2">
             <CardTitle className="text-sm font-black flex items-center gap-2">
               <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/5 flex items-center justify-center">
@@ -253,8 +262,8 @@ export default function PaymentsDashboard({ residencialId }: { residencialId: st
       {/* ─── Tab: Movimientos ────────────────────────────────────── */}
       {activeTab === "movimientos" && <div className="animate-fadeIn"><MovementsManager residencialId={residencialId} /></div>}
 
-      {/* ─── Tab: Catálogos ──────────────────────────────────────── */}
-      {activeTab === "catalogos" && <div className="animate-fadeIn"><CatalogManagement residencialId={residencialId} /></div>}
+      {/* ─── Tab: Administración ──────────────────────────────────────── */}
+      {activeTab === "admin" && <div className="animate-fadeIn"><CatalogManagement residencialId={residencialId} /></div>}
 
       {/* ─── Tab: Configuración ──────────────────────────────────── */}
       {activeTab === "configuracion" && <div className="animate-fadeIn"><BillingSettings residencialId={residencialId} /></div>}
@@ -325,7 +334,7 @@ export default function PaymentsDashboard({ residencialId }: { residencialId: st
 
 // ─── Estado de Cuenta (inline sub-component) ──────────────────────
 function EstadoCuentaView({ houses, loadingHouses, counts, onSelectHouse }: {
-  houses: HouseStatus[]; loadingHouses: boolean; counts: { al_dia: number; pendiente: number; moroso: number }; onSelectHouse: (h: HouseStatus) => void;
+  houses: HouseStatus[]; loadingHouses: boolean; counts: { al_dia: number; con_deuda: number }; onSelectHouse: (h: HouseStatus) => void;
 }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<string>("all");
@@ -333,21 +342,20 @@ function EstadoCuentaView({ houses, loadingHouses, counts, onSelectHouse }: {
 
   const filtered = useMemo(() => {
     let list = houses;
-    if (filter !== "all") list = list.filter(h => h.status === filter);
+    if (filter !== "all") list = list.filter(h => normalizeStatus(h) === filter);
     if (search) { const q = search.toLowerCase(); list = list.filter(h => h.label.toLowerCase().includes(q) || h.residentName.toLowerCase().includes(q)); }
     return list;
   }, [houses, filter, search]);
 
   return (
-    <Card className="border-none shadow-zentry-lg bg-white/80 backdrop-blur-2xl rounded-[2rem] overflow-hidden">
+    <Card className="border-none shadow-zentry-lg bg-white rounded-[2rem] overflow-hidden">
       <CardHeader className="px-6 pt-5 pb-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1.5 flex-wrap">
             {[
               { key: "all", label: "Todas", count: houses.length, dot: "bg-slate-400" },
               { key: "al_dia", label: "Al día", count: counts.al_dia, dot: "bg-emerald-500", active: "text-emerald-700 bg-emerald-50" },
-              { key: "pendiente", label: "Debe", count: counts.pendiente, dot: "bg-amber-500", active: "text-amber-700 bg-amber-50" },
-              { key: "moroso", label: "Moroso", count: counts.moroso, dot: "bg-red-500", active: "text-red-700 bg-red-50" },
+              { key: "con_deuda", label: "Con deuda", count: counts.con_deuda, dot: "bg-red-500", active: "text-red-700 bg-red-50" },
             ].map(f => (
               <button key={f.key} onClick={() => setFilter(f.key)}
                 className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${
@@ -381,10 +389,10 @@ function EstadoCuentaView({ houses, loadingHouses, counts, onSelectHouse }: {
               <tbody>
                 {filtered.map(h => (
                   <tr key={h.houseId} onClick={() => onSelectHouse(h)} className="border-b border-slate-50 hover:bg-primary/5 cursor-pointer transition-colors text-sm">
-                    <td className="py-2.5 pl-2"><div className={`h-3 w-3 rounded-full ${statusDot[h.status]}`} /></td>
+                    <td className="py-2.5 pl-2"><div className={`h-3 w-3 rounded-full ${statusDot[normalizeStatus(h)]}`} /></td>
                     <td className="py-2.5 font-bold text-slate-800">{h.label}</td>
                     <td className="py-2.5 text-muted-foreground">{h.residentName}</td>
-                    <td className="py-2.5"><Badge className={`text-[10px] font-bold border-0 rounded-md px-2 ${h.status === "moroso" ? "text-red-700 bg-red-100" : h.status === "pendiente" ? "text-amber-700 bg-amber-100" : "text-emerald-700 bg-emerald-100"}`}>{statusLabel[h.status]}</Badge></td>
+                    <td className="py-2.5"><Badge className={`text-[10px] font-bold border-0 rounded-md px-2 ${normalizeStatus(h) === "con_deuda" ? "text-red-700 bg-red-100" : "text-emerald-700 bg-emerald-100"}`}>{statusLabel[normalizeStatus(h)]}</Badge></td>
                     <td className="py-2.5 text-right font-bold">{h.deudaCents > 0 ? <span className="text-red-600">{fmtFull(h.deudaCents)}</span> : <span className="text-slate-300">—</span>}</td>
                     <td className="py-2.5 text-right pr-2 font-bold">{h.saldoAFavorCents > 0 ? <span className="text-emerald-600">+{fmtFull(h.saldoAFavorCents)}</span> : <span className="text-slate-300">—</span>}</td>
                   </tr>
@@ -399,11 +407,11 @@ function EstadoCuentaView({ houses, loadingHouses, counts, onSelectHouse }: {
               {filtered.map(h => (
                 <div key={h.houseId} onClick={() => onSelectHouse(h)}
                   className={`p-3 rounded-xl border cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all text-center ${
-                    h.status === "moroso" ? "border-red-200 bg-red-50/60" : h.status === "pendiente" ? "border-amber-200 bg-amber-50/60" : "border-emerald-200 bg-emerald-50/60"
+                    normalizeStatus(h) === "con_deuda" ? "border-red-200 bg-red-50/60" : "border-emerald-200 bg-emerald-50/60"
                   }`}>
                   <div className="font-black text-sm text-slate-800">{h.label}</div>
                   <div className="text-[10px] text-muted-foreground truncate mt-0.5">{h.residentName || "—"}</div>
-                  <Badge className={`mt-2 text-[9px] font-bold border-0 rounded-md px-1.5 ${h.status === "moroso" ? "text-red-700 bg-red-100" : h.status === "pendiente" ? "text-amber-700 bg-amber-100" : "text-emerald-700 bg-emerald-100"}`}>{statusLabel[h.status]}</Badge>
+                  <Badge className={`mt-2 text-[9px] font-bold border-0 rounded-md px-1.5 ${normalizeStatus(h) === "con_deuda" ? "text-red-700 bg-red-100" : "text-emerald-700 bg-emerald-100"}`}>{statusLabel[normalizeStatus(h)]}</Badge>
                   {h.deudaCents > 0 && <div className="text-[10px] font-black text-red-600 mt-1">{fmtFull(h.deudaCents)}</div>}
                 </div>
               ))}
