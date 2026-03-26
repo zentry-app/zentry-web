@@ -101,7 +101,7 @@ export default function LedgerViewer({ residencialId }: { residencialId: string 
 
         } catch (error) {
             console.error("Error fetching ledger:", error);
-            toast.error("Error al obtener el historial del Ledger");
+            toast.error("Error al obtener el historial de movimientos");
         } finally {
             setLoading(false);
         }
@@ -131,7 +131,7 @@ export default function LedgerViewer({ residencialId }: { residencialId: string 
         setIsAdjusting(true);
         try {
             await PaymentValidationService.adjustBalance(residencialId, houseId, Number(adjustAmount), isDecrease, adjustReason);
-            toast.success("Ajuste de saldo aplicado e inyectado al Libro Mayor.");
+            toast.success("Ajuste de saldo aplicado correctamente.");
             setAdjustDialog(false);
             setAdjustAmount('');
             setAdjustReason('');
@@ -162,10 +162,10 @@ export default function LedgerViewer({ residencialId }: { residencialId: string 
                         <div>
                             <CardTitle className="text-2xl font-black bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent flex items-center">
                                 <BookOpen className="h-6 w-6 mr-3 text-blue-600" />
-                                Ledger Master
+                                Estado de Cuenta
                             </CardTitle>
                             <CardDescription className="text-base mt-2">
-                                Consulta el estado de cuenta inmutable y saldo real de cualquier vivienda.
+                                Consulta el historial de movimientos de cualquier vivienda.
                             </CardDescription>
                         </div>
 
@@ -187,7 +187,7 @@ export default function LedgerViewer({ residencialId }: { residencialId: string 
                 {loading ? (
                     <CardContent className="p-16 flex flex-col items-center justify-center">
                         <Loader2 className="h-10 w-10 animate-spin text-blue-600 mb-4" />
-                        <p className="text-slate-500 font-medium">Buscando bloques en el Ledger Inmutable...</p>
+                        <p className="text-slate-500 font-medium">Buscando movimientos...</p>
                     </CardContent>
                 ) : houseId && currentBalance ? (
                     <CardContent className="p-8 pt-4">
@@ -208,7 +208,7 @@ export default function LedgerViewer({ residencialId }: { residencialId: string 
                                     </h3>
                                     <Badge className={`text-sm px-4 py-1.5 rounded-full shadow-sm font-bold ${currentBalance.balance < 0 ? 'bg-red-500 text-white' : currentBalance.balance > 0 ? 'bg-green-500 text-white' : 'bg-slate-500'
                                         }`}>
-                                        {currentBalance.balance < 0 ? 'DEUDA PENDIENTE' : currentBalance.balance > 0 ? 'SALDO A FAVOR' : 'SIN DEUSAS'}
+                                        {currentBalance.balance < 0 ? 'DEUDA PENDIENTE' : currentBalance.balance > 0 ? 'SALDO A FAVOR' : 'SIN DEUDAS'}
                                     </Badge>
                                 </div>
                             </div>
@@ -223,13 +223,13 @@ export default function LedgerViewer({ residencialId }: { residencialId: string 
                         <div className="flex justify-end mb-8">
                             <Button variant="outline" className="border-slate-300 text-slate-600 font-semibold" onClick={() => setAdjustDialog(true)}>
                                 <PenTool className="h-4 w-4 mr-2" />
-                                Ajuste Manual de Saldo
+                                Ajuste de saldo
                             </Button>
                         </div>
 
-                        {/* Historial Inmutable */}
+                        {/* Historial de Movimientos */}
                         <h4 className="text-xl font-bold text-slate-800 mb-6 flex items-center">
-                            Registro de Movimientos (Historial Inmutable)
+                            Historial de Movimientos
                         </h4>
 
                         {ledgerEntries.length === 0 ? (
@@ -290,7 +290,7 @@ export default function LedgerViewer({ residencialId }: { residencialId: string 
                 ) : houseId ? (
                     <CardContent className="p-16 text-center">
                         <AlertTriangle className="h-12 w-12 text-orange-400 mx-auto mb-4" />
-                        <h3 className="text-xl font-bold text-slate-800">Esta vivienda no tiene registros en el Ledger</h3>
+                        <h3 className="text-xl font-bold text-slate-800">Esta vivienda no tiene registros</h3>
                         <p className="text-slate-500">¿Está bien escrito el identificador? Formato sugerido: NombreCalle-Numero (ej. encino-12)</p>
                     </CardContent>
                 ) : null}
@@ -300,10 +300,10 @@ export default function LedgerViewer({ residencialId }: { residencialId: string 
             <Dialog open={adjustDialog} onOpenChange={setAdjustDialog}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Ajuste Manual de Saldo</DialogTitle>
+                        <DialogTitle>Ajuste de saldo</DialogTitle>
                         <DialogDescription>
                             Usa esta herramienta <strong>sólo para casos excepcionales</strong> (ej. saldos arrastrados de versiones anteriores, condonación de deuda, o correcciones de sistema).
-                            Se registrará inmutablemente en el Ledger.
+                            Se registrará en el historial de movimientos.
                         </DialogDescription>
                     </DialogHeader>
 

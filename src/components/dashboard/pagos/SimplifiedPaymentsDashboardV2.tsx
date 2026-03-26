@@ -56,7 +56,7 @@ import { AllPaymentsService, AllPayment } from '@/lib/services/all-payments-serv
 import { HousePaymentStatusService, HousePaymentStatus } from '@/lib/services/house-payment-status-service';
 import { CasasResidencialService, CasaResidencial } from '@/lib/services/casas-residencial-service';
 import { UnifiedPaymentsService, UnifiedPayment } from '@/lib/services/unified-payments-service';
-import { CatalogService, ProductoCatalog } from '@/lib/services/catalog-service';
+import { CatalogService, Product } from '@/lib/services/catalog-service';
 import UnifiedPaymentsTable from './UnifiedPaymentsTable';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -74,7 +74,7 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
   const [unifiedPayments, setUnifiedPayments] = useState<UnifiedPayment[]>([]);
   const [houseStatuses, setHouseStatuses] = useState<HousePaymentStatus[]>([]);
   const [casas, setCasas] = useState<CasaResidencial[]>([]);
-  const [productos, setProductos] = useState<ProductoCatalog[]>([]);
+  const [productos, setProductos] = useState<Product[]>([]);
 
   // Estados para filtros
   const [searchTerm, setSearchTerm] = useState('');
@@ -110,7 +110,7 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
         CashPaymentService.getCashPayments(residencialId),
         HousePaymentStatusService.getHousePaymentStatuses(residencialId),
         CasasResidencialService.getCasasPorResidencial(residencialId),
-        CatalogService.getProductos(residencialId),
+        CatalogService.getProducts(residencialId),
       ]);
 
       console.log(`📊 [LOAD] Datos cargados:`, {
@@ -385,7 +385,7 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
       }
 
       // Buscar si el concepto es un producto para pasar sus metadatos
-      const selectedProduct = productos.find(p => p.nombre === newCashPayment.concept);
+      const selectedProduct = productos.find(p => p.name === newCashPayment.concept);
 
       // Registrar el pago en efectivo
       const docId = await CashPaymentService.registerCashPayment(residencialId, {
@@ -410,7 +410,7 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
         concepto: newCashPayment.concept,
         isProduct: !!selectedProduct && selectedProduct.id !== 'default_cuota',
         productId: selectedProduct?.id || undefined,
-        productPrice: selectedProduct?.precioSugerido || 0
+        productPrice: selectedProduct?.priceCents || 0
       });
 
       // 🆕 Crear notificaciones para TODOS los usuarios de la casa
@@ -790,9 +790,9 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
               <Select
                 value={newCashPayment.concept}
                 onValueChange={(value) => {
-                  const prod = productos.find(p => p.nombre === value);
-                  const newAmount = prod && prod.precioSugerido > 0 && (!newCashPayment.amount || newCashPayment.amount === '0')
-                    ? prod.precioSugerido.toString()
+                  const prod = productos.find(p => p.name === value);
+                  const newAmount = prod && prod.priceCents > 0 && (!newCashPayment.amount || newCashPayment.amount === '0')
+                    ? (prod.priceCents / 100).toString()
                     : newCashPayment.amount;
 
                   setNewCashPayment({
@@ -807,14 +807,14 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
                 </SelectTrigger>
                 <SelectContent>
                   {/* Inyectar Cuota Mensual si no está en productos */}
-                  {(!productos.some(p => p.nombre.toLowerCase().includes('cuota') || p.nombre.toLowerCase().includes('mantenimiento'))) && (
+                  {(!productos.some(p => p.name.toLowerCase().includes('cuota') || p.name.toLowerCase().includes('mantenimiento'))) && (
                     <SelectItem value="Cuota Mensual">
                       Cuota Mensual
                     </SelectItem>
                   )}
                   {productos.map((prod) => (
-                    <SelectItem key={prod.id} value={prod.nombre}>
-                      {prod.nombre} {prod.precioSugerido > 0 ? `(${formatAmount(prod.precioSugerido)})` : ''}
+                    <SelectItem key={prod.id} value={prod.name}>
+                      {prod.name} {prod.priceCents > 0 ? `(${formatAmount(prod.priceCents / 100)})` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>

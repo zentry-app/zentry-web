@@ -63,7 +63,7 @@ const BillingPeriodManager: React.FC<BillingPeriodManagerProps> = ({ residencial
         return (
             <div className="space-y-4 animate-pulse">
                 {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-20 bg-slate-800/40 rounded-xl" />
+                    <div key={i} className="h-20 bg-slate-100/60 rounded-xl" />
                 ))}
             </div>
         );
@@ -73,18 +73,18 @@ const BillingPeriodManager: React.FC<BillingPeriodManagerProps> = ({ residencial
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                        <Calendar className="w-5 h-5 text-blue-400" />
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <Calendar className="w-5 h-5 text-blue-500" />
                         Periodos de Facturación
                     </h3>
-                    <p className="text-sm text-slate-400">Historial y gestión de ciclos de cobranza mensual.</p>
+                    <p className="text-sm text-muted-foreground">Historial y gestión de ciclos de cobranza mensual.</p>
                 </div>
                 <div className="flex gap-3">
                     <Button
                         variant="outline"
                         size="sm"
                         onClick={loadPeriods}
-                        className="bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-300"
+                        className="bg-white/70 border-slate-200 hover:bg-slate-50 text-slate-600"
                     >
                         <RefreshCcw className="w-4 h-4 mr-2" />
                         Refrescar
@@ -101,19 +101,19 @@ const BillingPeriodManager: React.FC<BillingPeriodManagerProps> = ({ residencial
             </div>
 
             {error && (
-                <div className="p-4 bg-red-900/20 border border-red-800/30 rounded-xl text-red-400 text-sm flex items-center gap-3">
+                <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex items-center gap-3">
                     <AlertCircle className="w-5 h-5" />
                     {error}
                 </div>
             )}
 
-            <div className="glass-card rounded-2xl border border-white/5 overflow-hidden">
-                <div className="divide-y divide-white/5">
+            <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] border border-slate-200 shadow-zentry overflow-hidden">
+                <div className="divide-y divide-slate-100">
                     {periods.length === 0 ? (
                         <div className="p-12 text-center space-y-3">
-                            <Clock className="w-12 h-12 text-slate-700 mx-auto" />
-                            <p className="text-slate-500">No hay periodos registrados todavía.</p>
-                            <Button variant="link" onClick={handleCreateNew} className="text-blue-400">
+                            <Clock className="w-12 h-12 text-slate-300 mx-auto" />
+                            <p className="text-muted-foreground">No hay periodos registrados todavía.</p>
+                            <Button variant="link" onClick={handleCreateNew} className="text-blue-500">
                                 Crear el primer periodo operativo
                             </Button>
                         </div>
@@ -123,17 +123,17 @@ const BillingPeriodManager: React.FC<BillingPeriodManagerProps> = ({ residencial
                                 key={period.id}
                                 onClick={() => handleSelectPeriod(period)}
                                 className={`group flex items-center justify-between p-6 transition-all ${period.status === 'draft'
-                                        ? 'hover:bg-amber-500/5 cursor-pointer border-l-4 border-l-amber-500/50'
-                                        : 'hover:bg-white/5'
+                                        ? 'hover:bg-amber-50 cursor-pointer border-l-4 border-l-amber-400/50'
+                                        : 'hover:bg-slate-50'
                                     }`}
                             >
                                 <div className="flex items-center gap-4">
-                                    <div className={`p-3 rounded-xl ${period.status === 'published' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
+                                    <div className={`p-3 rounded-xl ${period.status === 'published' ? 'bg-emerald-50 text-emerald-500' : 'bg-amber-50 text-amber-500'
                                         }`}>
                                         <Calendar className="w-6 h-6" />
                                     </div>
                                     <div>
-                                        <h4 className="font-bold text-white text-lg">{period.name}</h4>
+                                        <h4 className="font-bold text-slate-800 text-lg">{period.name}</h4>
                                         <div className="flex items-center gap-3 mt-1 text-sm">
                                             <span className="text-slate-500">{period.id}</span>
                                             <Badge variant={period.status === 'published' ? 'success' : 'warning'} className="capitalize">
@@ -152,11 +152,11 @@ const BillingPeriodManager: React.FC<BillingPeriodManagerProps> = ({ residencial
                                         <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">
                                             {period.status === 'published' ? 'Recaudado' : 'Proyectado'}
                                         </p>
-                                        <p className={`font-bold ${period.status === 'published' ? 'text-emerald-400' : 'text-slate-300'}`}>
+                                        <p className={`font-bold ${period.status === 'published' ? 'text-emerald-600' : 'text-slate-600'}`}>
                                             {formatCurrency(period.status === 'published' ? period.totalCollectedCents : period.totalExpectedCents)}
                                         </p>
                                     </div>
-                                    <ChevronRight className={`w-5 h-5 transition-transform ${period.status === 'draft' ? 'text-amber-400 group-hover:translate-x-1' : 'text-slate-700'
+                                    <ChevronRight className={`w-5 h-5 transition-transform ${period.status === 'draft' ? 'text-amber-500 group-hover:translate-x-1' : 'text-slate-300'
                                         }`} />
                                 </div>
                             </div>
