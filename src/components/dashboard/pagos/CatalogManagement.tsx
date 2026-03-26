@@ -13,8 +13,8 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Package, AlertTriangle, Search, Plus, Loader2, Edit, Trash2 } from 'lucide-react';
-import { CatalogService, Product, PenaltyRule } from '@/lib/services/catalog-service';
+import { Package, AlertTriangle, Search, Plus, Loader2, Edit, Trash2, Building2, Zap, ShieldCheck, Phone, Mail, User, FileText } from 'lucide-react';
+import { CatalogService, Product, PenaltyRule, Supplier, SupplierCategory, SUPPLIER_CATEGORY_LABELS } from '@/lib/services/catalog-service';
 
 interface CatalogManagementProps {
     residencialId: string;
@@ -30,15 +30,18 @@ const CATEGORY_LABELS: Record<Product['category'], string> = {
 export default function CatalogManagement({ residencialId }: CatalogManagementProps) {
     const [products, setProducts] = useState<Product[]>([]);
     const [penaltyRules, setPenaltyRules] = useState<PenaltyRule[]>([]);
+    const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
     const [productDialog, setProductDialog] = useState(false);
     const [penaltyDialog, setPenaltyDialog] = useState(false);
-    const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; type: 'product' | 'penalty'; id: string } | null>(null);
+    const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; type: 'product' | 'penalty' | 'supplier'; id: string } | null>(null);
 
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [editingPenalty, setEditingPenalty] = useState<PenaltyRule | null>(null);
+    const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
 
     const defaultProduct: Omit<Product, 'id'> = {
         name: '', description: '', priceCents: 0, category: 'monthly', active: true,
@@ -46,22 +49,29 @@ export default function CatalogManagement({ residencialId }: CatalogManagementPr
     const defaultPenalty: Omit<PenaltyRule, 'id'> = {
         name: '', description: '', amountCents: 0, type: 'fixed', active: true,
     };
+    const defaultSupplier: Omit<Supplier, 'id'> = {
+        name: '', category: 'maintenance' as SupplierCategory, contactName: '', phone: '', email: '', rfc: '', bankAccount: '', notes: '', active: true,
+    };
 
     const [productForm, setProductForm] = useState(defaultProduct);
     const [penaltyForm, setPenaltyForm] = useState(defaultPenalty);
+    const [supplierForm, setSupplierForm] = useState(defaultSupplier);
 
     const loadCatalogs = useCallback(async () => {
         setLoading(true);
         console.log('[CatalogManagement] Loading for residencialId:', residencialId);
         try {
-            const [prodRes, rulesRes] = await Promise.allSettled([
+            const [prodRes, rulesRes, suppRes] = await Promise.allSettled([
                 CatalogService.getProducts(residencialId),
                 CatalogService.getPenaltyRules(residencialId),
+                CatalogService.getSuppliers(residencialId),
             ]);
             console.log('[CatalogManagement] Products:', prodRes.status, prodRes.status === 'fulfilled' ? prodRes.value.length : (prodRes as any).reason?.message);
             console.log('[CatalogManagement] Rules:', rulesRes.status, rulesRes.status === 'fulfilled' ? rulesRes.value.length : (rulesRes as any).reason?.message);
+            console.log('[CatalogManagement] Suppliers:', suppRes.status, suppRes.status === 'fulfilled' ? suppRes.value.length : (suppRes as any).reason?.message);
             if (prodRes.status === 'fulfilled') setProducts(prodRes.value);
             if (rulesRes.status === 'fulfilled') setPenaltyRules(rulesRes.value);
+            if (suppRes.status === 'fulfilled') setSuppliers(suppRes.value);
         } catch (error) {
             console.error('[CatalogManagement] Error:', error);
         } finally {
@@ -115,13 +125,36 @@ export default function CatalogManagement({ residencialId }: CatalogManagementPr
         }
     };
 
+    const handleSaveSupplier = async () => {
+        if (!supplierForm.name) {
+            toast.warning('El nombre del proveedor es requerido');
+            return;
+        }
+        try {
+            if (editingSupplier) {
+                await CatalogService.updateSupplier(residencialId, editingSupplier.id, supplierForm);
+                toast.success('Proveedor actualizado');
+            } else {
+                await CatalogService.addSupplier(residencialId, supplierForm);
+                toast.success('Proveedor creado');
+            }
+            setSupplierDialogOpen(false);
+            loadCatalogs();
+        } catch (error) {
+            console.error('Error saving supplier:', error);
+            toast.error('Error al guardar proveedor');
+        }
+    };
+
     const handleDelete = async () => {
         if (!deleteConfirm) return;
         try {
             if (deleteConfirm.type === 'product') {
                 await CatalogService.deleteProduct(residencialId, deleteConfirm.id);
-            } else {
+            } else if (deleteConfirm.type === 'penalty') {
                 await CatalogService.deletePenaltyRule(residencialId, deleteConfirm.id);
+            } else {
+                await CatalogService.deleteSupplier(residencialId, deleteConfirm.id);
             }
             toast.success('Elemento eliminado');
             setDeleteConfirm(null);
@@ -134,6 +167,17 @@ export default function CatalogManagement({ residencialId }: CatalogManagementPr
 
     const filteredProducts = products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
     const filteredPenalties = penaltyRules.filter(r => r.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredSuppliers = suppliers.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const SUPPLIER_CATEGORY_ICONS: Record<SupplierCategory, React.ReactNode> = {
+        maintenance: <Building2 className="w-4 h-4" />,
+        utilities: <Zap className="w-4 h-4" />,
+        security: <ShieldCheck className="w-4 h-4" />,
+        cleaning: <Trash2 className="w-4 h-4" />,
+        construction: <Building2 className="w-4 h-4" />,
+        technology: <Zap className="w-4 h-4" />,
+        other: <FileText className="w-4 h-4" />,
+    };
 
     const displayPrice = (cents: number) => `$${(cents / 100).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
 
@@ -168,12 +212,15 @@ export default function CatalogManagement({ residencialId }: CatalogManagementPr
 
             {/* Tabs */}
             <Tabs defaultValue="products" className="w-full">
-                <TabsList className="grid w-full max-w-md grid-cols-2 rounded-2xl bg-white/80 p-1 h-14 shadow-zentry border border-slate-100">
+                <TabsList className="grid w-full max-w-2xl grid-cols-3 rounded-2xl bg-white/80 p-1 h-14 shadow-zentry border border-slate-100">
                     <TabsTrigger value="products" className="rounded-xl h-12 font-bold data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
                         <Package className="w-4 h-4 mr-2" /> Productos y Cuotas
                     </TabsTrigger>
                     <TabsTrigger value="penalties" className="rounded-xl h-12 font-bold data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
                         <AlertTriangle className="w-4 h-4 mr-2" /> Reglas y Multas
+                    </TabsTrigger>
+                    <TabsTrigger value="suppliers" className="rounded-xl h-12 font-bold data-[state=active]:bg-green-50 data-[state=active]:text-green-700">
+                        <Building2 className="w-4 h-4 mr-2" /> Proveedores
                     </TabsTrigger>
                 </TabsList>
 
@@ -265,6 +312,63 @@ export default function CatalogManagement({ residencialId }: CatalogManagementPr
                                 ))}
                                 {filteredPenalties.length === 0 && (
                                     <div className="col-span-full text-center py-10 text-slate-400 font-medium">No se encontraron reglas configuradas.</div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* Suppliers Tab */}
+                <TabsContent value="suppliers" className="mt-6">
+                    <Card className="rounded-[2rem] border-none shadow-zentry bg-white/80">
+                        <CardHeader className="flex flex-row items-center justify-between p-8 pb-4">
+                            <div>
+                                <CardTitle className="text-xl font-bold">Proveedores</CardTitle>
+                                <CardDescription>Gestiona los proveedores de servicios de tu residencial.</CardDescription>
+                            </div>
+                            <Button
+                                onClick={() => { setEditingSupplier(null); setSupplierForm(defaultSupplier); setSupplierDialogOpen(true); }}
+                                className="rounded-full bg-green-600 hover:bg-green-700 h-11 px-6 shadow-md hover:shadow-lg transition-all"
+                            >
+                                <Plus className="w-4 h-4 mr-2" /> Nuevo Proveedor
+                            </Button>
+                        </CardHeader>
+                        <CardContent className="p-8 pt-0">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                                {filteredSuppliers.map((supplier) => (
+                                    <div key={supplier.id} className="group relative bg-green-50/50 border border-green-100 p-5 rounded-2xl hover:shadow-md transition-all">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="font-bold text-slate-800">{supplier.name}</div>
+                                            <div className={`px-2 py-1 text-[10px] font-black uppercase rounded-full ${supplier.active ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>
+                                                {supplier.active ? 'Activo' : 'Inactivo'}
+                                            </div>
+                                        </div>
+                                        <div className="text-xs text-green-600 font-medium mb-2 flex items-center gap-1">
+                                            {SUPPLIER_CATEGORY_ICONS[supplier.category]}
+                                            {SUPPLIER_CATEGORY_LABELS[supplier.category]}
+                                        </div>
+                                        {supplier.phone && (
+                                            <div className="text-sm text-slate-500 flex items-center gap-1.5 mb-1">
+                                                <Phone className="w-3 h-3" /> {supplier.phone}
+                                            </div>
+                                        )}
+                                        {supplier.email && (
+                                            <div className="text-sm text-slate-500 flex items-center gap-1.5 mb-1">
+                                                <Mail className="w-3 h-3" /> {supplier.email}
+                                            </div>
+                                        )}
+                                        <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                                            <Button size="icon" variant="secondary" className="h-8 w-8 rounded-full shadow-sm bg-white hover:bg-slate-100" onClick={() => { setEditingSupplier(supplier); setSupplierForm(supplier); setSupplierDialogOpen(true); }}>
+                                                <Edit className="h-4 w-4 text-green-600" />
+                                            </Button>
+                                            <Button size="icon" variant="destructive" className="h-8 w-8 rounded-full shadow-sm" onClick={() => setDeleteConfirm({ isOpen: true, type: 'supplier', id: supplier.id })}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                                {filteredSuppliers.length === 0 && (
+                                    <div className="col-span-full text-center py-10 text-slate-400 font-medium">No se encontraron proveedores.</div>
                                 )}
                             </div>
                         </CardContent>
@@ -370,6 +474,78 @@ export default function CatalogManagement({ residencialId }: CatalogManagementPr
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setPenaltyDialog(false)} className="rounded-xl h-11">Cancelar</Button>
                         <Button onClick={handleSavePenalty} className="rounded-xl h-11 bg-orange-600 hover:bg-orange-700">Guardar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Supplier Dialog */}
+            <Dialog open={supplierDialogOpen} onOpenChange={setSupplierDialogOpen}>
+                <DialogContent className="rounded-[2rem] border-none shadow-2xl p-8 max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl text-green-600">{editingSupplier ? 'Editar Proveedor' : 'Nuevo Proveedor'}</DialogTitle>
+                        <DialogDescription>Datos del proveedor de servicios.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+                        <div className="space-y-2">
+                            <Label>Nombre *</Label>
+                            <Input placeholder="Ej. Jardineria Lopez" value={supplierForm.name} onChange={e => setSupplierForm({ ...supplierForm, name: e.target.value })} className="h-11 rounded-xl" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Categoria</Label>
+                            <div className="grid grid-cols-3 gap-2">
+                                {(Object.keys(SUPPLIER_CATEGORY_LABELS) as SupplierCategory[]).map((cat) => (
+                                    <button
+                                        key={cat}
+                                        type="button"
+                                        onClick={() => setSupplierForm({ ...supplierForm, category: cat })}
+                                        className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 text-xs font-semibold transition-all ${
+                                            supplierForm.category === cat
+                                                ? 'border-green-500 bg-green-50 text-green-700'
+                                                : 'border-slate-100 bg-slate-50 text-slate-500 hover:border-slate-200'
+                                        }`}
+                                    >
+                                        {SUPPLIER_CATEGORY_ICONS[cat]}
+                                        {SUPPLIER_CATEGORY_LABELS[cat]}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Nombre de Contacto</Label>
+                            <Input placeholder="Opcional" value={supplierForm.contactName} onChange={e => setSupplierForm({ ...supplierForm, contactName: e.target.value })} className="h-11 rounded-xl" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Telefono</Label>
+                                <Input placeholder="Opcional" value={supplierForm.phone} onChange={e => setSupplierForm({ ...supplierForm, phone: e.target.value })} className="h-11 rounded-xl" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Email</Label>
+                                <Input placeholder="Opcional" value={supplierForm.email} onChange={e => setSupplierForm({ ...supplierForm, email: e.target.value })} className="h-11 rounded-xl" />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>RFC</Label>
+                                <Input placeholder="Para facturacion" value={supplierForm.rfc} onChange={e => setSupplierForm({ ...supplierForm, rfc: e.target.value })} className="h-11 rounded-xl" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Cuenta Bancaria</Label>
+                                <Input placeholder="CLABE o cuenta" value={supplierForm.bankAccount} onChange={e => setSupplierForm({ ...supplierForm, bankAccount: e.target.value })} className="h-11 rounded-xl" />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Notas</Label>
+                            <Input placeholder="Opcional" value={supplierForm.notes} onChange={e => setSupplierForm({ ...supplierForm, notes: e.target.value })} className="h-11 rounded-xl" />
+                        </div>
+                        <div className="flex items-center space-x-2 pt-2">
+                            <Switch checked={supplierForm.active} onCheckedChange={c => setSupplierForm({ ...supplierForm, active: c })} id="active-supplier" />
+                            <Label htmlFor="active-supplier">Proveedor Activo</Label>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setSupplierDialogOpen(false)} className="rounded-xl h-11">Cancelar</Button>
+                        <Button onClick={handleSaveSupplier} className="rounded-xl h-11 bg-green-600 hover:bg-green-700">Guardar</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
