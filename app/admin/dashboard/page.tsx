@@ -54,17 +54,8 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     fetchStats();
-
-    // Suscribirse a actualizaciones en tiempo real
-    const unsubscribe = AdminService.subscribeToSystemStats((updatedStats) => {
-      console.log('Actualización de estadísticas en tiempo real:', updatedStats);
-      setStats(updatedStats);
-      setLoading(false);
-    });
-
-    return () => {
-      unsubscribe();
-    };
+    // Real-time listeners removed — too expensive for large datasets.
+    // Use manual refresh button instead.
   }, [fetchStats]);
 
   const handleRefresh = async () => {

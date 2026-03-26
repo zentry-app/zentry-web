@@ -89,53 +89,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     };
   }, [user?.uid, userClaims]);
 
-  // Iniciar listener automático de mensajes nuevos (para detectar mensajes de Flutter)
-  useEffect(() => {
-    if (!user?.uid || !userClaims) {
-      return;
-    }
-
-    // Obtener el residencialId del usuario
-    const getResidencialId = async () => {
-      try {
-        const esGlobal = userClaims.isGlobalAdmin === true;
-        const esAdminResid = userClaims.role === 'admin' && !esGlobal;
-
-        let residencialId: string | null = null;
-
-        if (esAdminResid) {
-          // Para admin de residencial
-          const codigoResidencial = userClaims.managedResidencials?.[0] || userClaims.residencialId;
-          if (codigoResidencial) {
-            residencialId = await resolveResidencialDocId(codigoResidencial);
-          }
-        } else if (userClaims.residencialId) {
-          // Para usuarios normales
-          residencialId = await resolveResidencialDocId(userClaims.residencialId);
-        }
-
-        if (residencialId) {
-          // Iniciar el listener automático
-          const unsubscribe = MessageListenerService.startListening(user.uid, residencialId);
-          return unsubscribe;
-        }
-      } catch (error) {
-        console.error('Error iniciando listener de mensajes:', error);
-      }
-      return undefined;
-    };
-
-    let cleanup: (() => void) | undefined;
-    getResidencialId().then((unsubscribe) => {
-      cleanup = unsubscribe;
-    });
-
-    return () => {
-      if (cleanup) {
-        cleanup();
-      }
-    };
-  }, [user?.uid, userClaims]);
+  // Message listener disabled — was opening 1 onSnapshot per chat (50+ listeners).
+  // Chat notifications are already handled by Cloud Functions (onChatMessageCreated).
+  // Re-enable only if real-time message detection is needed in the web UI.
 
   // Cargar conteos críticos para admin de residencial
   useEffect(() => {

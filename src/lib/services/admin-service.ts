@@ -1,12 +1,13 @@
-import { 
-  collection, 
-  doc, 
-  getDoc, 
-  getDocs, 
-  query, 
-  where, 
-  updateDoc, 
-  addDoc, 
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  getCountFromServer,
+  query,
+  where,
+  updateDoc,
+  addDoc,
   Timestamp,
   arrayUnion,
   arrayRemove,
@@ -46,9 +47,9 @@ export const AdminService = {
       // Query para usuarios residentes (todos los estados)
       const residentesQuery = query(usersRef, where('role', '==', 'resident'));
       
-      console.log('[AdminService] Ejecutando consultas para obtener estadísticas');
-      
-      // Ejecutar todas las consultas en paralelo
+      console.log('[AdminService] Ejecutando consultas (count only — no document reads)');
+
+      // Use getCountFromServer to avoid reading ALL documents
       const [
         residencialesSnap,
         adminsSnap,
@@ -56,19 +57,19 @@ export const AdminService = {
         pendingUsersSnap,
         residentesSnap
       ] = await Promise.all([
-        getDocs(residencialesRef),
-        getDocs(adminsQuery),
-        getDocs(globalAdminsQuery),
-        getDocs(pendingUsersQuery),
-        getDocs(residentesQuery)
+        getCountFromServer(residencialesRef),
+        getCountFromServer(adminsQuery),
+        getCountFromServer(globalAdminsQuery),
+        getCountFromServer(pendingUsersQuery),
+        getCountFromServer(residentesQuery)
       ]);
-      
+
       const stats = {
-        totalResidentes: residentesSnap.size,
-        totalResidenciales: residencialesSnap.size,
-        totalAdmins: adminsSnap.size,
-        globalAdmins: globalAdminsSnap.size,
-        pendingUsers: pendingUsersSnap.size
+        totalResidentes: residentesSnap.data().count,
+        totalResidenciales: residencialesSnap.data().count,
+        totalAdmins: adminsSnap.data().count,
+        globalAdmins: globalAdminsSnap.data().count,
+        pendingUsers: pendingUsersSnap.data().count
       };
       
       console.log('[AdminService] Estadísticas obtenidas:', stats);
