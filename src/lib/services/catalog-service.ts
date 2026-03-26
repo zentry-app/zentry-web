@@ -1,35 +1,35 @@
 import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase/firestore';
+import { db } from '@/lib/firebase/config';
 
-export interface ProductoCatalog {
+export interface Product {
     id: string;
-    nombre: string;
-    descripcion: string;
-    precioSugerido: number;
-    tipo: 'unico' | 'recurrente';
-    activo: boolean;
+    name: string;
+    description: string;
+    priceCents: number;
+    category: 'access' | 'amenity' | 'service' | 'monthly';
+    active: boolean;
     createdAt?: any;
 }
 
-export interface MultaCatalog {
+export interface PenaltyRule {
     id: string;
-    nombre: string;
-    descripcion: string;
-    monto: number;
-    tipo: 'fija' | 'porcentaje';
-    activo: boolean;
+    name: string;
+    description: string;
+    amountCents: number;
+    type: 'fixed' | 'percentage';
+    active: boolean;
     createdAt?: any;
 }
 
 export class CatalogService {
-    // Productos
-    static async getProductos(residencialId: string): Promise<ProductoCatalog[]> {
-        const q = query(collection(db, `residenciales/${residencialId}/productos`), orderBy('nombre'));
+    // Products
+    static async getProducts(residencialId: string): Promise<Product[]> {
+        const q = query(collection(db, `residenciales/${residencialId}/productos`), orderBy('name'));
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductoCatalog));
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
     }
 
-    static async addProducto(residencialId: string, data: Omit<ProductoCatalog, 'id'>): Promise<string> {
+    static async addProduct(residencialId: string, data: Omit<Product, 'id'>): Promise<string> {
         const docRef = await addDoc(collection(db, `residenciales/${residencialId}/productos`), {
             ...data,
             createdAt: serverTimestamp()
@@ -37,38 +37,38 @@ export class CatalogService {
         return docRef.id;
     }
 
-    static async updateProducto(residencialId: string, id: string, data: Partial<ProductoCatalog>): Promise<void> {
+    static async updateProduct(residencialId: string, id: string, data: Partial<Product>): Promise<void> {
         const docRef = doc(db, `residenciales/${residencialId}/productos/${id}`);
         await updateDoc(docRef, data);
     }
 
-    static async deleteProducto(residencialId: string, id: string): Promise<void> {
+    static async deleteProduct(residencialId: string, id: string): Promise<void> {
         const docRef = doc(db, `residenciales/${residencialId}/productos/${id}`);
         await deleteDoc(docRef);
     }
 
-    // Multas
-    static async getMultas(residencialId: string): Promise<MultaCatalog[]> {
-        const q = query(collection(db, `residenciales/${residencialId}/multas`), orderBy('nombre'));
+    // Penalty Rules
+    static async getPenaltyRules(residencialId: string): Promise<PenaltyRule[]> {
+        const q = query(collection(db, `residenciales/${residencialId}/penaltyRules`), orderBy('name'));
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MultaCatalog));
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PenaltyRule));
     }
 
-    static async addMulta(residencialId: string, data: Omit<MultaCatalog, 'id'>): Promise<string> {
-        const docRef = await addDoc(collection(db, `residenciales/${residencialId}/multas`), {
+    static async addPenaltyRule(residencialId: string, data: Omit<PenaltyRule, 'id'>): Promise<string> {
+        const docRef = await addDoc(collection(db, `residenciales/${residencialId}/penaltyRules`), {
             ...data,
             createdAt: serverTimestamp()
         });
         return docRef.id;
     }
 
-    static async updateMulta(residencialId: string, id: string, data: Partial<MultaCatalog>): Promise<void> {
-        const docRef = doc(db, `residenciales/${residencialId}/multas/${id}`);
+    static async updatePenaltyRule(residencialId: string, id: string, data: Partial<PenaltyRule>): Promise<void> {
+        const docRef = doc(db, `residenciales/${residencialId}/penaltyRules/${id}`);
         await updateDoc(docRef, data);
     }
 
-    static async deleteMulta(residencialId: string, id: string): Promise<void> {
-        const docRef = doc(db, `residenciales/${residencialId}/multas/${id}`);
+    static async deletePenaltyRule(residencialId: string, id: string): Promise<void> {
+        const docRef = doc(db, `residenciales/${residencialId}/penaltyRules/${id}`);
         await deleteDoc(docRef);
     }
 }
