@@ -39,3 +39,6 @@ temp_*
 debug_*
 *.backup
 *.old
+.env.staging.local
+.env.local.prod-backup
+*.env.*.local
