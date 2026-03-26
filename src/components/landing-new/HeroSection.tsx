@@ -1,20 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import Link from 'next/link';
-import { motion } from 'framer-motion';
 import StoreBadges from './StoreBadges';
-// 🚀 OPTIMIZACIÓN CRÍTICA: Lazy load Three.js shader DESPUÉS del LCP
-// Cargar solo después de 3 segundos para no bloquear el render inicial
-const InteractiveNebulaShader = dynamic(
-  () => import('../ui/InteractiveNebulaShader').then((m) => m.InteractiveNebulaShader),
-  {
-    ssr: false,
-    loading: () => <div className="absolute inset-0 bg-[#0070FF]" /> // Fallback simple
-  }
-);
+import { InteractiveNebulaShader } from '../ui/InteractiveNebulaShader';
 
 
 
@@ -67,26 +56,11 @@ const AnimatedWord = ({ words }: { words: string[] }) => {
 };
 
 const HeroSection = () => {
-  // 🚀 OPTIMIZACIÓN: Cargar shader solo después de 3 segundos
-  const [showShader, setShowShader] = useState(false);
-
-  useEffect(() => {
-    // Esperar 3 segundos después del mount para cargar el shader
-    const timer = setTimeout(() => {
-      setShowShader(true);
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
   return (
     <section className="relative overflow-hidden flex items-center justify-center min-h-screen pt-24 pb-4 md:pt-32 md:pb-8 text-white">
-      {/* Background with Interactive Shader */}
+      {/* Background — shader loads as part of initial bundle, no flash */}
       <div className="absolute inset-0 z-0">
-        <div className="absolute inset-0 bg-[#0070FF]" /> {/* Exact Zentry Blue fallback */}
-        {/* 🚀 Solo cargar shader después de 3s */}
-        {showShader && <InteractiveNebulaShader className="opacity-90" disableCenterDimming={true} />}
-        {/* Subtle glassmorphism overlay for text contrast and section blending */}
+        <InteractiveNebulaShader className="opacity-90" disableCenterDimming={true} />
         <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-white" />
       </div>
 
@@ -125,18 +99,8 @@ const HeroSection = () => {
                 {/* Spotlight suave detrás de la imagen con colores de marca */}
                 <div className="absolute inset-0 bg-gradient-radial from-blue-400/40 via-blue-500/20 to-transparent rounded-full blur-3xl scale-150"></div>
 
-                {/* Imagen Hero con animación flotante */}
-                <motion.div
-                  className="relative z-10"
-                  animate={{
-                    y: [0, -10, 0],
-                  }}
-                  transition={{
-                    duration: 3,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  }}
-                >
+                {/* Imagen Hero con animación flotante (CSS puro) */}
+                <div className="relative z-10 animate-float">
                   <Image
                     src="/assets/HeroImage.webp"
                     alt="Zentry App - La mejor aplicación para residenciales"
@@ -146,7 +110,7 @@ const HeroSection = () => {
                     className="w-[300px] sm:w-[400px] md:w-[500px] lg:w-[750px] xl:w-[850px] h-auto object-contain drop-shadow-2xl"
                     priority
                   />
-                </motion.div>
+                </div>
               </div>
             </div>
           </div>

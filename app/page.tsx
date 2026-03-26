@@ -1,5 +1,3 @@
-"use client";
-
 import dynamic from "next/dynamic";
 import Navbar from "@/components/landing-new/Navbar";
 import HeroSection from "@/components/landing-new/HeroSection";

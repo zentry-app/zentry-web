@@ -203,6 +203,26 @@ body {
   }
 }
 
+/* Hero float animation (reemplaza framer-motion) */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Shader fade-in */
+@keyframes shader-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: shader-fade-in 0.8s ease-out forwards;
+}
+
 /* Animaciones personalizadas */
 @keyframes fadeIn {
   from {
