@@ -1,45 +1,42 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { db } from '@/lib/firebase/config';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { toast } from 'sonner';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Settings, Save, Loader2 } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { db } from "@/lib/firebase/config";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { toast } from "sonner";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Settings, Save, Loader2, DollarSign, Calendar, Clock, AlertTriangle, Shield, Zap,
+} from "lucide-react";
 
-interface Props { residencialId: string }
-
-export default function BillingSettings({ residencialId }: Props) {
+export default function BillingSettings({ residencialId }: { residencialId: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [monthlyFee, setMonthlyFee] = useState(1150);
   const [billingDay, setBillingDay] = useState(1);
   const [dueDay, setDueDay] = useState(10);
-  const [lateFeeType, setLateFeeType] = useState<'fixed' | 'percentage'>('fixed');
+  const [lateFeeType, setLateFeeType] = useState<"fixed" | "percentage">("fixed");
   const [lateFeeValue, setLateFeeValue] = useState(200);
   const [autoLateFee, setAutoLateFee] = useState(true);
 
   useEffect(() => {
-    async function load() {
-      try {
-        const snap = await getDoc(doc(db, `residenciales/${residencialId}/settings/billing`));
+    getDoc(doc(db, `residenciales/${residencialId}/settings/billing`))
+      .then(snap => {
         if (snap.exists()) {
           const d = snap.data();
           setMonthlyFee((d.defaultMonthlyFeeCents ?? 115000) / 100);
           setBillingDay(d.billingDayOfMonth ?? 1);
           setDueDay(d.dueDayOfMonth ?? 10);
-          setLateFeeType(d.lateFeeType ?? 'fixed');
-          setLateFeeValue(d.lateFeeType === 'percentage' ? (d.lateFeeValue ?? 0) : (d.lateFeeValue ?? 20000) / 100);
+          setLateFeeType(d.lateFeeType ?? "fixed");
+          setLateFeeValue(d.lateFeeType === "percentage" ? (d.lateFeeValue ?? 0) : (d.lateFeeValue ?? 20000) / 100);
           setAutoLateFee(d.applyLateFeeAutomatically ?? true);
         }
-      } catch (e) {
-        toast.error('Error al cargar configuración de cobros');
-      } finally { setLoading(false); }
-    }
-    load();
+      })
+      .catch(() => toast.error("Error al cargar configuración"))
+      .finally(() => setLoading(false));
   }, [residencialId]);
 
   const handleSave = async () => {
@@ -50,94 +47,158 @@ export default function BillingSettings({ residencialId }: Props) {
         billingDayOfMonth: billingDay,
         dueDayOfMonth: dueDay,
         lateFeeType,
-        lateFeeValue: lateFeeType === 'percentage' ? lateFeeValue : Math.round(lateFeeValue * 100),
+        lateFeeValue: lateFeeType === "percentage" ? lateFeeValue : Math.round(lateFeeValue * 100),
         applyLateFeeAutomatically: autoLateFee,
       }, { merge: true });
-      toast.success('Configuración guardada correctamente');
-    } catch (e) {
-      toast.error('Error al guardar configuración');
-    } finally { setSaving(false); }
+      toast.success("Configuración guardada");
+    } catch { toast.error("Error al guardar"); }
+    finally { setSaving(false); }
   };
-
-  const clampDay = (v: number) => Math.max(1, Math.min(28, v));
 
   if (loading) {
     return (
-      <Card className="shadow-zentry rounded-[2rem]">
-        <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
+      <div className="space-y-5">
+        <Skeleton className="h-8 w-48" />
+        <div className="grid gap-4 grid-cols-2"><Skeleton className="h-32 rounded-xl" /><Skeleton className="h-32 rounded-xl" /></div>
+      </div>
     );
   }
 
   return (
-    <Card className="shadow-zentry rounded-[2rem]">
-      <CardHeader className="flex flex-row items-center gap-3">
-        <Settings className="h-5 w-5 text-primary" />
-        <CardTitle className="text-lg">Configuraci&oacute;n de cobros</CardTitle>
-        <Badge variant="secondary" className="ml-auto">Billing</Badge>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        {/* Cuota mensual */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-muted-foreground">Cuota mensual (MXN)</label>
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-xl font-black text-slate-900">Configuración de Cobros</h3>
+        <p className="text-sm text-muted-foreground">Variables del sistema de cobro de la comunidad</p>
+      </div>
+
+      {/* Main fee */}
+      <Card className="border-none shadow-sm bg-gradient-to-br from-blue-50 to-white rounded-xl overflow-hidden">
+        <CardContent className="pt-5 pb-5">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="h-10 w-10 rounded-xl bg-blue-500 flex items-center justify-center shadow-sm">
+              <DollarSign className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <p className="font-black text-slate-900">Cuota mensual</p>
+              <p className="text-xs text-muted-foreground">Monto que se cobra a cada vivienda por mes</p>
+            </div>
+          </div>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-            <Input type="number" min={0} step={0.01} className="pl-7"
-              value={monthlyFee} onChange={e => setMonthlyFee(parseFloat(e.target.value) || 0)} />
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 font-black text-xl">$</span>
+            <Input type="number" min={0} value={monthlyFee} onChange={e => setMonthlyFee(parseFloat(e.target.value) || 0)}
+              className="h-14 rounded-xl font-black text-2xl text-blue-700 pl-9 border-blue-200 focus:ring-blue-500/20 focus:border-blue-400" />
           </div>
-        </div>
+          <p className="text-[10px] text-muted-foreground mt-2 ml-1">Equivalente a {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(monthlyFee)} MXN por vivienda</p>
+        </CardContent>
+      </Card>
 
-        {/* Días */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-muted-foreground">D&iacute;a de cobro</label>
-            <Input type="number" min={1} max={28}
-              value={billingDay} onChange={e => setBillingDay(clampDay(parseInt(e.target.value) || 1))} />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-muted-foreground">D&iacute;a de vencimiento</label>
-            <Input type="number" min={1} max={28}
-              value={dueDay} onChange={e => setDueDay(clampDay(parseInt(e.target.value) || 1))} />
-          </div>
-        </div>
+      {/* Billing days */}
+      <div className="grid gap-4 grid-cols-2">
+        <Card className="border-none shadow-sm bg-white rounded-xl">
+          <CardContent className="pt-5 pb-5">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-8 w-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <Calendar className="h-4 w-4 text-emerald-600" />
+              </div>
+              <div>
+                <p className="font-bold text-sm text-slate-900">Día de cobro</p>
+                <p className="text-[10px] text-muted-foreground">Día del mes que se genera el cargo</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input type="number" min={1} max={28} value={billingDay}
+                onChange={e => setBillingDay(Math.max(1, Math.min(28, parseInt(e.target.value) || 1)))}
+                className="h-12 rounded-xl font-black text-lg text-center w-20" />
+              <span className="text-sm text-muted-foreground">de cada mes</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-none shadow-sm bg-white rounded-xl">
+          <CardContent className="pt-5 pb-5">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-8 w-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                <Clock className="h-4 w-4 text-amber-600" />
+              </div>
+              <div>
+                <p className="font-bold text-sm text-slate-900">Día de vencimiento</p>
+                <p className="text-[10px] text-muted-foreground">Fecha límite para pagar sin recargo</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input type="number" min={1} max={28} value={dueDay}
+                onChange={e => setDueDay(Math.max(1, Math.min(28, parseInt(e.target.value) || 1)))}
+                className="h-12 rounded-xl font-black text-lg text-center w-20" />
+              <span className="text-sm text-muted-foreground">de cada mes</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-        {/* Recargos */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-muted-foreground">Tipo de recargo</label>
-            <select className="flex h-11 w-full rounded-xl border border-input bg-background/50 px-4 py-2 text-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-              value={lateFeeType} onChange={e => setLateFeeType(e.target.value as 'fixed' | 'percentage')}>
-              <option value="fixed">Fijo</option>
-              <option value="percentage">Porcentaje</option>
-            </select>
+      {/* Late fees */}
+      <Card className="border-none shadow-sm bg-white rounded-xl">
+        <CardContent className="pt-5 pb-5">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="h-10 w-10 rounded-xl bg-red-100 flex items-center justify-center">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+            </div>
+            <div>
+              <p className="font-black text-slate-900">Recargos por mora</p>
+              <p className="text-xs text-muted-foreground">Penalización que se aplica después del vencimiento</p>
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-muted-foreground">
-              Valor del recargo {lateFeeType === 'percentage' ? '(%)' : '(MXN)'}
-            </label>
-            <Input type="number" min={0} step={lateFeeType === 'percentage' ? 1 : 0.01}
-              value={lateFeeValue} onChange={e => setLateFeeValue(parseFloat(e.target.value) || 0)} />
+
+          <div className="grid gap-4 grid-cols-2 mb-4">
+            <div>
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Tipo de recargo</label>
+              <div className="flex gap-2 mt-1.5">
+                <button onClick={() => setLateFeeType("fixed")}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                    lateFeeType === "fixed" ? "bg-red-600 text-white shadow-sm" : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                  }`}>$ Monto fijo</button>
+                <button onClick={() => setLateFeeType("percentage")}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                    lateFeeType === "percentage" ? "bg-red-600 text-white shadow-sm" : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                  }`}>% Porcentaje</button>
+              </div>
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                {lateFeeType === "percentage" ? "Porcentaje (%)" : "Monto ($)"}
+              </label>
+              <div className="relative mt-1.5">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">
+                  {lateFeeType === "percentage" ? "%" : "$"}
+                </span>
+                <Input type="number" min={0} value={lateFeeValue}
+                  onChange={e => setLateFeeValue(parseFloat(e.target.value) || 0)}
+                  className="h-12 rounded-xl font-bold text-lg pl-8" />
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Toggle automático */}
-        <div className="flex items-center justify-between rounded-xl border border-input bg-background/50 px-4 py-3">
-          <span className="text-sm font-medium">Aplicar recargos autom&aacute;ticamente</span>
-          <button type="button" role="switch" aria-checked={autoLateFee}
-            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${autoLateFee ? 'bg-primary' : 'bg-muted'}`}
-            onClick={() => setAutoLateFee(!autoLateFee)}>
-            <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform duration-200 ${autoLateFee ? 'translate-x-5' : 'translate-x-0'}`} />
-          </button>
-        </div>
+          {/* Auto toggle */}
+          <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50 border border-slate-100">
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-amber-500" />
+              <div>
+                <p className="text-sm font-bold text-slate-800">Aplicar recargos automáticamente</p>
+                <p className="text-[10px] text-muted-foreground">El sistema aplicará el recargo el día 6 de cada mes</p>
+              </div>
+            </div>
+            <button onClick={() => setAutoLateFee(!autoLateFee)}
+              className={`relative h-7 w-12 rounded-full transition-colors ${autoLateFee ? "bg-emerald-500" : "bg-slate-300"}`}>
+              <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-md transition-transform ${autoLateFee ? "translate-x-5" : "translate-x-0.5"}`} />
+            </button>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Save */}
-        <Button className="w-full" onClick={handleSave} disabled={saving}>
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {saving ? 'Guardando...' : 'Guardar configuraci\u00f3n'}
-        </Button>
-      </CardContent>
-    </Card>
+      {/* Save */}
+      <Button className="w-full h-12 rounded-xl font-black text-base bg-slate-900 hover:bg-slate-800 shadow-sm"
+        onClick={handleSave} disabled={saving}>
+        {saving ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : <Save className="h-5 w-5 mr-2" />}
+        {saving ? "Guardando..." : "Guardar configuración"}
+      </Button>
+    </div>
   );
 }
