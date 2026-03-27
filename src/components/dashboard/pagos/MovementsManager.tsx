@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { db } from "@/lib/firebase/config";
-import { collection, getDocs, addDoc, query, orderBy, limit, Timestamp, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, addDoc, doc, updateDoc, query, orderBy, limit, Timestamp, serverTimestamp } from "firebase/firestore";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Plus, TrendingUp, TrendingDown, DollarSign, Loader2, Search,
   Receipt, Wallet, Building2, Zap, ShieldCheck, Trash2, Calendar,
-  Check, Pencil,
+  Check, Pencil, RotateCcw, Ban,
 } from "lucide-react";
 import { CatalogService, Supplier, SUPPLIER_CATEGORY_LABELS } from "@/lib/services/catalog-service";
 
@@ -33,6 +33,10 @@ interface Movement {
   reference?: string;
   createdBy: string;
   createdAt: Timestamp;
+  status?: "active" | "voided";
+  voidedReason?: string;
+  voidedAt?: Timestamp;
+  voidedBy?: string;
 }
 
 const EXPENSE_CATEGORIES = [
@@ -79,6 +83,9 @@ export default function MovementsManager({ residencialId }: { residencialId: str
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [supplierMode, setSupplierMode] = useState<"catalog" | "custom">("catalog");
+  const [voidTarget, setVoidTarget] = useState<Movement | null>(null);
+  const [voidReason, setVoidReason] = useState("");
+  const [voiding, setVoiding] = useState(false);
   const [form, setForm] = useState({
     type: "income" as "income" | "expense",
     category: "",
@@ -120,6 +127,12 @@ export default function MovementsManager({ residencialId }: { residencialId: str
     setForm({ type, category: "", description: "", amount: "", date: new Date().toISOString().slice(0, 10), method: "cash", supplierId: "", supplierName: "", reference: "" });
     setSupplierMode("catalog");
     setDialogOpen(true);
+    // Refresh suppliers each time dialog opens (in case new ones were added in Administración)
+    if (type === "expense") {
+      CatalogService.getSuppliers(residencialId)
+        .then(all => setSuppliers(all.filter(s => s.active)))
+        .catch(() => {});
+    }
   };
 
   const handleSave = async () => {
@@ -142,13 +155,31 @@ export default function MovementsManager({ residencialId }: { residencialId: str
         method: form.method,
         ...supplierFields,
         ...(form.reference ? { reference: form.reference } : {}),
-        createdBy: "admin", createdAt: serverTimestamp(),
+        createdBy: "admin", createdAt: serverTimestamp(), status: "active",
       });
       toast.success(form.type === "income" ? "Ingreso registrado" : "Egreso registrado");
       setDialogOpen(false);
       fetchMovements();
     } catch { toast.error("Error al guardar"); }
     finally { setSaving(false); }
+  };
+
+  const handleVoid = async () => {
+    if (!voidTarget || !voidReason.trim()) { toast.error("Ingresa un motivo"); return; }
+    setVoiding(true);
+    try {
+      const ref = doc(db, `residenciales/${residencialId}/administrativeMovements/${voidTarget.id}`);
+      await updateDoc(ref, {
+        status: "voided",
+        voidedReason: voidReason.trim(),
+        voidedAt: serverTimestamp(),
+        voidedBy: "admin",
+      });
+      toast.success("Movimiento anulado");
+      setVoidTarget(null); setVoidReason("");
+      fetchMovements();
+    } catch { toast.error("Error al anular"); }
+    finally { setVoiding(false); }
   };
 
   // Computed
@@ -160,8 +191,9 @@ export default function MovementsManager({ residencialId }: { residencialId: str
   }, [movements, filter, search]);
 
   const totals = useMemo(() => {
-    const inc = movements.filter(m => m.type === "income").reduce((s, m) => s + m.amountCents, 0);
-    const exp = movements.filter(m => m.type === "expense").reduce((s, m) => s + m.amountCents, 0);
+    const active = movements.filter(m => m.status !== "voided");
+    const inc = active.filter(m => m.type === "income").reduce((s, m) => s + m.amountCents, 0);
+    const exp = active.filter(m => m.type === "expense").reduce((s, m) => s + m.amountCents, 0);
     return { income: inc, expense: exp, balance: inc - exp };
   }, [movements]);
 
@@ -274,29 +306,45 @@ export default function MovementsManager({ residencialId }: { residencialId: str
                     <th className="text-left py-3">Categoría</th>
                     <th className="text-left py-3">Descripción</th>
                     <th className="text-left py-3">Método</th>
-                    <th className="text-right py-3 pr-4">Monto</th>
+                    <th className="text-right py-3">Monto</th>
+                    <th className="py-3 pr-2 w-8"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map(m => {
                     const isIncome = m.type === "income";
+                    const isVoided = m.status === "voided";
                     const displaySupplier = m.supplierName || m.supplier;
                     return (
-                      <tr key={m.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors text-xs">
+                      <tr key={m.id} className={`group border-b border-slate-50 transition-colors text-xs ${isVoided ? "opacity-50" : "hover:bg-slate-50/50"}`}>
                         <td className="py-2.5 pl-4 text-muted-foreground whitespace-nowrap">{fmtDate(m.date)}</td>
                         <td className="py-2.5">
-                          <Badge className={`text-[10px] font-bold border-0 rounded-md ${isIncome ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
-                            {isIncome ? "Ingreso" : "Egreso"}
-                          </Badge>
+                          {isVoided ? (
+                            <Badge className="text-[10px] font-bold border-0 rounded-md bg-slate-200 text-slate-500">Anulado</Badge>
+                          ) : (
+                            <Badge className={`text-[10px] font-bold border-0 rounded-md ${isIncome ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                              {isIncome ? "Ingreso" : "Egreso"}
+                            </Badge>
+                          )}
                         </td>
-                        <td className="py-2.5 font-medium text-slate-700">{m.category}</td>
-                        <td className="py-2.5 text-slate-600 truncate max-w-[200px]">
+                        <td className={`py-2.5 font-medium ${isVoided ? "text-slate-400 line-through" : "text-slate-700"}`}>{m.category}</td>
+                        <td className={`py-2.5 truncate max-w-[200px] ${isVoided ? "text-slate-400 line-through" : "text-slate-600"}`}>
                           {m.description}
                           {displaySupplier && <span className="text-muted-foreground ml-1">· {displaySupplier}</span>}
+                          {isVoided && m.voidedReason && <span className="text-amber-500 ml-1 no-underline">({m.voidedReason})</span>}
                         </td>
                         <td className="py-2.5 text-muted-foreground">{METHODS.find(x => x.value === m.method)?.label || m.method}</td>
-                        <td className={`py-2.5 pr-4 text-right font-black ${isIncome ? "text-emerald-600" : "text-red-600"}`}>
+                        <td className={`py-2.5 pr-4 text-right font-black ${isVoided ? "text-slate-400 line-through" : isIncome ? "text-emerald-600" : "text-red-600"}`}>
                           {isIncome ? "+" : "-"}{fmtMXN(m.amountCents)}
+                        </td>
+                        <td className="py-2.5 pr-2 w-8">
+                          {!isVoided && (
+                            <button onClick={() => { setVoidTarget(m); setVoidReason(""); }}
+                              className="opacity-0 group-hover:opacity-100 h-6 w-6 rounded-md bg-amber-100 hover:bg-amber-200 flex items-center justify-center transition-all"
+                              title="Anular movimiento">
+                              <Ban className="h-3 w-3 text-amber-700" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -468,6 +516,47 @@ export default function MovementsManager({ residencialId }: { residencialId: str
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Void Dialog */}
+      {voidTarget && (
+        <Dialog open={!!voidTarget} onOpenChange={(o) => { if (!o) { setVoidTarget(null); setVoidReason(""); } }}>
+          <DialogContent className="max-w-sm rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="font-black flex items-center gap-2 text-amber-700">
+                <Ban className="h-5 w-5" />
+                Anular movimiento
+              </DialogTitle>
+              <DialogDescription>Esta acción es permanente y quedará registrada.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-amber-600">Tipo</span>
+                  <span className="font-bold text-amber-800">{voidTarget.type === "income" ? "Ingreso" : "Egreso"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-amber-600">Monto</span>
+                  <span className="font-black text-amber-800">{fmtMXN(voidTarget.amountCents)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-amber-600">Descripción</span>
+                  <span className="font-bold text-amber-800 text-right max-w-[180px] truncate">{voidTarget.description}</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-muted-foreground uppercase">Motivo de anulación *</label>
+                <Input placeholder="Ej: Registro duplicado" value={voidReason}
+                  onChange={e => setVoidReason(e.target.value)} className="mt-1 h-10 rounded-xl" />
+              </div>
+              <Button className="w-full h-11 rounded-xl font-black bg-amber-600 hover:bg-amber-700"
+                onClick={handleVoid} disabled={voiding || !voidReason.trim()}>
+                {voiding ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Ban className="h-4 w-4 mr-2" />}
+                Confirmar anulación
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
