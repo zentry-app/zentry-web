@@ -1,19 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import {
-  Sheet, SheetContent, SheetHeader, SheetTitle,
-} from "@/components/ui/sheet";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import {
   AlertTriangle, CheckCircle, Clock, DollarSign, Loader2, Minus, Plus,
-  Receipt, TrendingDown, TrendingUp, XCircle,
+  Receipt, TrendingDown, TrendingUp, XCircle, RotateCcw, Ban,
 } from "lucide-react";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/lib/firebase/config";
@@ -51,6 +48,8 @@ interface LedgerEntry {
   referenceId?: string;
   folio?: string;
   periodKey?: string;
+  createdBy?: string;
+  reversalReason?: string;
 }
 
 const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
@@ -62,6 +61,7 @@ const entryIcon: Record<string, { icon: any; color: string }> = {
   PAYOUT:     { icon: TrendingDown, color: "text-emerald-600 bg-emerald-50" },
   CHARGE:     { icon: TrendingUp,   color: "text-red-500 bg-red-50" },
   ADJUSTMENT: { icon: DollarSign,   color: "text-blue-500 bg-blue-50" },
+  REVERSAL:   { icon: RotateCcw,    color: "text-slate-500 bg-slate-100" },
 };
 
 export default function HouseDetailSheet({ open, onClose, residencialId, house, onAction }: HouseDetailSheetProps) {
@@ -74,27 +74,34 @@ export default function HouseDetailSheet({ open, onClose, residencialId, house, 
   const [actionType, setActionType] = useState<"condonar" | "multa" | "cargo" | null>(null);
   const [actionAmount, setActionAmount] = useState("");
   const [actionReason, setActionReason] = useState("");
+
+  // Reversal
+  const [reversalEntry, setReversalEntry] = useState<LedgerEntry | null>(null);
+  const [reversalReason, setReversalReason] = useState("");
+  const [reversing, setReversing] = useState(false);
   const [actionSubmitting, setActionSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
+  const loadSheetData = useCallback(() => {
     setLoadingAging(true);
     setLoadingLedger(true);
 
-    // Fetch aging
     httpsCallable<any, AgingData>(functions, "getHouseAging")({ residencialId, houseId: house.houseId })
       .then(res => setAging(res.data))
       .catch(() => setAging(null))
       .finally(() => setLoadingAging(false));
 
-    // Fetch ledger entries
     const ledgerRef = collection(db, "residenciales", residencialId, "houses", house.houseId, "ledger");
     const q = query(ledgerRef, orderBy("createdAt", "desc"), limit(30));
     getDocs(q).then(snap => {
       setLedger(snap.docs.map(d => ({ id: d.id, ...d.data() } as LedgerEntry)));
     }).catch(() => setLedger([]))
       .finally(() => setLoadingLedger(false));
-  }, [open, residencialId, house.houseId]);
+  }, [residencialId, house.houseId]);
+
+  useEffect(() => {
+    if (!open) return;
+    loadSheetData();
+  }, [open, loadSheetData]);
 
   const handleAction = async () => {
     const amt = parseFloat(actionAmount);
@@ -126,6 +133,8 @@ export default function HouseDetailSheet({ open, onClose, residencialId, house, 
         toast.success("Cargo extraordinario aplicado");
       }
       setActionType(null); setActionAmount(""); setActionReason("");
+      // Refresh sheet data after 1.5s (Firestore propagation)
+      setTimeout(() => loadSheetData(), 1500);
       onAction?.();
     } catch (err: any) {
       toast.error(err?.message?.includes("]") ? err.message.split("]").pop() : "Error al aplicar");
@@ -134,32 +143,68 @@ export default function HouseDetailSheet({ open, onClose, residencialId, house, 
     }
   };
 
+  const handleReversal = async () => {
+    if (!reversalEntry || !reversalReason.trim()) { toast.error("Ingresa un motivo de reversión"); return; }
+    // The referenceId of the ledger entry points to the paymentIntent ID
+    const paymentId = reversalEntry.referenceId;
+    if (!paymentId) { toast.error("Este movimiento no tiene un pago asociado para reversar"); return; }
+    setReversing(true);
+    try {
+      await httpsCallable(functions, "apiReversePayment")({
+        residencialId, paymentId, reason: reversalReason.trim(),
+      });
+      toast.success("Pago reversado correctamente");
+      setReversalEntry(null); setReversalReason("");
+      setTimeout(() => loadSheetData(), 1500);
+      onAction?.();
+    } catch (err: any) {
+      toast.error(err?.message?.includes("]") ? err.message.split("]").pop() : "Error al reversar");
+    } finally { setReversing(false); }
+  };
+
   const houseDisplayStatus = (house.deudaCents || 0) > 0 ? "con_deuda" : "al_dia";
   const cfg = statusConfig[houseDisplayStatus];
 
   return (
     <>
-      <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-        <SheetContent side="right" className="w-full sm:max-w-lg p-0 border-none">
-          <div className="flex flex-col h-full">
-            {/* Header */}
-            <SheetHeader className="px-6 pt-6 pb-4 border-b">
-              <div className="flex items-center justify-between">
-                <div>
-                  <SheetTitle className="text-2xl font-black text-slate-900">{house.label}</SheetTitle>
-                  <p className="text-sm text-muted-foreground font-medium mt-0.5">{house.residentName}</p>
-                </div>
-                <Badge className={`${cfg.bg} ${cfg.color} font-bold border rounded-lg px-3 py-1`}>{cfg.label}</Badge>
+      <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] rounded-[2rem] border-none shadow-2xl bg-white p-0 overflow-hidden flex flex-col">
+          {/* Header */}
+          <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-2xl font-black text-slate-900">{house.label}</DialogTitle>
+                <DialogDescription className="text-sm text-muted-foreground font-medium mt-0.5">{house.residentName}</DialogDescription>
               </div>
-            </SheetHeader>
+              <Badge className={`${cfg.bg} ${cfg.color} font-bold border rounded-lg px-3 py-1`}>{cfg.label}</Badge>
+            </div>
+          </DialogHeader>
 
-            <ScrollArea className="flex-1">
+          <ScrollArea className="flex-1 max-h-[60vh]">
               <div className="p-6 space-y-6">
-                {/* Balance card */}
-                <div className={`p-5 rounded-2xl border ${house.deudaCents > 0 ? "border-red-200 bg-red-50/50" : house.saldoAFavorCents > 0 ? "border-emerald-200 bg-emerald-50/50" : "border-slate-200 bg-slate-50/50"}`}>
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Balance actual</p>
-                  <p className={`text-3xl font-black mt-1 ${house.deudaCents > 0 ? "text-red-600" : house.saldoAFavorCents > 0 ? "text-emerald-600" : "text-slate-800"}`}>
-                    {house.deudaCents > 0 ? `-${fmtFull(house.deudaCents)}` : house.saldoAFavorCents > 0 ? `+${fmtFull(house.saldoAFavorCents)}` : "$0"}
+                {/* Balance card — uses live data from ledger when available */}
+                {(() => {
+                  // Compute live balance from ledger entries if loaded
+                  const liveDebt = ledger.length > 0
+                    ? ledger.filter(e => e.status !== "reversed").reduce((sum, e) => {
+                        const amt = e.amountInCents || e.amount || 0;
+                        if (e.impact === "INCREASE_DEBT") return sum + amt;
+                        if (e.impact === "DECREASE_DEBT") return sum - amt;
+                        return sum;
+                      }, 0)
+                    : null;
+                  const displayDebt = liveDebt !== null ? Math.max(0, liveDebt) : house.deudaCents;
+                  const displayFavor = liveDebt !== null ? Math.max(0, -liveDebt) : house.saldoAFavorCents;
+                  const isRefreshing = loadingAging || loadingLedger;
+
+                  return (
+                <div className={`p-5 rounded-2xl border transition-all ${isRefreshing ? "animate-pulse" : ""} ${displayDebt > 0 ? "border-red-200 bg-red-50/50" : displayFavor > 0 ? "border-emerald-200 bg-emerald-50/50" : "border-slate-200 bg-slate-50/50"}`}>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Balance actual</p>
+                    {isRefreshing && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                  </div>
+                  <p className={`text-3xl font-black mt-1 ${displayDebt > 0 ? "text-red-600" : displayFavor > 0 ? "text-emerald-600" : "text-slate-800"}`}>
+                    {displayDebt > 0 ? `-${fmtFull(displayDebt)}` : displayFavor > 0 ? `+${fmtFull(displayFavor)}` : "$0"}
                   </p>
                   {house.ultimoPago && (
                     <p className="text-[11px] text-muted-foreground mt-2">
@@ -167,6 +212,8 @@ export default function HouseDetailSheet({ open, onClose, residencialId, house, 
                     </p>
                   )}
                 </div>
+                  );
+                })()}
 
                 {/* Aging buckets */}
                 {house.deudaCents > 0 && (
@@ -202,30 +249,63 @@ export default function HouseDetailSheet({ open, onClose, residencialId, house, 
                   ) : (
                     <div className="space-y-1.5">
                       {ledger.map(e => {
+                        const isReversed = e.status === "reversed";
+                        const isReversal = e.type === "REVERSAL";
                         const iconCfg = entryIcon[e.type] || entryIcon.ADJUSTMENT;
                         const Icon = iconCfg.icon;
                         const amt = e.amountInCents || e.amount || 0;
                         const isCredit = e.impact === "DECREASE_DEBT";
+                        const isNoImpact = e.impact === "NO_IMPACT";
                         const date = e.createdAt?.toDate ? e.createdAt.toDate() : e.createdAt?.seconds ? new Date(e.createdAt.seconds * 1000) : null;
+                        const canReverse = e.type === "PAYOUT" && e.status === "applied" && e.referenceId && !isReversed;
 
                         return (
-                          <div key={e.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50/80 border border-slate-100">
-                            <div className={`h-8 w-8 rounded-lg ${iconCfg.color} flex items-center justify-center shrink-0`}>
-                              <Icon className="h-4 w-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <p className="text-xs font-bold text-slate-800 truncate">{e.description || e.subType || e.type}</p>
-                                {e.folio && <span className="text-[9px] font-mono font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded shrink-0">{e.folio}</span>}
+                          <div key={e.id} className={`relative group p-3 rounded-xl border transition-all ${
+                            isReversed ? "bg-slate-100/50 border-dashed border-slate-300 opacity-60" :
+                            isReversal ? "bg-amber-50/50 border-amber-200" :
+                            "bg-slate-50/80 border-slate-100"
+                          }`}>
+                            <div className="flex items-center gap-3">
+                              <div className={`h-8 w-8 rounded-lg ${isReversed ? "bg-slate-200 text-slate-400" : iconCfg.color} flex items-center justify-center shrink-0`}>
+                                {isReversed ? <Ban className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
                               </div>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                {date && <span className="text-[10px] text-muted-foreground">{date.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })}</span>}
-                                {e.periodKey && <span className="text-[10px] text-muted-foreground">· {e.periodKey}</span>}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <p className={`text-xs font-bold truncate ${isReversed ? "line-through text-slate-400" : "text-slate-800"}`}>
+                                    {e.description || e.subType || e.type}
+                                  </p>
+                                  {e.folio && (
+                                    <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                      isReversed ? "bg-slate-200 text-slate-400 line-through" : "text-primary bg-primary/10"
+                                    }`}>{e.folio}</span>
+                                  )}
+                                  {isReversed && <span className="text-[9px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded shrink-0">REVERSADO</span>}
+                                  {isReversal && <span className="text-[9px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">REVERSIÓN</span>}
+                                  {isNoImpact && <span className="text-[9px] font-bold text-purple-500 bg-purple-50 px-1.5 py-0.5 rounded shrink-0">PRODUCTO</span>}
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  {date && <span className="text-[10px] text-muted-foreground">{date.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })}</span>}
+                                  {e.periodKey && <span className="text-[10px] text-muted-foreground">· {e.periodKey}</span>}
+                                  {e.reversalReason && <span className="text-[10px] text-amber-600">· {e.reversalReason}</span>}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className={`text-sm font-black ${
+                                  isReversed ? "line-through text-slate-400" :
+                                  isCredit ? "text-emerald-600" : "text-red-600"
+                                }`}>
+                                  {isCredit ? "-" : "+"}{fmtFull(amt)}
+                                </span>
+                                {/* Reverse button — only on applied PAYOUT entries */}
+                                {canReverse && (
+                                  <button onClick={() => { setReversalEntry(e); setReversalReason(""); }}
+                                    className="opacity-0 group-hover:opacity-100 h-7 w-7 rounded-lg bg-amber-100 hover:bg-amber-200 flex items-center justify-center transition-all"
+                                    title="Reversar pago">
+                                    <RotateCcw className="h-3.5 w-3.5 text-amber-700" />
+                                  </button>
+                                )}
                               </div>
                             </div>
-                            <span className={`text-sm font-black shrink-0 ${isCredit ? "text-emerald-600" : "text-red-600"}`}>
-                              {isCredit ? "-" : "+"}{fmtFull(amt)}
-                            </span>
                           </div>
                         );
                       })}
@@ -235,24 +315,23 @@ export default function HouseDetailSheet({ open, onClose, residencialId, house, 
               </div>
             </ScrollArea>
 
-            {/* Action buttons (sticky footer) */}
-            <div className="border-t px-6 py-4 flex gap-2">
-              <Button variant="outline" size="sm" className="flex-1 rounded-xl font-bold text-emerald-700 border-emerald-200 hover:bg-emerald-50"
-                onClick={() => setActionType("condonar")}>
-                <Minus className="h-3.5 w-3.5 mr-1.5" />Condonar
-              </Button>
-              <Button variant="outline" size="sm" className="flex-1 rounded-xl font-bold text-red-700 border-red-200 hover:bg-red-50"
-                onClick={() => setActionType("multa")}>
-                <Plus className="h-3.5 w-3.5 mr-1.5" />Multa
-              </Button>
-              <Button variant="outline" size="sm" className="flex-1 rounded-xl font-bold text-blue-700 border-blue-200 hover:bg-blue-50"
-                onClick={() => setActionType("cargo")}>
-                <Receipt className="h-3.5 w-3.5 mr-1.5" />Cargo extra
-              </Button>
-            </div>
+          {/* Action buttons (sticky footer) */}
+          <div className="border-t px-6 py-4 flex gap-2 shrink-0">
+            <Button variant="outline" size="sm" className="flex-1 rounded-xl font-bold text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+              onClick={() => setActionType("condonar")}>
+              <Minus className="h-3.5 w-3.5 mr-1.5" />Condonar
+            </Button>
+            <Button variant="outline" size="sm" className="flex-1 rounded-xl font-bold text-red-700 border-red-200 hover:bg-red-50"
+              onClick={() => setActionType("multa")}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" />Multa
+            </Button>
+            <Button variant="outline" size="sm" className="flex-1 rounded-xl font-bold text-blue-700 border-blue-200 hover:bg-blue-50"
+              onClick={() => setActionType("cargo")}>
+              <Receipt className="h-3.5 w-3.5 mr-1.5" />Cargo extra
+            </Button>
           </div>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
       {/* Action Dialog */}
       {actionType && (
@@ -285,6 +364,49 @@ export default function HouseDetailSheet({ open, onClose, residencialId, house, 
               }`} onClick={handleAction} disabled={actionSubmitting || !actionAmount}>
                 {actionSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                 {actionType === "condonar" ? "Aplicar condonación" : actionType === "multa" ? "Aplicar multa" : "Crear cargo"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Reversal Dialog */}
+      {reversalEntry && (
+        <Dialog open={!!reversalEntry} onOpenChange={(o) => { if (!o) { setReversalEntry(null); setReversalReason(""); } }}>
+          <DialogContent className="max-w-sm rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="font-black flex items-center gap-2 text-amber-700">
+                <RotateCcw className="h-5 w-5" />
+                Reversar pago
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <p className="text-xs font-bold text-amber-800 mb-2">Esta acción es irreversible y quedará registrada en el historial de auditoría.</p>
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-amber-600">Folio</span>
+                    <span className="font-mono font-bold text-amber-800">{reversalEntry.folio || "—"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-amber-600">Monto</span>
+                    <span className="font-black text-amber-800">{fmtFull(reversalEntry.amountInCents || reversalEntry.amount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-amber-600">Tipo</span>
+                    <span className="font-bold text-amber-800">{reversalEntry.subType === "cash_payment" ? "Efectivo" : "Transferencia"}</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-muted-foreground uppercase">Motivo de reversión *</label>
+                <Input placeholder="Ej: Monto incorrecto, debió ser $1,150" value={reversalReason}
+                  onChange={e => setReversalReason(e.target.value)} className="mt-1 h-10 rounded-xl" />
+              </div>
+              <Button className="w-full h-11 rounded-xl font-black bg-amber-600 hover:bg-amber-700"
+                onClick={handleReversal} disabled={reversing || !reversalReason.trim()}>
+                {reversing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-2" />}
+                Confirmar reversión
               </Button>
             </div>
           </DialogContent>
