@@ -9,9 +9,10 @@ import {
   Timestamp,
   getDoc,
   updateDoc,
-  addDoc
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase/config';
+  addDoc,
+  limit,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase/config";
 
 export interface HousePaymentStatus {
   houseId: string; // Formato: "calle-houseNumber" ej: "Av. Principal-123"
@@ -23,7 +24,7 @@ export interface HousePaymentStatus {
   userEmail?: string;
 
   // Estados de pago
-  status: 'al_dia' | 'moroso' | 'pendiente';
+  status: "al_dia" | "moroso" | "pendiente";
   ultimoPago?: Timestamp | Date;
   montoUltimoPago?: number;
   conceptoUltimoPago?: string;
@@ -45,7 +46,7 @@ export interface PaymentSummary {
   totalPagos: number;
   totalRecaudado: number;
   ultimoPago?: Date;
-  estado: 'al_dia' | 'moroso' | 'pendiente';
+  estado: "al_dia" | "moroso" | "pendiente";
   mesesSinPagar?: number;
   montoAdeudado?: number;
 }
@@ -54,24 +55,34 @@ export interface PaymentSummary {
  * Servicio para manejar el estado de pagos por casa (houseID)
  */
 export class HousePaymentStatusService {
-
   /**
    * Generar houseID único
    */
   static generateHouseId(calle: string, houseNumber: string): string {
-    return `${calle.trim()}-${houseNumber.trim()}`.toLowerCase().replace(/\s+/g, '_');
+    return `${calle.trim()}-${houseNumber.trim()}`
+      .toLowerCase()
+      .replace(/\s+/g, "_");
   }
 
   /**
    * Obtener estado de pagos de todas las casas de un residencial
    */
-  static async getHousePaymentStatuses(residencialId: string): Promise<HousePaymentStatus[]> {
+  static async getHousePaymentStatuses(
+    residencialId: string,
+  ): Promise<HousePaymentStatus[]> {
     try {
-      console.log(`🏠 Obteniendo estados de pagos por casa para residencial: ${residencialId}`);
+      console.log(
+        `🏠 Obteniendo estados de pagos por casa para residencial: ${residencialId}`,
+      );
 
       // Obtener todos los pagos del residencial (paymentIntents SoT)
-      const pagosRef = collection(db, 'residenciales', residencialId, 'paymentIntents');
-      const pagosQuery = query(pagosRef, orderBy('createdAt', 'desc'));
+      const pagosRef = collection(
+        db,
+        "residenciales",
+        residencialId,
+        "paymentIntents",
+      );
+      const pagosQuery = query(pagosRef, orderBy("createdAt", "desc"));
       const pagosSnapshot = await getDocs(pagosQuery);
 
       // Agrupar pagos por casa
@@ -79,7 +90,10 @@ export class HousePaymentStatusService {
 
       pagosSnapshot.forEach((doc) => {
         const data = doc.data();
-        const houseId = this.generateHouseId(data.userAddress?.calle || '', data.userAddress?.houseNumber || '');
+        const houseId = this.generateHouseId(
+          data.userAddress?.calle || "",
+          data.userAddress?.houseNumber || "",
+        );
 
         if (!pagosPorCasa.has(houseId)) {
           pagosPorCasa.set(houseId, []);
@@ -87,7 +101,7 @@ export class HousePaymentStatusService {
         pagosPorCasa.get(houseId)!.push({
           id: doc.id,
           ...data,
-          houseId
+          houseId,
         });
       });
 
@@ -98,21 +112,33 @@ export class HousePaymentStatusService {
       // NUEVO: Obtener configuración y saldos a favor documentados
       let cuotaMensual = 1500;
       try {
-        const configDoc = await getDoc(doc(db, 'residenciales', residencialId, 'configuracion', 'pagos'));
-        if (configDoc.exists()) cuotaMensual = configDoc.data()?.cuotaMensual || 1500;
-      } catch (e) { }
+        const configDoc = await getDoc(
+          doc(db, "residenciales", residencialId, "configuracion", "pagos"),
+        );
+        if (configDoc.exists())
+          cuotaMensual = configDoc.data()?.cuotaMensual || 1500;
+      } catch (e) {}
 
-      const balancesSnapshot = await getDocs(collection(db, 'residenciales', residencialId, 'housePaymentBalance'));
+      const balancesSnapshot = await getDocs(
+        query(
+          collection(db, "residenciales", residencialId, "housePaymentBalance"),
+          limit(500),
+        ),
+      );
       const balances = new Map<string, any>();
-      balancesSnapshot.forEach(docSnapshot => balances.set(docSnapshot.id, docSnapshot.data()));
+      balancesSnapshot.forEach((docSnapshot) =>
+        balances.set(docSnapshot.id, docSnapshot.data()),
+      );
 
       for (const [houseId, pagos] of Array.from(pagosPorCasa.entries())) {
         if (pagos.length === 0) continue;
 
         const primerPago = pagos[0];
-        const ultimoPago = (pagos as any[]).find((p: any) => p.status === 'validated' || p.status === 'completed');
+        const ultimoPago = (pagos as any[]).find(
+          (p: any) => p.status === "validated" || p.status === "completed",
+        );
 
-        let status: 'al_dia' | 'moroso' | 'pendiente' = 'pendiente';
+        let status: "al_dia" | "moroso" | "pendiente" = "pendiente";
         let mesesMoroso = 0;
         let montoAdeudado = 0;
 
@@ -121,33 +147,43 @@ export class HousePaymentStatusService {
         if (balance) {
           montoAdeudado = balance.deudaAcumulada || 0;
           if (montoAdeudado === 0) {
-            status = 'al_dia';
+            status = "al_dia";
           } else {
             mesesMoroso = Math.ceil(montoAdeudado / cuotaMensual);
-            status = mesesMoroso <= 1 ? 'pendiente' : 'moroso';
+            status = mesesMoroso <= 1 ? "pendiente" : "moroso";
           }
         } else {
           // Fallback heredado
           if (ultimoPago) {
-            const fechaUltimoPago = ultimoPago.createdAt instanceof Timestamp
-              ? ultimoPago.createdAt.toDate()
-              : new Date(ultimoPago.createdAt || ultimoPago.fechaRegistro || ultimoPago.fechaSubida);
+            const fechaUltimoPago =
+              ultimoPago.createdAt instanceof Timestamp
+                ? ultimoPago.createdAt.toDate()
+                : new Date(
+                    ultimoPago.createdAt ||
+                      ultimoPago.fechaRegistro ||
+                      ultimoPago.fechaSubida,
+                  );
 
-            const mesesTranscurridos = this.calculateMonthsDifference(fechaUltimoPago, ahora);
+            const mesesTranscurridos = this.calculateMonthsDifference(
+              fechaUltimoPago,
+              ahora,
+            );
 
             if (mesesTranscurridos <= 1) {
-              status = 'al_dia';
+              status = "al_dia";
             } else if (mesesTranscurridos <= 3) {
-              status = 'pendiente';
+              status = "pendiente";
               mesesMoroso = mesesTranscurridos - 1;
-              montoAdeudado = mesesMoroso * (ultimoPago.montoEsperado || cuotaMensual);
+              montoAdeudado =
+                mesesMoroso * (ultimoPago.montoEsperado || cuotaMensual);
             } else {
-              status = 'moroso';
+              status = "moroso";
               mesesMoroso = mesesTranscurridos - 1;
-              montoAdeudado = mesesMoroso * (ultimoPago.montoEsperado || cuotaMensual);
+              montoAdeudado =
+                mesesMoroso * (ultimoPago.montoEsperado || cuotaMensual);
             }
           } else {
-            status = 'moroso';
+            status = "moroso";
             mesesMoroso = 1;
             montoAdeudado = cuotaMensual;
           }
@@ -155,21 +191,23 @@ export class HousePaymentStatusService {
 
         const estado: HousePaymentStatus = {
           houseId,
-          calle: primerPago.userAddress?.calle || '',
-          houseNumber: primerPago.userAddress?.houseNumber || '',
+          calle: primerPago.userAddress?.calle || "",
+          houseNumber: primerPago.userAddress?.houseNumber || "",
           residencialId,
           userId: primerPago.userId,
           userName: primerPago.userName,
           userEmail: primerPago.userEmail,
           status,
           ultimoPago: ultimoPago?.createdAt || ultimoPago?.fechaRegistro,
-          montoUltimoPago: ultimoPago?.amountCents ? ultimoPago.amountCents / 100 : ultimoPago?.amount,
+          montoUltimoPago: ultimoPago?.amountCents
+            ? ultimoPago.amountCents / 100
+            : ultimoPago?.amount,
           conceptoUltimoPago: ultimoPago?.concept || ultimoPago?.concepto,
           mesesMoroso,
           montoAdeudado,
           fechaVencimiento: this.calculateNextDueDate(ultimoPago?.createdAt),
           fechaActualizacion: Timestamp.now(),
-          actualizadoPor: 'System'
+          actualizadoPor: "System",
         };
 
         estadosCasas.push(estado);
@@ -177,7 +215,7 @@ export class HousePaymentStatusService {
 
       return estadosCasas;
     } catch (error) {
-      console.error('❌ Error al obtener estados de pagos:', error);
+      console.error("❌ Error al obtener estados de pagos:", error);
       throw error;
     }
   }
@@ -185,16 +223,27 @@ export class HousePaymentStatusService {
   /**
    * Listener en tiempo real para estados de casas
    */
-  static listenToHousePaymentStatuses(residencialId: string, callback: (estados: HousePaymentStatus[]) => void) {
-    const pagosRef = collection(db, 'residenciales', residencialId, 'paymentIntents');
-    const q = query(pagosRef, orderBy('createdAt', 'desc'));
+  static listenToHousePaymentStatuses(
+    residencialId: string,
+    callback: (estados: HousePaymentStatus[]) => void,
+  ) {
+    const pagosRef = collection(
+      db,
+      "residenciales",
+      residencialId,
+      "paymentIntents",
+    );
+    const q = query(pagosRef, orderBy("createdAt", "desc"));
 
     return onSnapshot(q, async (snapshot) => {
       const pagosPorCasa = new Map<string, any[]>();
 
       snapshot.forEach((doc) => {
         const data = doc.data();
-        const houseId = this.generateHouseId(data.userAddress?.calle || '', data.userAddress?.houseNumber || '');
+        const houseId = this.generateHouseId(
+          data.userAddress?.calle || "",
+          data.userAddress?.houseNumber || "",
+        );
 
         if (!pagosPorCasa.has(houseId)) {
           pagosPorCasa.set(houseId, []);
@@ -202,7 +251,7 @@ export class HousePaymentStatusService {
         pagosPorCasa.get(houseId)!.push({
           id: doc.id,
           ...data,
-          houseId
+          houseId,
         });
       });
 
@@ -212,19 +261,31 @@ export class HousePaymentStatusService {
       // NUEVO: Obtener configuración y saldos a favor documentados
       let cuotaMensual = 1500;
       try {
-        const configDoc = await getDoc(doc(db, 'residenciales', residencialId, 'configuracion', 'pagos'));
-        if (configDoc.exists()) cuotaMensual = configDoc.data()?.cuotaMensual || 1500;
-      } catch (e) { }
+        const configDoc = await getDoc(
+          doc(db, "residenciales", residencialId, "configuracion", "pagos"),
+        );
+        if (configDoc.exists())
+          cuotaMensual = configDoc.data()?.cuotaMensual || 1500;
+      } catch (e) {}
 
-      const balancesSnapshot = await getDocs(collection(db, 'residenciales', residencialId, 'housePaymentBalance'));
+      const balancesSnapshot = await getDocs(
+        query(
+          collection(db, "residenciales", residencialId, "housePaymentBalance"),
+          limit(500),
+        ),
+      );
       const balances = new Map<string, any>();
-      balancesSnapshot.forEach(docSnapshot => balances.set(docSnapshot.id, docSnapshot.data()));
+      balancesSnapshot.forEach((docSnapshot) =>
+        balances.set(docSnapshot.id, docSnapshot.data()),
+      );
 
       pagosPorCasa.forEach((pagos, houseId) => {
         const primerPago = pagos[0];
-        const ultimoPago = pagos.find((p: any) => p.status === 'validated' || p.status === 'completed');
+        const ultimoPago = pagos.find(
+          (p: any) => p.status === "validated" || p.status === "completed",
+        );
 
-        let status: 'al_dia' | 'moroso' | 'pendiente' = 'pendiente';
+        let status: "al_dia" | "moroso" | "pendiente" = "pendiente";
         let mesesMoroso = 0;
         let montoAdeudado = 0;
 
@@ -233,33 +294,43 @@ export class HousePaymentStatusService {
         if (balance) {
           montoAdeudado = balance.deudaAcumulada || 0;
           if (montoAdeudado === 0) {
-            status = 'al_dia';
+            status = "al_dia";
           } else {
             mesesMoroso = Math.ceil(montoAdeudado / cuotaMensual);
-            status = mesesMoroso <= 1 ? 'pendiente' : 'moroso';
+            status = mesesMoroso <= 1 ? "pendiente" : "moroso";
           }
         } else {
           // Fallback heredado
           if (ultimoPago) {
-            const fechaUltimoPago = ultimoPago.createdAt instanceof Timestamp
-              ? ultimoPago.createdAt.toDate()
-              : new Date(ultimoPago.createdAt || ultimoPago.fechaRegistro || ultimoPago.fechaSubida);
+            const fechaUltimoPago =
+              ultimoPago.createdAt instanceof Timestamp
+                ? ultimoPago.createdAt.toDate()
+                : new Date(
+                    ultimoPago.createdAt ||
+                      ultimoPago.fechaRegistro ||
+                      ultimoPago.fechaSubida,
+                  );
 
-            const mesesTranscurridos = this.calculateMonthsDifference(fechaUltimoPago, ahora);
+            const mesesTranscurridos = this.calculateMonthsDifference(
+              fechaUltimoPago,
+              ahora,
+            );
 
             if (mesesTranscurridos <= 1) {
-              status = 'al_dia';
+              status = "al_dia";
             } else if (mesesTranscurridos <= 3) {
-              status = 'pendiente';
+              status = "pendiente";
               mesesMoroso = mesesTranscurridos - 1;
-              montoAdeudado = mesesMoroso * (ultimoPago.montoEsperado || cuotaMensual);
+              montoAdeudado =
+                mesesMoroso * (ultimoPago.montoEsperado || cuotaMensual);
             } else {
-              status = 'moroso';
+              status = "moroso";
               mesesMoroso = mesesTranscurridos - 1;
-              montoAdeudado = mesesMoroso * (ultimoPago.montoEsperado || cuotaMensual);
+              montoAdeudado =
+                mesesMoroso * (ultimoPago.montoEsperado || cuotaMensual);
             }
           } else {
-            status = 'moroso';
+            status = "moroso";
             mesesMoroso = 1;
             montoAdeudado = cuotaMensual;
           }
@@ -267,27 +338,31 @@ export class HousePaymentStatusService {
 
         const estado: HousePaymentStatus = {
           houseId,
-          calle: primerPago.userAddress?.calle || '',
-          houseNumber: primerPago.userAddress?.houseNumber || '',
+          calle: primerPago.userAddress?.calle || "",
+          houseNumber: primerPago.userAddress?.houseNumber || "",
           residencialId,
           userId: primerPago.userId,
           userName: primerPago.userName,
           userEmail: primerPago.userEmail,
           status,
           ultimoPago: ultimoPago?.createdAt || ultimoPago?.fechaRegistro,
-          montoUltimoPago: ultimoPago?.amountCents ? ultimoPago.amountCents / 100 : ultimoPago?.amount,
+          montoUltimoPago: ultimoPago?.amountCents
+            ? ultimoPago.amountCents / 100
+            : ultimoPago?.amount,
           conceptoUltimoPago: ultimoPago?.concept || ultimoPago?.concepto,
           mesesMoroso,
           montoAdeudado,
           fechaVencimiento: this.calculateNextDueDate(ultimoPago?.createdAt),
           fechaActualizacion: Timestamp.now(),
-          actualizadoPor: 'System'
+          actualizadoPor: "System",
         };
 
         estados.push(estado);
       });
 
-      console.log(`📣 Actualización en tiempo real: ${estados.length} estados de casas`);
+      console.log(
+        `📣 Actualización en tiempo real: ${estados.length} estados de casas`,
+      );
       callback(estados);
     });
   }
@@ -307,7 +382,9 @@ export class HousePaymentStatusService {
   /**
    * Calcular próxima fecha de vencimiento
    */
-  private static calculateNextDueDate(ultimoPago?: Timestamp | Date): Timestamp | Date {
+  private static calculateNextDueDate(
+    ultimoPago?: Timestamp | Date,
+  ): Timestamp | Date {
     const ahora = new Date();
     const proximoMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 1);
     return Timestamp.fromDate(proximoMes);
@@ -329,21 +406,25 @@ export class HousePaymentStatusService {
 
       const stats = {
         totalCasas: estados.length,
-        casasAlDia: estados.filter(e => e.status === 'al_dia').length,
-        casasPendientes: estados.filter(e => e.status === 'pendiente').length,
-        casasMorosas: estados.filter(e => e.status === 'moroso').length,
+        casasAlDia: estados.filter((e) => e.status === "al_dia").length,
+        casasPendientes: estados.filter((e) => e.status === "pendiente").length,
+        casasMorosas: estados.filter((e) => e.status === "moroso").length,
         porcentajeMorosidad: 0,
-        montoTotalAdeudado: estados.reduce((sum, e) => sum + (e.montoAdeudado || 0), 0),
+        montoTotalAdeudado: estados.reduce(
+          (sum, e) => sum + (e.montoAdeudado || 0),
+          0,
+        ),
       };
 
-      stats.porcentajeMorosidad = stats.totalCasas > 0
-        ? (stats.casasMorosas / stats.totalCasas) * 100
-        : 0;
+      stats.porcentajeMorosidad =
+        stats.totalCasas > 0
+          ? (stats.casasMorosas / stats.totalCasas) * 100
+          : 0;
 
-      console.log('📊 Estadísticas de morosidad:', stats);
+      console.log("📊 Estadísticas de morosidad:", stats);
       return stats;
     } catch (error) {
-      console.error('❌ Error al obtener estadísticas de morosidad:', error);
+      console.error("❌ Error al obtener estadísticas de morosidad:", error);
       throw error;
     }
   }
@@ -351,19 +432,24 @@ export class HousePaymentStatusService {
   /**
    * Obtener el balance consolidado de una casa (Saldo a favor y Deuda)
    */
-  static async getHouseBalance(residencialId: string, houseId: string): Promise<{ saldoAFavor: number, deudaAcumulada: number } | null> {
+  static async getHouseBalance(
+    residencialId: string,
+    houseId: string,
+  ): Promise<{ saldoAFavor: number; deudaAcumulada: number } | null> {
     try {
-      const balanceDoc = await getDoc(doc(db, 'residenciales', residencialId, 'housePaymentBalance', houseId));
+      const balanceDoc = await getDoc(
+        doc(db, "residenciales", residencialId, "housePaymentBalance", houseId),
+      );
       if (balanceDoc.exists()) {
         const data = balanceDoc.data();
         return {
           saldoAFavor: data.saldoAFavor || 0,
-          deudaAcumulada: data.deudaAcumulada || 0
+          deudaAcumulada: data.deudaAcumulada || 0,
         };
       }
       return { saldoAFavor: 0, deudaAcumulada: 0 };
     } catch (error) {
-      console.error('Error al obtener balance de la casa:', error);
+      console.error("Error al obtener balance de la casa:", error);
       return null;
     }
   }
@@ -374,11 +460,17 @@ export class HousePaymentStatusService {
   static async updateHouseBalance(
     residencialId: string,
     houseId: string,
-    data: { saldoAFavor?: number, deudaAcumulada?: number, razon?: string },
-    adminUid: string
+    data: { saldoAFavor?: number; deudaAcumulada?: number; razon?: string },
+    adminUid: string,
   ): Promise<boolean> {
     try {
-      const balanceRef = doc(db, 'residenciales', residencialId, 'housePaymentBalance', houseId);
+      const balanceRef = doc(
+        db,
+        "residenciales",
+        residencialId,
+        "housePaymentBalance",
+        houseId,
+      );
 
       const balanceSnap = await getDoc(balanceRef);
 
@@ -388,14 +480,14 @@ export class HousePaymentStatusService {
           houseId,
           actualizadoPor: adminUid,
           fechaActualizacion: Timestamp.now(),
-          ultimaRazon: data.razon || 'Carga inicial'
+          ultimaRazon: data.razon || "Carga inicial",
         });
       } else {
         await updateDoc(balanceRef, {
           ...data,
           actualizadoPor: adminUid,
           fechaActualizacion: Timestamp.now(),
-          ultimaRazon: data.razon || 'Ajuste manual administrativo'
+          ultimaRazon: data.razon || "Ajuste manual administrativo",
         });
       }
 
@@ -404,11 +496,11 @@ export class HousePaymentStatusService {
     } catch (error: any) {
       // Si el documento no existe y updateDoc falló, usamos setDoc o simplemente lo creamos con setDoc(..., {merge: true})
       // Pero mejor usamos addDoc si no conocemos el path exacto o setDoc si ya lo tenemos.
-      if (error.code === 'not-found') {
+      if (error.code === "not-found") {
         // Firestore dynamic path: we use doc() which already has the ID.
       }
 
-      console.error('Error al actualizar balance de la casa:', error);
+      console.error("Error al actualizar balance de la casa:", error);
       return false;
     }
   }

@@ -9,20 +9,26 @@ import {
   updateDoc,
   serverTimestamp,
   Timestamp,
-} from 'firebase/firestore';
-import { db } from '../firebase/config';
+} from "firebase/firestore";
+import { db } from "../firebase/config";
+import { getCachedResidenciales } from "../cache/firebase-cache";
 
 // --- Types ---
 
-export type ReporteEstado = 'pendiente' | 'en_revision' | 'en_proceso' | 'resuelto' | 'cerrado';
+export type ReporteEstado =
+  | "pendiente"
+  | "en_revision"
+  | "en_proceso"
+  | "resuelto"
+  | "cerrado";
 export type ReporteCategoria =
-  | 'mantenimiento'
-  | 'areas_comunes'
-  | 'seguridad'
-  | 'limpieza'
-  | 'ruido'
-  | 'sugerencia'
-  | 'otro';
+  | "mantenimiento"
+  | "areas_comunes"
+  | "seguridad"
+  | "limpieza"
+  | "ruido"
+  | "sugerencia"
+  | "otro";
 
 export interface ComentarioAdmin {
   uid: string;
@@ -76,21 +82,21 @@ export interface ReporteStats {
 // --- Helpers ---
 
 const CATEGORIAS_DISPLAY: Record<string, string> = {
-  mantenimiento: 'Mantenimiento / Avería',
-  areas_comunes: 'Áreas comunes',
-  seguridad: 'Seguridad',
-  limpieza: 'Limpieza',
-  ruido: 'Ruido o convivencia',
-  sugerencia: 'Sugerencia o mejora',
-  otro: 'Otro',
+  mantenimiento: "Mantenimiento / Avería",
+  areas_comunes: "Áreas comunes",
+  seguridad: "Seguridad",
+  limpieza: "Limpieza",
+  ruido: "Ruido o convivencia",
+  sugerencia: "Sugerencia o mejora",
+  otro: "Otro",
 };
 
 const ESTADOS_DISPLAY: Record<string, string> = {
-  pendiente: 'Pendiente',
-  en_revision: 'En revisión',
-  en_proceso: 'En proceso',
-  resuelto: 'Resuelto',
-  cerrado: 'Cerrado',
+  pendiente: "Pendiente",
+  en_revision: "En revisión",
+  en_proceso: "En proceso",
+  resuelto: "Resuelto",
+  cerrado: "Cerrado",
 };
 
 export function getCategoriaDisplay(cat: string): string {
@@ -106,8 +112,8 @@ export function getEstadoDisplay(estado: string): string {
  */
 async function getResidencialDocByCode(residencialCode: string) {
   const q = query(
-    collection(db, 'residenciales'),
-    where('residencialID', '==', residencialCode)
+    collection(db, "residenciales"),
+    where("residencialID", "==", residencialCode),
   );
   const snap = await getDocs(q);
   if (snap.empty) return null;
@@ -124,7 +130,7 @@ export const ReportesService = {
    */
   getReportes: async (
     residencialId?: string,
-    filters?: ReporteFilters
+    filters?: ReporteFilters,
   ): Promise<Reporte[]> => {
     try {
       const reportes: Reporte[] = [];
@@ -134,8 +140,8 @@ export const ReportesService = {
         if (!residencialDoc) return [];
 
         const reportesQuery = query(
-          collection(residencialDoc.ref, 'reportes'),
-          orderBy('fechaCreacion', 'desc')
+          collection(residencialDoc.ref, "reportes"),
+          orderBy("fechaCreacion", "desc"),
         );
 
         const snap = await getDocs(reportesQuery);
@@ -148,11 +154,11 @@ export const ReportesService = {
           } as Reporte);
         });
       } else {
-        const residencialesSnap = await getDocs(collection(db, 'residenciales'));
-        for (const residencialDoc of residencialesSnap.docs) {
+        const residencialesDocs = await getCachedResidenciales();
+        for (const residencialDoc of residencialesDocs) {
           const reportesQuery = query(
-            collection(residencialDoc.ref, 'reportes'),
-            orderBy('fechaCreacion', 'desc')
+            collection(residencialDoc.ref, "reportes"),
+            orderBy("fechaCreacion", "desc"),
           );
           const snap = await getDocs(reportesQuery);
           snap.forEach((d) => {
@@ -160,7 +166,7 @@ export const ReportesService = {
               reporteId: d.id,
               ...d.data(),
               _residencialDocId: residencialDoc.id,
-              _residencialNombre: residencialDoc.data().nombre || '',
+              _residencialNombre: residencialDoc.data().nombre || "",
             } as Reporte);
           });
         }
@@ -182,7 +188,7 @@ export const ReportesService = {
             r.titulo.toLowerCase().includes(q) ||
             r.descripcion.toLowerCase().includes(q) ||
             r.userName.toLowerCase().includes(q) ||
-            r.domicilio.toLowerCase().includes(q)
+            r.domicilio.toLowerCase().includes(q),
         );
       }
       if (filters?.fechaDesde || filters?.fechaHasta) {
@@ -212,7 +218,7 @@ export const ReportesService = {
 
       return result;
     } catch (error) {
-      console.error('Error obteniendo reportes:', error);
+      console.error("Error obteniendo reportes:", error);
       throw error;
     }
   },
@@ -222,15 +228,21 @@ export const ReportesService = {
    */
   getReporte: async (
     residencialDocId: string,
-    reporteId: string
+    reporteId: string,
   ): Promise<Reporte | null> => {
     try {
-      const docRef = doc(db, 'residenciales', residencialDocId, 'reportes', reporteId);
+      const docRef = doc(
+        db,
+        "residenciales",
+        residencialDocId,
+        "reportes",
+        reporteId,
+      );
       const snap = await getDoc(docRef);
       if (!snap.exists()) return null;
       return { reporteId: snap.id, ...snap.data() } as Reporte;
     } catch (error) {
-      console.error('Error obteniendo reporte:', error);
+      console.error("Error obteniendo reporte:", error);
       throw error;
     }
   },
@@ -245,14 +257,20 @@ export const ReportesService = {
       estado?: ReporteEstado;
       resolucion?: string;
       comentarioAdmin?: { uid: string; nombre: string; texto: string };
-    }
+    },
   ): Promise<void> => {
     try {
-      const docRef = doc(db, 'residenciales', residencialDocId, 'reportes', reporteId);
+      const docRef = doc(
+        db,
+        "residenciales",
+        residencialDocId,
+        "reportes",
+        reporteId,
+      );
       const currentDoc = await getDoc(docRef);
 
       if (!currentDoc.exists()) {
-        throw new Error('Reporte no encontrado');
+        throw new Error("Reporte no encontrado");
       }
 
       const updateData: Record<string, any> = {
@@ -261,7 +279,7 @@ export const ReportesService = {
 
       if (data.estado) {
         updateData.estado = data.estado;
-        if (data.estado === 'resuelto') {
+        if (data.estado === "resuelto") {
           updateData.fechaResolucion = serverTimestamp();
         }
       }
@@ -282,7 +300,7 @@ export const ReportesService = {
 
       await updateDoc(docRef, updateData);
     } catch (error) {
-      console.error('Error actualizando reporte:', error);
+      console.error("Error actualizando reporte:", error);
       throw error;
     }
   },
@@ -306,11 +324,21 @@ export const ReportesService = {
 
       for (const r of reportes) {
         switch (r.estado) {
-          case 'pendiente': stats.pendientes++; break;
-          case 'en_revision': stats.enRevision++; break;
-          case 'en_proceso': stats.enProceso++; break;
-          case 'resuelto': stats.resueltos++; break;
-          case 'cerrado': stats.cerrados++; break;
+          case "pendiente":
+            stats.pendientes++;
+            break;
+          case "en_revision":
+            stats.enRevision++;
+            break;
+          case "en_proceso":
+            stats.enProceso++;
+            break;
+          case "resuelto":
+            stats.resueltos++;
+            break;
+          case "cerrado":
+            stats.cerrados++;
+            break;
         }
         stats.porCategoria[r.categoria] =
           (stats.porCategoria[r.categoria] || 0) + 1;
@@ -318,7 +346,7 @@ export const ReportesService = {
 
       return stats;
     } catch (error) {
-      console.error('Error obteniendo estadísticas de reportes:', error);
+      console.error("Error obteniendo estadísticas de reportes:", error);
       throw error;
     }
   },
