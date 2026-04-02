@@ -170,12 +170,21 @@ export class AccountingService {
       dateEnd,
     );
 
-    const totalIncomeCents = events
-      .filter((e) => e.impact === "DECREASE_DEBT")
+    // Income = payments (DECREASE_DEBT) that are NOT reversed
+    // A reversed payment has a matching REVERSAL event, so we subtract reversals
+    const grossIncomeCents = events
+      .filter((e) => e.type === "PAYOUT" && e.impact === "DECREASE_DEBT")
       .reduce((sum, e) => sum + e.amountCents, 0);
 
+    const reversalsCents = events
+      .filter((e) => e.type === "REVERSAL")
+      .reduce((sum, e) => sum + e.amountCents, 0);
+
+    const totalIncomeCents = grossIncomeCents - reversalsCents;
+
+    // Charges = only real charges (CHARGE type), NOT reversals
     const totalChargesCents = events
-      .filter((e) => e.impact === "INCREASE_DEBT")
+      .filter((e) => e.type === "CHARGE" && e.impact === "INCREASE_DEBT")
       .reduce((sum, e) => sum + e.amountCents, 0);
 
     const balanceCents = totalIncomeCents - totalChargesCents;
@@ -189,11 +198,25 @@ export class AccountingService {
     );
     const totalHouses = housesSnap.size;
 
-    const housesPaid = new Set(
-      events
-        .filter((e) => e.impact === "DECREASE_DEBT" && e.houseId)
-        .map((e) => e.houseId),
-    ).size;
+    // Houses with net positive payments (payments minus reversals > 0)
+    const paymentsByHouse = new Map<string, number>();
+    for (const e of events) {
+      if (!e.houseId) continue;
+      if (e.type === "PAYOUT") {
+        paymentsByHouse.set(
+          e.houseId,
+          (paymentsByHouse.get(e.houseId) || 0) + e.amountCents,
+        );
+      } else if (e.type === "REVERSAL") {
+        paymentsByHouse.set(
+          e.houseId,
+          (paymentsByHouse.get(e.houseId) || 0) - e.amountCents,
+        );
+      }
+    }
+    const housesPaid = Array.from(paymentsByHouse.values()).filter(
+      (v) => v > 0,
+    ).length;
 
     const housesOverdue = totalHouses - housesPaid;
     const collectionRate =
@@ -205,7 +228,11 @@ export class AccountingService {
         (dateEnd.getTime() - dateStart.getTime()) / (1000 * 60 * 60 * 24),
       ),
     );
-    const monthlyAverageCents = Math.round((totalIncomeCents / days) * 30);
+    // Only project monthly average if we have at least 15 days of data
+    const monthlyAverageCents =
+      days >= 15
+        ? Math.round((totalIncomeCents / days) * 30)
+        : totalIncomeCents;
 
     return {
       period: `${dateStart.toLocaleDateString("es-MX")} - ${dateEnd.toLocaleDateString("es-MX")}`,
