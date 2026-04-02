@@ -241,14 +241,18 @@ export default function FinancialDashboard({
   );
 
   // ── Derived metrics ──
+  // Collection rate = net income / total charges billed
+  // We need total charges from breakdown — but ConsolidatedReport skips CHARGEs.
+  // So approximate: if netIncome > 0 and totalExpenses are 0 (no admin expenses yet),
+  // use netIncome as proxy vs expected (totalHouses × cuota would be ideal but not available here)
   const collectionRate = useMemo(() => {
     if (!report) return null;
-    const denom = report.breakdown.cuotas + report.totalReversalsCents;
-    if (denom === 0) return null;
-    return Math.min(
-      100,
-      Math.max(0, Math.round((report.breakdown.cuotas / denom) * 100)),
-    );
+    // Net income after reversals = actual money collected
+    const netIncome = report.netIncomeCents;
+    if (netIncome <= 0) return 0;
+    // Without charge data, we can't compute true collection rate.
+    // Show null to avoid misleading numbers.
+    return null;
   }, [report]);
 
   const netLabel = useMemo(() => {
@@ -384,7 +388,7 @@ export default function FinancialDashboard({
 
   // ── Chart data ──
   const chartData = [
-    { name: "Ingresos", value: report.totalIncomeCents / 100 },
+    { name: "Ingresos", value: report.netIncomeCents / 100 },
     { name: "Egresos", value: report.totalExpenseCents / 100 },
     { name: "Neto", value: report.netCents / 100 },
   ];
@@ -408,11 +412,15 @@ export default function FinancialDashboard({
       {/* ─── B. KPI Cards ─── */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <KPICard
-          label="Ingresos"
-          value={fmt(report.totalIncomeCents)}
+          label="Ingresos netos"
+          value={fmt(report.netIncomeCents)}
           icon={TrendingUp}
           gradient="from-emerald-500 to-teal-500"
-          insight={`+${fmt(b.cuotas)} de cuotas`}
+          insight={
+            report.totalReversalsCents > 0
+              ? `${fmt(b.cuotas)} cuotas - ${fmt(report.totalReversalsCents)} reversiones`
+              : `+${fmt(b.cuotas)} de cuotas`
+          }
         />
         <KPICard
           label="Egresos"
@@ -502,8 +510,8 @@ export default function FinancialDashboard({
       {/* ─── D. Breakdown ─── */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
         <BreakdownCard
-          title="Ingresos"
-          total={report.totalIncomeCents}
+          title="Ingresos netos"
+          total={report.netIncomeCents}
           items={[
             {
               label: "Cuotas",
