@@ -17,6 +17,7 @@ firebase-debug.log
 firebase-debug.*.log
 service_account*.json
 service_account_one_line.json
+*firebase-adminsdk*.json
 
 # Backup files
 .env.local.backup*
@@ -33,6 +34,9 @@ tsconfig.tsbuildinfo
 *.log
 test_output.txt
 coverage_output.txt
+
+# Lighthouse reports
+.unlighthouse/
 
 # Temporary/debug/scratch files
 temp_*
