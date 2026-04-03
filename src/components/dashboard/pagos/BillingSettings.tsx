@@ -65,9 +65,17 @@ export default function BillingSettings({
   residencialId: string;
 }) {
   // Active section
-  const [activeSection, setActiveSection] = useState<"bank" | "billing">(
-    "bank",
-  );
+  const [activeSection, setActiveSection] = useState<
+    "bank" | "billing" | "fiscal"
+  >("bank");
+
+  // Fiscal data
+  const [fiscalData, setFiscalData] = useState({
+    razonSocial: "",
+    rfc: "",
+    domicilioFiscal: "",
+  });
+  const [savingFiscal, setSavingFiscal] = useState(false);
 
   // Billing state
   const [loading, setLoading] = useState(true);
@@ -124,6 +132,38 @@ export default function BillingSettings({
       .catch(() => toast.error("Error al cargar configuración"))
       .finally(() => setLoading(false));
   }, [residencialId]);
+
+  // Load fiscal data
+  useEffect(() => {
+    getDoc(doc(db, "residenciales", residencialId))
+      .then((snap) => {
+        if (snap.exists()) {
+          const d = snap.data().datosFiscales;
+          if (d) {
+            setFiscalData({
+              razonSocial: d.razonSocial || "",
+              rfc: d.rfc || "",
+              domicilioFiscal: d.domicilioFiscal || "",
+            });
+          }
+        }
+      })
+      .catch(() => {});
+  }, [residencialId]);
+
+  const handleSaveFiscal = async () => {
+    setSavingFiscal(true);
+    try {
+      await updateDoc(doc(db, "residenciales", residencialId), {
+        datosFiscales: fiscalData,
+      });
+      toast.success("Datos fiscales guardados");
+    } catch {
+      toast.error("Error al guardar datos fiscales");
+    } finally {
+      setSavingFiscal(false);
+    }
+  };
 
   const handleSaveBilling = async () => {
     setSaving(true);
@@ -244,6 +284,17 @@ export default function BillingSettings({
         >
           <Settings2 className="h-4 w-4" />
           Reglas de Cobro
+        </button>
+        <button
+          onClick={() => setActiveSection("fiscal")}
+          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all ${
+            activeSection === "fiscal"
+              ? "bg-white text-slate-900 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <Landmark className="h-4 w-4" />
+          Datos Fiscales
         </button>
       </div>
 
@@ -412,22 +463,7 @@ export default function BillingSettings({
               <Skeleton className="h-24 rounded-xl" />
               <Skeleton className="h-24 rounded-xl" />
             </div>
-          ) : bankAccounts.length === 0 && !editingAccount ? (
-            <Card className="border-dashed border-2 border-slate-200 bg-slate-50/50 rounded-xl">
-              <CardContent className="py-10 text-center">
-                <div className="h-14 w-14 rounded-2xl bg-blue-100 flex items-center justify-center mx-auto mb-3">
-                  <Landmark className="h-7 w-7 text-blue-400" />
-                </div>
-                <p className="font-bold text-sm text-slate-500">
-                  Sin cuentas bancarias
-                </p>
-                <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
-                  Agrega al menos una cuenta para que los residentes sepan a
-                  dónde transferir sus pagos
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
+          ) : bankAccounts.length === 0 && !editingAccount ? null : (
             <div className="space-y-3">
               {bankAccounts.map((account) => {
                 const isRevealed = revealedAccountId === account.id;
@@ -755,6 +791,98 @@ export default function BillingSettings({
               <Save className="h-5 w-5 mr-2" />
             )}
             {saving ? "Guardando..." : "Guardar configuración"}
+          </Button>
+        </div>
+      )}
+      {/* ─── FISCAL SECTION ─── */}
+      {activeSection === "fiscal" && (
+        <div className="space-y-4">
+          <Card className="rounded-2xl border-slate-200 shadow-sm">
+            <CardContent className="p-6 space-y-5">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="h-10 w-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                  <Landmark className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">
+                    Datos Fiscales
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Informacion para recibos y comprobantes
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Razon Social
+                </label>
+                <Input
+                  value={fiscalData.razonSocial}
+                  onChange={(e) =>
+                    setFiscalData((prev) => ({
+                      ...prev,
+                      razonSocial: e.target.value,
+                    }))
+                  }
+                  placeholder="Ej: Asociacion de Vecinos AC"
+                  className="h-12 rounded-xl bg-slate-50 border-slate-200 font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    RFC
+                  </label>
+                  <Input
+                    value={fiscalData.rfc}
+                    onChange={(e) =>
+                      setFiscalData((prev) => ({
+                        ...prev,
+                        rfc: e.target.value.toUpperCase(),
+                      }))
+                    }
+                    placeholder="ABC123456XY0"
+                    maxLength={13}
+                    className="h-12 rounded-xl bg-slate-50 border-slate-200 font-mono font-bold uppercase"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    12 o 13 caracteres
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Domicilio Fiscal
+                  </label>
+                  <Input
+                    value={fiscalData.domicilioFiscal}
+                    onChange={(e) =>
+                      setFiscalData((prev) => ({
+                        ...prev,
+                        domicilioFiscal: e.target.value,
+                      }))
+                    }
+                    placeholder="Calle, Colonia, CP"
+                    className="h-12 rounded-xl bg-slate-50 border-slate-200 font-bold"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Button
+            className="w-full h-12 rounded-xl font-black text-base bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
+            onClick={handleSaveFiscal}
+            disabled={savingFiscal}
+          >
+            {savingFiscal ? (
+              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+            ) : (
+              <Save className="h-5 w-5 mr-2" />
+            )}
+            {savingFiscal ? "Guardando..." : "Guardar datos fiscales"}
           </Button>
         </div>
       )}

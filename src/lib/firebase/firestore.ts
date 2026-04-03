@@ -137,6 +137,11 @@ export interface Residencial {
   globalScreenRestrictions?: GlobalScreenRestrictions;
   // 🆕 NUEVO: Límite de códigos QR para usuarios morosos (por defecto 5)
   maxCodigosQRMorosos?: number;
+  datosFiscales?: {
+    razonSocial?: string;
+    rfc?: string;
+    domicilioFiscal?: string;
+  };
   fechaRegistro: Timestamp | null;
   fechaActualizacion: Timestamp | null;
 }

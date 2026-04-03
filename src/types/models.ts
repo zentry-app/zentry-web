@@ -5,10 +5,9 @@
  */
 
 export enum UserRole {
-  Resident = 'resident',
-  Guard = 'guard',
-  Admin = 'admin',
-
+  Resident = "resident",
+  Guard = "guard",
+  Admin = "admin",
 }
 
 export interface UserModel {
@@ -49,6 +48,11 @@ export interface Residencial {
   updatedAt?: Date;
   adminIds?: string[];
   totalHouses?: number;
+  datosFiscales?: {
+    razonSocial?: string;
+    rfc?: string;
+    domicilioFiscal?: string;
+  };
 }
 
 export interface AccessCode {
@@ -77,7 +81,7 @@ export interface NavigationItem {
   icon: string;
 }
 
-export type BlogPostStatus = 'draft' | 'published' | 'scheduled' | 'archived';
+export type BlogPostStatus = "draft" | "published" | "scheduled" | "archived";
 
 export interface IBlogPost {
   id?: string;
@@ -126,4 +130,4 @@ export interface IBlogPost {
 
   // Display Order
   order?: number; // Manual ordering on homepage
-} 
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Building,
@@ -11,16 +11,16 @@ import {
   Trash2,
   Filter,
   ArrowRightLeft,
-  LayoutGrid
+  LayoutGrid,
 } from "lucide-react";
-import { useGlobalAdminRequired } from '@/lib/hooks/useGlobalAdminRequired';
+import { useGlobalAdminRequired } from "@/lib/hooks/useGlobalAdminRequired";
 import {
   getResidenciales,
   eliminarResidencial,
   crearResidencial,
   actualizarResidencial,
   Residencial,
-  suscribirseAResidenciales
+  suscribirseAResidenciales,
 } from "@/lib/firebase/firestore";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
@@ -35,7 +35,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
 } from "@/components/ui/dialog";
 
 // New modular components
@@ -46,30 +46,69 @@ import { ResidencialesStats } from "@/components/dashboard/residenciales/Residen
 // Schema (keep for logic)
 const residencialSchema = z.object({
   id: z.string().optional(),
-  residencialID: z.string()
+  residencialID: z
+    .string()
     .length(6, "El código debe tener exactamente 6 caracteres")
-    .regex(/^(?=.*[A-Z])(?=.*[0-9])[A-Z0-9]{6}$/, "El código debe contener al menos una letra y un número"),
+    .regex(
+      /^(?=.*[A-Z])(?=.*[0-9])[A-Z0-9]{6}$/,
+      "El código debe contener al menos una letra y un número",
+    ),
   nombre: z.string().min(3, "El nombre debe tener al menos 3 caracteres"),
   direccion: z.string().min(5, "La dirección debe tener al menos 5 caracteres"),
   ciudad: z.string().min(3, "La ciudad debe tener al menos 3 caracteres"),
   estado: z.string().min(3, "El estado debe tener al menos 3 caracteres"),
-  codigoPostal: z.string().min(5, "El código postal debe tener al menos 5 caracteres"),
-  cuotaMantenimiento: z.coerce.number().min(0, "La cuota debe ser un número positivo"),
-  maxCodigosQRMorosos: z.coerce.number().min(1, "El límite debe ser al menos 1").max(100, "El límite no puede ser mayor a 100").optional(),
+  codigoPostal: z
+    .string()
+    .min(5, "El código postal debe tener al menos 5 caracteres"),
+  cuotaMantenimiento: z.coerce
+    .number()
+    .min(0, "La cuota debe ser un número positivo"),
+  maxCodigosQRMorosos: z.coerce
+    .number()
+    .min(1, "El límite debe ser al menos 1")
+    .max(100, "El límite no puede ser mayor a 100")
+    .optional(),
   calles: z.array(z.string()).optional(),
-  globalScreenRestrictions: z.object({
-    visitas: z.boolean().default(true),
-    eventos: z.boolean().default(true),
-    mensajes: z.boolean().default(true),
-    reservas: z.boolean().default(true),
-    encuestas: z.boolean().default(true),
-  }).optional(),
-  cuentaPago: z.object({
-    banco: z.string().min(3, "El banco debe tener al menos 3 caracteres").optional().or(z.literal("")),
-    numeroCuenta: z.string().min(10, "El número de cuenta debe tener al menos 10 caracteres").optional().or(z.literal("")),
-    clabe: z.string().min(18, "La CLABE debe tener al menos 18 caracteres").optional().or(z.literal("")),
-    titular: z.string().min(5, "El titular debe tener al menos 5 caracteres").optional().or(z.literal("")),
-  }).optional(),
+  globalScreenRestrictions: z
+    .object({
+      visitas: z.boolean().default(true),
+      eventos: z.boolean().default(true),
+      mensajes: z.boolean().default(true),
+      reservas: z.boolean().default(true),
+      encuestas: z.boolean().default(true),
+    })
+    .optional(),
+  cuentaPago: z
+    .object({
+      banco: z
+        .string()
+        .min(3, "El banco debe tener al menos 3 caracteres")
+        .optional()
+        .or(z.literal("")),
+      numeroCuenta: z
+        .string()
+        .min(10, "El número de cuenta debe tener al menos 10 caracteres")
+        .optional()
+        .or(z.literal("")),
+      clabe: z
+        .string()
+        .min(18, "La CLABE debe tener al menos 18 caracteres")
+        .optional()
+        .or(z.literal("")),
+      titular: z
+        .string()
+        .min(5, "El titular debe tener al menos 5 caracteres")
+        .optional()
+        .or(z.literal("")),
+    })
+    .optional(),
+  datosFiscales: z
+    .object({
+      razonSocial: z.string().optional().or(z.literal("")),
+      rfc: z.string().optional().or(z.literal("")),
+      domicilioFiscal: z.string().optional().or(z.literal("")),
+    })
+    .optional(),
 });
 
 type ResidencialFormValues = z.infer<typeof residencialSchema>;
@@ -84,11 +123,15 @@ export default function ResidencialesPage() {
   const [showFormDialog, setShowFormDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [formMode, setFormMode] = useState<"crear" | "editar">("crear");
-  const [residencialSeleccionado, setResidencialSeleccionado] = useState<Residencial | null>(null);
-  const [residencialAEliminar, setResidencialAEliminar] = useState<string | null>(null);
+  const [residencialSeleccionado, setResidencialSeleccionado] =
+    useState<Residencial | null>(null);
+  const [residencialAEliminar, setResidencialAEliminar] = useState<
+    string | null
+  >(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
 
-  const { isGlobalAdminAllowed, isGlobalAdminLoading } = useGlobalAdminRequired();
+  const { isGlobalAdminAllowed, isGlobalAdminLoading } =
+    useGlobalAdminRequired();
 
   const form = useForm<ResidencialFormValues>({
     resolver: zodResolver(residencialSchema),
@@ -114,6 +157,11 @@ export default function ResidencialesPage() {
         clabe: "",
         titular: "",
       },
+      datosFiscales: {
+        razonSocial: "",
+        rfc: "",
+        domicilioFiscal: "",
+      },
     },
   });
 
@@ -135,14 +183,19 @@ export default function ResidencialesPage() {
 
   // ID Generation
   const generarResidencialID = useCallback(() => {
-    const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let resultado = '';
-    resultado += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random() * 26)];
-    resultado += '0123456789'[Math.floor(Math.random() * 10)];
+    const caracteres = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let resultado = "";
+    resultado += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.floor(Math.random() * 26)];
+    resultado += "0123456789"[Math.floor(Math.random() * 10)];
     for (let i = 0; i < 4; i++) {
-      resultado += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+      resultado += caracteres.charAt(
+        Math.floor(Math.random() * caracteres.length),
+      );
     }
-    const idMezclado = resultado.split('').sort(() => 0.5 - Math.random()).join('');
+    const idMezclado = resultado
+      .split("")
+      .sort(() => 0.5 - Math.random())
+      .join("");
     form.setValue("residencialID", idMezclado);
     return idMezclado;
   }, [form]);
@@ -173,6 +226,11 @@ export default function ResidencialesPage() {
         numeroCuenta: "",
         clabe: "",
         titular: "",
+      },
+      datosFiscales: {
+        razonSocial: "",
+        rfc: "",
+        domicilioFiscal: "",
       },
     });
     generarResidencialID();
@@ -206,6 +264,11 @@ export default function ResidencialesPage() {
         clabe: "",
         titular: "",
       },
+      datosFiscales: (residencial as any).datosFiscales || {
+        razonSocial: "",
+        rfc: "",
+        domicilioFiscal: "",
+      },
     });
     setShowFormDialog(true);
   };
@@ -230,8 +293,12 @@ export default function ResidencialesPage() {
   const onSubmit = async (values: ResidencialFormValues) => {
     setFormSubmitting(true);
     try {
-      const cuentaPagoVacia = !values.cuentaPago ||
-        (!values.cuentaPago.banco && !values.cuentaPago.numeroCuenta && !values.cuentaPago.clabe && !values.cuentaPago.titular);
+      const cuentaPagoVacia =
+        !values.cuentaPago ||
+        (!values.cuentaPago.banco &&
+          !values.cuentaPago.numeroCuenta &&
+          !values.cuentaPago.clabe &&
+          !values.cuentaPago.titular);
 
       const items: any = { ...values };
       if (cuentaPagoVacia) delete items.cuentaPago;
@@ -247,14 +314,16 @@ export default function ResidencialesPage() {
       setShowFormDialog(false);
     } catch (error) {
       console.error(error);
-      toast.error(`Error al ${formMode === "crear" ? "crear" : "actualizar"} el residencial`);
+      toast.error(
+        `Error al ${formMode === "crear" ? "crear" : "actualizar"} el residencial`,
+      );
     } finally {
       setFormSubmitting(false);
     }
   };
 
   const filteredResidenciales = useMemo(() => {
-    return residenciales.filter(r => {
+    return residenciales.filter((r) => {
       if (!searchTerm) return true;
       const term = searchTerm.toLowerCase();
       return (
@@ -267,14 +336,19 @@ export default function ResidencialesPage() {
 
   // Stats calculation
   const stats = useMemo(() => {
-    const cities = new Set(residenciales.map(r => r.ciudad)).size;
-    const totalCuota = residenciales.reduce((acc, r) => acc + (Number(r.cuotaMantenimiento) || 0), 0);
-    const withBank = residenciales.filter(r => r.cuentaPago?.banco).length;
+    const cities = new Set(residenciales.map((r) => r.ciudad)).size;
+    const totalCuota = residenciales.reduce(
+      (acc, r) => acc + (Number(r.cuotaMantenimiento) || 0),
+      0,
+    );
+    const withBank = residenciales.filter((r) => r.cuentaPago?.banco).length;
     return {
       total: residenciales.length,
       ciudades: cities,
-      promedioCuota: residenciales.length ? totalCuota / residenciales.length : 0,
-      conDatosBancarios: withBank
+      promedioCuota: residenciales.length
+        ? totalCuota / residenciales.length
+        : 0,
+      conDatosBancarios: withBank,
     };
   }, [residenciales]);
 
@@ -283,7 +357,9 @@ export default function ResidencialesPage() {
       <div className="h-screen flex items-center justify-center bg-premium">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
-          <p className="font-black text-primary tracking-widest uppercase animate-pulse">Zentry Secure Cloud</p>
+          <p className="font-black text-primary tracking-widest uppercase animate-pulse">
+            Zentry Secure Cloud
+          </p>
         </div>
       </div>
     );
@@ -305,10 +381,12 @@ export default function ResidencialesPage() {
             Panel de Administración Global
           </Badge>
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
-            Gestión de <span className="text-gradient-zentry">Residenciales</span>
+            Gestión de{" "}
+            <span className="text-gradient-zentry">Residenciales</span>
           </h1>
           <p className="text-slate-600 font-bold text-base sm:text-lg max-w-lg">
-            Control centralizado de infraestructura, vialidades y parámetros financieros de todos los recintos.
+            Control centralizado de infraestructura, vialidades y parámetros
+            financieros de todos los recintos.
           </p>
         </div>
 
@@ -316,9 +394,15 @@ export default function ResidencialesPage() {
           <Button
             variant="outline"
             className="rounded-2xl h-12 sm:h-14 px-6 font-black shadow-zentry bg-white/60 border-slate-300 text-slate-800 hover:bg-slate-50 transition-all w-full sm:w-auto"
-            onClick={() => { setIsRefreshing(true); window.location.reload(); }}
+            onClick={() => {
+              setIsRefreshing(true);
+              window.location.reload();
+            }}
           >
-            <RefreshCw className={`mr-2 h-5 w-5 ${isRefreshing ? 'animate-spin' : ''}`} /> RELOAD
+            <RefreshCw
+              className={`mr-2 h-5 w-5 ${isRefreshing ? "animate-spin" : ""}`}
+            />{" "}
+            RELOAD
           </Button>
           <Button
             onClick={handleOpenCreate}
@@ -330,10 +414,7 @@ export default function ResidencialesPage() {
       </motion.div>
 
       {/* Stats Section */}
-      <ResidencialesStats
-        {...stats}
-        isLoading={isLoading}
-      />
+      <ResidencialesStats {...stats} isLoading={isLoading} />
 
       {/* Filters & Grid Section */}
       <div className="space-y-6">
@@ -353,7 +434,8 @@ export default function ResidencialesPage() {
               <LayoutGrid className="h-3.5 w-3.5 sm:h-4 w-4" /> VISTA GRID
             </Badge>
             <div className="px-4 py-2 text-slate-500 font-black text-[9px] sm:text-[10px] flex items-center gap-2 uppercase tracking-tight">
-              <ArrowRightLeft className="h-3 w-3" /> {filteredResidenciales.length} RESULTADOS
+              <ArrowRightLeft className="h-3 w-3" />{" "}
+              {filteredResidenciales.length} RESULTADOS
             </div>
           </div>
         </div>
@@ -361,8 +443,11 @@ export default function ResidencialesPage() {
         <AnimatePresence mode="popLayout">
           {isLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 py-20">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="h-[300px] rounded-[2.5rem] bg-white/40 animate-pulse border border-slate-100 flex items-center justify-center">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="h-[300px] rounded-[2.5rem] bg-white/40 animate-pulse border border-slate-100 flex items-center justify-center"
+                >
                   <Building className="h-10 w-10 text-slate-200" />
                 </div>
               ))}
@@ -376,8 +461,13 @@ export default function ResidencialesPage() {
               <div className="h-24 w-24 rounded-[2rem] bg-slate-100 flex items-center justify-center mx-auto mb-6 text-slate-300">
                 <Search className="h-12 w-12" />
               </div>
-              <h3 className="text-2xl font-black text-slate-900 mb-2">Sin resultados auditados</h3>
-              <p className="text-slate-500 font-bold">No se encontraron residenciales con los criterios de búsqueda: "{searchTerm}"</p>
+              <h3 className="text-2xl font-black text-slate-900 mb-2">
+                Sin resultados auditados
+              </h3>
+              <p className="text-slate-500 font-bold">
+                No se encontraron residenciales con los criterios de búsqueda: "
+                {searchTerm}"
+              </p>
               <Button
                 variant="outline"
                 className="mt-6 rounded-2xl font-black border-slate-200"
@@ -422,9 +512,12 @@ export default function ResidencialesPage() {
           <div className="h-16 w-16 rounded-[1.5rem] bg-destructive/10 text-destructive flex items-center justify-center mx-auto mb-6">
             <Trash2 className="h-8 w-8" />
           </div>
-          <DialogTitle className="text-2xl font-black text-center mb-2">Eliminar Residencial</DialogTitle>
+          <DialogTitle className="text-2xl font-black text-center mb-2">
+            Eliminar Residencial
+          </DialogTitle>
           <DialogDescription className="text-center text-slate-500 font-bold mb-8">
-            ¿Está seguro de eliminar permanentemente este recinto? Esta acción eliminará toda la infraestructura asociada y no se puede revertir.
+            ¿Está seguro de eliminar permanentemente este recinto? Esta acción
+            eliminará toda la infraestructura asociada y no se puede revertir.
           </DialogDescription>
           <div className="grid grid-cols-2 gap-4">
             <Button

@@ -39,6 +39,8 @@ import {
   orderBy,
   limit,
   getDocs,
+  doc,
+  getDoc,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
@@ -48,6 +50,7 @@ import {
   CatalogService,
   type PenaltyRule,
 } from "@/lib/services/catalog-service";
+import { generateReceiptPDF } from "@/lib/utils/generate-receipt-pdf";
 
 interface HouseDetailSheetProps {
   open: boolean;
@@ -133,6 +136,33 @@ export default function HouseDetailSheet({
   const [reversalReason, setReversalReason] = useState("");
   const [reversing, setReversing] = useState(false);
   const [actionSubmitting, setActionSubmitting] = useState(false);
+
+  // Fiscal data for receipt PDF
+  const [fiscalInfo, setFiscalInfo] = useState<{
+    razonSocial?: string;
+    rfc?: string;
+    domicilioFiscal?: string;
+    nombre?: string;
+    direccion?: string;
+  }>({});
+
+  useEffect(() => {
+    if (!residencialId) return;
+    getDoc(doc(db, "residenciales", residencialId))
+      .then((snap) => {
+        if (snap.exists()) {
+          const d = snap.data();
+          setFiscalInfo({
+            razonSocial: d.datosFiscales?.razonSocial || "",
+            rfc: d.datosFiscales?.rfc || "",
+            domicilioFiscal: d.datosFiscales?.domicilioFiscal || "",
+            nombre: d.nombre || "",
+            direccion: d.direccion || "",
+          });
+        }
+      })
+      .catch(() => {});
+  }, [residencialId]);
 
   const loadSheetData = useCallback(() => {
     setLoadingAging(true);
@@ -283,68 +313,51 @@ export default function HouseDetailSheet({
     }
   };
 
-  const printReceipt = (entry: LedgerEntry) => {
+  const printReceipt = async (entry: LedgerEntry) => {
     const amt = entry.amountInCents || entry.amount || 0;
     const date = entry.createdAt?.toDate
       ? entry.createdAt.toDate()
       : entry.createdAt?.seconds
         ? new Date(entry.createdAt.seconds * 1000)
         : new Date();
-    const dateStr = date.toLocaleDateString("es-MX", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-    const timeStr = date.toLocaleTimeString("es-MX", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
 
-    const w = window.open("", "_blank", "width=400,height=600");
-    if (!w) return;
-    w.document
-      .write(`<!DOCTYPE html><html><head><title>Recibo ${entry.folio}</title>
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 32px; max-width: 380px; margin: auto; color: #1e293b; }
-        .header { text-align: center; padding: 20px 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 20px; }
-        .header h1 { font-size: 14px; color: #64748b; text-transform: uppercase; letter-spacing: 2px; }
-        .folio { font-size: 28px; font-weight: 900; color: #1e88e5; margin: 8px 0; font-family: monospace; }
-        .amount { text-align: center; padding: 24px 0; }
-        .amount .value { font-size: 36px; font-weight: 900; }
-        .amount .label { font-size: 12px; color: #94a3b8; margin-top: 4px; }
-        .details { border-top: 1px dashed #cbd5e1; border-bottom: 1px dashed #cbd5e1; padding: 16px 0; margin: 16px 0; }
-        .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
-        .row .label { color: #94a3b8; }
-        .row .value { font-weight: 600; text-align: right; }
-        .footer { text-align: center; padding-top: 20px; font-size: 11px; color: #94a3b8; }
-        .seal { margin-top: 12px; font-size: 10px; color: #64748b; }
-        @media print { body { padding: 16px; } }
-      </style>
-    </head><body>
-      <div class="header">
-        <h1>Comprobante de pago</h1>
-        <div class="folio">${entry.folio || "---"}</div>
-      </div>
-      <div class="amount">
-        <div class="value">$${(amt / 100).toLocaleString("es-MX")}</div>
-        <div class="label">MXN</div>
-      </div>
-      <div class="details">
-        <div class="row"><span class="label">Casa</span><span class="value">${house.label}</span></div>
-        <div class="row"><span class="label">Residente</span><span class="value">${house.residentName}</span></div>
-        <div class="row"><span class="label">Concepto</span><span class="value">${entry.description || entry.subType || "Pago"}</span></div>
-        <div class="row"><span class="label">Fecha</span><span class="value">${dateStr}</span></div>
-        <div class="row"><span class="label">Hora</span><span class="value">${timeStr}</span></div>
-        ${entry.periodKey ? `<div class="row"><span class="label">Periodo</span><span class="value">${entry.periodKey}</span></div>` : ""}
-      </div>
-      <div class="footer">
-        <p>Este documento no representa un comprobante fiscal</p>
-        <p class="seal">Documento electrónico verificado — Zentry</p>
-      </div>
-      <script>setTimeout(() => window.print(), 300);</script>
-    </body></html>`);
-    w.document.close();
+    const meses = [
+      "Enero",
+      "Febrero",
+      "Marzo",
+      "Abril",
+      "Mayo",
+      "Junio",
+      "Julio",
+      "Agosto",
+      "Septiembre",
+      "Octubre",
+      "Noviembre",
+      "Diciembre",
+    ];
+    const dateStr = `${date.getDate()} de ${meses[date.getMonth()]} de ${date.getFullYear()}`;
+    const timeStr = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+
+    await generateReceiptPDF({
+      folio: entry.folio || "---",
+      houseId: house.houseId || house.label || "",
+      payerName: house.residentName || "",
+      concept: entry.description || entry.subType || "Pago",
+      amountCents: amt,
+      method:
+        entry.subType === "cash_payment"
+          ? "Efectivo"
+          : entry.subType === "transfer_payment"
+            ? "Transferencia"
+            : "Pago",
+      timestamp: `${dateStr} · ${timeStr}`,
+      isAdmin: true,
+      residencialName: fiscalInfo.nombre,
+      residencialAddress: fiscalInfo.direccion,
+      razonSocial: fiscalInfo.razonSocial,
+      rfc: fiscalInfo.rfc,
+      domicilioFiscal: fiscalInfo.domicilioFiscal,
+    });
   };
 
   const houseDisplayStatus =
@@ -387,7 +400,10 @@ export default function HouseDetailSheet({
                 const liveDebt =
                   ledger.length > 0
                     ? ledger
-                        .filter((e) => e.status !== "reversed")
+                        .filter(
+                          (e) =>
+                            e.status !== "reversed" && e.type !== "REVERSAL",
+                        )
                         .reduce((sum, e) => {
                           const amt = e.amountInCents || e.amount || 0;
                           if (e.impact === "INCREASE_DEBT") return sum + amt;

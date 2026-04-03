@@ -74,7 +74,7 @@ const SUBTYPE_LABELS: Record<string, string> = {
   transfer_payment: "Transferencia",
   cash_payment: "Efectivo",
   card_payment: "Tarjeta",
-  monthly_fee: "Cuota mensual",
+  monthly_fee: "Cuota Ordinaria",
   late_fee: "Recargo por mora",
   balance_adjustment_manual: "Ajuste de saldo",
   extraordinary_fee: "Cargo extraordinario",

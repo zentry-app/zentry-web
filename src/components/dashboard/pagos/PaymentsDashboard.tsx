@@ -145,7 +145,20 @@ export default function PaymentsDashboard({
           "getResidentialHousesSummary",
         )({ residencialId }),
       ]);
-      if (kpiRes.status === "fulfilled") setKpi(kpiRes.value.data);
+      console.log(
+        "[PaymentsDashboard] kpiRes:",
+        kpiRes.status,
+        kpiRes.status === "rejected" ? (kpiRes as any).reason?.message : "OK",
+      );
+      console.log("[PaymentsDashboard] pendingRes:", pendingRes.status);
+      console.log("[PaymentsDashboard] housesRes:", housesRes.status);
+      if (kpiRes.status === "fulfilled") {
+        console.log(
+          "[PaymentsDashboard] KPI data:",
+          JSON.stringify(kpiRes.value.data, null, 2),
+        );
+        setKpi(kpiRes.value.data);
+      }
       if (pendingRes.status === "fulfilled") setPending(pendingRes.value.data);
       if (housesRes.status === "fulfilled") setHouses(housesRes.value.data);
     } catch (err) {

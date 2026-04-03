@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -6,27 +6,39 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
-import { Separator } from '@/components/ui/separator';
-import { toast } from 'sonner';
-import { 
-  Settings, 
-  CreditCard, 
-  Banknote, 
-  Save, 
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
+import {
+  Settings,
+  CreditCard,
+  Banknote,
+  Save,
   Loader2,
   Calendar,
   DollarSign,
   Clock,
-  Building2
-} from 'lucide-react';
-import { doc, getDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase/config';
+  Building2,
+} from "lucide-react";
+import {
+  doc,
+  getDoc,
+  updateDoc,
+  serverTimestamp,
+  Timestamp,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase/config";
 
 interface PaymentConfigurationDialogProps {
   open: boolean;
@@ -69,7 +81,7 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  
+
   // Estados para configuración de pagos
   const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>({
     fechaCorte: 15,
@@ -81,77 +93,111 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
     permitePagosRetroactivos: false,
     mesesMaximosRetroactivos: 6,
     recargoPorMesVencido: 0.05, // 5%
-    fechaInicioSistema: '2024-01-01',
+    fechaInicioSistema: "2024-01-01",
     mesesExcluidos: [],
   });
-  
+
   // Estados para información bancaria
   const [bankInfo, setBankInfo] = useState<BankInfo>({
-    banco: '',
-    cuenta: '',
-    clabe: '',
-    titular: '',
-    tipoCuenta: 'corriente',
-    referencia: '',
-    instrucciones: 'Usar como referencia: ',
-    metodosPago: ['transferencia', 'deposito', 'app_bancaria'],
-    contacto: '',
+    banco: "",
+    cuenta: "",
+    clabe: "",
+    titular: "",
+    tipoCuenta: "corriente",
+    referencia: "",
+    instrucciones: "Usar como referencia: ",
+    metodosPago: ["transferencia", "deposito", "app_bancaria"],
+    contacto: "",
   });
-  
+
   // Estado para controlar si se usa información bancaria
   const [useBankInfo, setUseBankInfo] = useState(false);
+
+  // Estados para datos fiscales
+  const [fiscalData, setFiscalData] = useState({
+    razonSocial: "",
+    rfc: "",
+    domicilioFiscal: "",
+  });
 
   const loadConfiguration = useCallback(async () => {
     setLoading(true);
     try {
-      const residencialRef = doc(db, 'residenciales', residencialId);
+      const residencialRef = doc(db, "residenciales", residencialId);
       const residencialDoc = await getDoc(residencialRef);
-      
+
       if (residencialDoc.exists()) {
         const data = residencialDoc.data();
-        
+
         // Cargar configuración de pagos
         if (data.configuracionPagos) {
           setPaymentConfig({
             fechaCorte: data.configuracionPagos.fechaCorte || 15,
             fechaVencimiento: data.configuracionPagos.fechaVencimiento || 25,
             periodoGracia: data.configuracionPagos.periodoGracia || 5,
-            cuotaMensual: data.configuracionPagos.cuotaMensual || data.cuotaMantenimiento || 1150,
+            cuotaMensual:
+              data.configuracionPagos.cuotaMensual ||
+              data.cuotaMantenimiento ||
+              1150,
             activo: data.configuracionPagos.activo !== false,
             // 🆕 Campos de pagos retroactivos
-            permitePagosRetroactivos: data.configuracionPagos.permitePagosRetroactivos || false,
-            mesesMaximosRetroactivos: data.configuracionPagos.mesesMaximosRetroactivos || 6,
-            recargoPorMesVencido: data.configuracionPagos.recargoPorMesVencido || 0.05,
-            fechaInicioSistema: data.configuracionPagos.fechaInicioSistema 
-              ? (data.configuracionPagos.fechaInicioSistema.toDate ? 
-                  data.configuracionPagos.fechaInicioSistema.toDate().toISOString().split('T')[0] :
-                  data.configuracionPagos.fechaInicioSistema)
-              : '2024-01-01',
+            permitePagosRetroactivos:
+              data.configuracionPagos.permitePagosRetroactivos || false,
+            mesesMaximosRetroactivos:
+              data.configuracionPagos.mesesMaximosRetroactivos || 6,
+            recargoPorMesVencido:
+              data.configuracionPagos.recargoPorMesVencido || 0.05,
+            fechaInicioSistema: data.configuracionPagos.fechaInicioSistema
+              ? data.configuracionPagos.fechaInicioSistema.toDate
+                ? data.configuracionPagos.fechaInicioSistema
+                    .toDate()
+                    .toISOString()
+                    .split("T")[0]
+                : data.configuracionPagos.fechaInicioSistema
+              : "2024-01-01",
             mesesExcluidos: data.configuracionPagos.mesesExcluidos || [],
           });
         }
-        
+
+        // Cargar datos fiscales
+        if (data.datosFiscales) {
+          setFiscalData({
+            razonSocial: data.datosFiscales.razonSocial || "",
+            rfc: data.datosFiscales.rfc || "",
+            domicilioFiscal: data.datosFiscales.domicilioFiscal || "",
+          });
+        }
+
         // Cargar información bancaria
         if (data.informacionBancaria) {
-          const hasBankData = data.informacionBancaria.banco || data.informacionBancaria.cuenta || data.informacionBancaria.clabe;
+          const hasBankData =
+            data.informacionBancaria.banco ||
+            data.informacionBancaria.cuenta ||
+            data.informacionBancaria.clabe;
           setUseBankInfo(!!hasBankData);
-          
+
           setBankInfo({
-            banco: data.informacionBancaria.banco || '',
-            cuenta: data.informacionBancaria.cuenta || '',
-            clabe: data.informacionBancaria.clabe || '',
-            titular: data.informacionBancaria.titular || '',
-            tipoCuenta: data.informacionBancaria.tipoCuenta || 'corriente',
-            referencia: data.informacionBancaria.referencia || '',
-            instrucciones: data.informacionBancaria.instrucciones || 'Usar como referencia: ',
-            metodosPago: data.informacionBancaria.metodosPago || ['transferencia', 'deposito', 'app_bancaria'],
-            contacto: data.informacionBancaria.contacto || '',
+            banco: data.informacionBancaria.banco || "",
+            cuenta: data.informacionBancaria.cuenta || "",
+            clabe: data.informacionBancaria.clabe || "",
+            titular: data.informacionBancaria.titular || "",
+            tipoCuenta: data.informacionBancaria.tipoCuenta || "corriente",
+            referencia: data.informacionBancaria.referencia || "",
+            instrucciones:
+              data.informacionBancaria.instrucciones ||
+              "Usar como referencia: ",
+            metodosPago: data.informacionBancaria.metodosPago || [
+              "transferencia",
+              "deposito",
+              "app_bancaria",
+            ],
+            contacto: data.informacionBancaria.contacto || "",
           });
         }
       }
     } catch (error) {
-      console.error('Error al cargar configuración:', error);
-      toast.error('Error al cargar la configuración');
+      console.error("Error al cargar configuración:", error);
+      toast.error("Error al cargar la configuración");
     } finally {
       setLoading(false);
     }
@@ -164,15 +210,18 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
     }
   }, [loadConfiguration, open, residencialId]);
 
-  const handlePaymentConfigChange = (field: keyof PaymentConfig, value: any) => {
-    setPaymentConfig(prev => ({
+  const handlePaymentConfigChange = (
+    field: keyof PaymentConfig,
+    value: any,
+  ) => {
+    setPaymentConfig((prev) => ({
       ...prev,
       [field]: value,
     }));
   };
 
   const handleBankInfoChange = (field: keyof BankInfo, value: any) => {
-    setBankInfo(prev => ({
+    setBankInfo((prev) => ({
       ...prev,
       [field]: value,
     }));
@@ -181,71 +230,82 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
   const validateConfiguration = () => {
     // Validar fechas
     if (paymentConfig.fechaCorte < 1 || paymentConfig.fechaCorte > 31) {
-      toast.error('La fecha de corte debe estar entre 1 y 31');
+      toast.error("La fecha de corte debe estar entre 1 y 31");
       return false;
     }
-    
-    if (paymentConfig.fechaVencimiento < 1 || paymentConfig.fechaVencimiento > 31) {
-      toast.error('La fecha de vencimiento debe estar entre 1 y 31');
+
+    if (
+      paymentConfig.fechaVencimiento < 1 ||
+      paymentConfig.fechaVencimiento > 31
+    ) {
+      toast.error("La fecha de vencimiento debe estar entre 1 y 31");
       return false;
     }
-    
+
     if (paymentConfig.fechaVencimiento <= paymentConfig.fechaCorte) {
-      toast.error('La fecha de vencimiento debe ser posterior a la fecha de corte');
+      toast.error(
+        "La fecha de vencimiento debe ser posterior a la fecha de corte",
+      );
       return false;
     }
-    
+
     if (paymentConfig.periodoGracia < 0) {
-      toast.error('El período de gracia no puede ser negativo');
+      toast.error("El período de gracia no puede ser negativo");
       return false;
     }
-    
+
     if (paymentConfig.cuotaMensual <= 0) {
-      toast.error('La cuota mensual debe ser mayor a 0');
+      toast.error("La cuota mensual debe ser mayor a 0");
       return false;
     }
-    
+
     // 🆕 Validar configuración de pagos retroactivos
     if (paymentConfig.permitePagosRetroactivos) {
-      if (paymentConfig.mesesMaximosRetroactivos < 1 || paymentConfig.mesesMaximosRetroactivos > 24) {
-        toast.error('Los meses máximos retroactivos deben estar entre 1 y 24');
+      if (
+        paymentConfig.mesesMaximosRetroactivos < 1 ||
+        paymentConfig.mesesMaximosRetroactivos > 24
+      ) {
+        toast.error("Los meses máximos retroactivos deben estar entre 1 y 24");
         return false;
       }
-      
-      if (paymentConfig.recargoPorMesVencido < 0 || paymentConfig.recargoPorMesVencido > 1) {
-        toast.error('El recargo por mes vencido debe estar entre 0% y 100%');
+
+      if (
+        paymentConfig.recargoPorMesVencido < 0 ||
+        paymentConfig.recargoPorMesVencido > 1
+      ) {
+        toast.error("El recargo por mes vencido debe estar entre 0% y 100%");
         return false;
       }
-      
+
       if (!paymentConfig.fechaInicioSistema) {
-        toast.error('La fecha de inicio del sistema es requerida');
+        toast.error("La fecha de inicio del sistema es requerida");
         return false;
       }
     }
-    
+
     // Validar información bancaria solo si está habilitada
     if (paymentConfig.activo && useBankInfo) {
       if (!bankInfo.banco.trim()) {
-        toast.error('El nombre del banco es requerido');
+        toast.error("El nombre del banco es requerido");
         return false;
       }
-      
+
       if (!bankInfo.cuenta.trim()) {
-        toast.error('El número de cuenta es requerido');
+        toast.error("El número de cuenta es requerido");
         return false;
       }
-      
+
       if (!bankInfo.clabe.trim()) {
-        toast.error('La CLABE es requerida');
+        toast.error("La CLABE es requerida");
         return false;
       }
-      
+
       if (!bankInfo.titular.trim()) {
-        toast.error('El titular de la cuenta es requerido');
+        toast.error("El titular de la cuenta es requerido");
         return false;
       }
     }
-    
+
     return true;
   };
 
@@ -253,24 +313,27 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
     if (!validateConfiguration()) {
       return;
     }
-    
+
     setSaving(true);
     try {
-      const residencialRef = doc(db, 'residenciales', residencialId);
-      
+      const residencialRef = doc(db, "residenciales", residencialId);
+
       const updateData: any = {
         configuracionPagos: {
           ...paymentConfig,
           // Convertir fechaInicioSistema de String a Timestamp
-          fechaInicioSistema: paymentConfig.fechaInicioSistema 
+          fechaInicioSistema: paymentConfig.fechaInicioSistema
             ? Timestamp.fromDate(new Date(paymentConfig.fechaInicioSistema))
-            : Timestamp.fromDate(new Date('2024-01-01')),
+            : Timestamp.fromDate(new Date("2024-01-01")),
           fechaActualizacion: serverTimestamp(),
         },
         // Mantener compatibilidad con cuotaMantenimiento
         cuotaMantenimiento: paymentConfig.cuotaMensual,
       };
-      
+
+      // Agregar datos fiscales
+      updateData.datosFiscales = fiscalData;
+
       // Solo agregar información bancaria si está habilitada
       if (useBankInfo) {
         updateData.informacionBancaria = {
@@ -280,26 +343,26 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
       } else {
         // Si no se usa información bancaria, limpiar los datos existentes
         updateData.informacionBancaria = {
-          banco: '',
-          cuenta: '',
-          clabe: '',
-          titular: '',
-          tipoCuenta: 'corriente',
-          referencia: '',
-          instrucciones: '',
+          banco: "",
+          cuenta: "",
+          clabe: "",
+          titular: "",
+          tipoCuenta: "corriente",
+          referencia: "",
+          instrucciones: "",
           metodosPago: [],
-          contacto: '',
+          contacto: "",
           fechaActualizacion: serverTimestamp(),
         };
       }
-      
+
       await updateDoc(residencialRef, updateData);
-      
-      toast.success('Configuración de pagos guardada correctamente');
+
+      toast.success("Configuración de pagos guardada correctamente");
       onOpenChange(false);
     } catch (error) {
-      console.error('Error al guardar configuración:', error);
-      toast.error('Error al guardar la configuración');
+      console.error("Error al guardar configuración:", error);
+      toast.error("Error al guardar la configuración");
     } finally {
       setSaving(false);
     }
@@ -314,7 +377,8 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
             Configuración de Pagos - {residencialName}
           </DialogTitle>
           <DialogDescription>
-            Configura las fechas, montos e información bancaria para el sistema de pagos
+            Configura las fechas, montos e información bancaria para el sistema
+            de pagos
           </DialogDescription>
         </DialogHeader>
 
@@ -341,13 +405,16 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
                   <div className="space-y-0.5">
                     <Label htmlFor="activo">Sistema de Pagos Activo</Label>
                     <p className="text-sm text-muted-foreground">
-                      Habilita o deshabilita el sistema de pagos para este residencial
+                      Habilita o deshabilita el sistema de pagos para este
+                      residencial
                     </p>
                   </div>
                   <Switch
                     id="activo"
                     checked={paymentConfig.activo}
-                    onCheckedChange={(checked) => handlePaymentConfigChange('activo', checked)}
+                    onCheckedChange={(checked) =>
+                      handlePaymentConfigChange("activo", checked)
+                    }
                   />
                 </div>
 
@@ -360,7 +427,12 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
                       min="1"
                       max="31"
                       value={paymentConfig.fechaCorte}
-                      onChange={(e) => handlePaymentConfigChange('fechaCorte', parseInt(e.target.value))}
+                      onChange={(e) =>
+                        handlePaymentConfigChange(
+                          "fechaCorte",
+                          parseInt(e.target.value),
+                        )
+                      }
                       placeholder="15"
                     />
                     <p className="text-sm text-muted-foreground">
@@ -369,14 +441,21 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="fechaVencimiento">Fecha de Vencimiento</Label>
+                    <Label htmlFor="fechaVencimiento">
+                      Fecha de Vencimiento
+                    </Label>
                     <Input
                       id="fechaVencimiento"
                       type="number"
                       min="1"
                       max="31"
                       value={paymentConfig.fechaVencimiento}
-                      onChange={(e) => handlePaymentConfigChange('fechaVencimiento', parseInt(e.target.value))}
+                      onChange={(e) =>
+                        handlePaymentConfigChange(
+                          "fechaVencimiento",
+                          parseInt(e.target.value),
+                        )
+                      }
                       placeholder="25"
                     />
                     <p className="text-sm text-muted-foreground">
@@ -385,13 +464,20 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="periodoGracia">Período de Gracia (días)</Label>
+                    <Label htmlFor="periodoGracia">
+                      Período de Gracia (días)
+                    </Label>
                     <Input
                       id="periodoGracia"
                       type="number"
                       min="0"
                       value={paymentConfig.periodoGracia}
-                      onChange={(e) => handlePaymentConfigChange('periodoGracia', parseInt(e.target.value))}
+                      onChange={(e) =>
+                        handlePaymentConfigChange(
+                          "periodoGracia",
+                          parseInt(e.target.value),
+                        )
+                      }
                       placeholder="5"
                     />
                     <p className="text-sm text-muted-foreground">
@@ -407,7 +493,12 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
                       min="0"
                       step="0.01"
                       value={paymentConfig.cuotaMensual}
-                      onChange={(e) => handlePaymentConfigChange('cuotaMensual', parseFloat(e.target.value))}
+                      onChange={(e) =>
+                        handlePaymentConfigChange(
+                          "cuotaMensual",
+                          parseFloat(e.target.value),
+                        )
+                      }
                       placeholder="1150"
                     />
                     <p className="text-sm text-muted-foreground">
@@ -434,7 +525,9 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label htmlFor="permitePagosRetroactivos">Permitir Pagos Retroactivos</Label>
+                    <Label htmlFor="permitePagosRetroactivos">
+                      Permitir Pagos Retroactivos
+                    </Label>
                     <p className="text-sm text-muted-foreground">
                       Habilita que los residentes puedan pagar meses anteriores
                     </p>
@@ -442,30 +535,45 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
                   <Switch
                     id="permitePagosRetroactivos"
                     checked={paymentConfig.permitePagosRetroactivos}
-                    onCheckedChange={(checked) => handlePaymentConfigChange('permitePagosRetroactivos', checked)}
+                    onCheckedChange={(checked) =>
+                      handlePaymentConfigChange(
+                        "permitePagosRetroactivos",
+                        checked,
+                      )
+                    }
                   />
                 </div>
 
                 {paymentConfig.permitePagosRetroactivos && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="mesesMaximosRetroactivos">Meses Máximos Retroactivos</Label>
+                      <Label htmlFor="mesesMaximosRetroactivos">
+                        Meses Máximos Retroactivos
+                      </Label>
                       <Input
                         id="mesesMaximosRetroactivos"
                         type="number"
                         min="1"
                         max="24"
                         value={paymentConfig.mesesMaximosRetroactivos}
-                        onChange={(e) => handlePaymentConfigChange('mesesMaximosRetroactivos', parseInt(e.target.value))}
+                        onChange={(e) =>
+                          handlePaymentConfigChange(
+                            "mesesMaximosRetroactivos",
+                            parseInt(e.target.value),
+                          )
+                        }
                         placeholder="6"
                       />
                       <p className="text-sm text-muted-foreground">
-                        Máximo número de meses que se pueden pagar retroactivamente (1-24)
+                        Máximo número de meses que se pueden pagar
+                        retroactivamente (1-24)
                       </p>
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="recargoPorMesVencido">Recargo por Mes Vencido (%)</Label>
+                      <Label htmlFor="recargoPorMesVencido">
+                        Recargo por Mes Vencido (%)
+                      </Label>
                       <Input
                         id="recargoPorMesVencido"
                         type="number"
@@ -473,7 +581,12 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
                         max="100"
                         step="0.01"
                         value={paymentConfig.recargoPorMesVencido * 100}
-                        onChange={(e) => handlePaymentConfigChange('recargoPorMesVencido', parseFloat(e.target.value) / 100)}
+                        onChange={(e) =>
+                          handlePaymentConfigChange(
+                            "recargoPorMesVencido",
+                            parseFloat(e.target.value) / 100,
+                          )
+                        }
                         placeholder="5"
                       />
                       <p className="text-sm text-muted-foreground">
@@ -482,15 +595,23 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
                     </div>
 
                     <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="fechaInicioSistema">Fecha de Inicio del Sistema</Label>
+                      <Label htmlFor="fechaInicioSistema">
+                        Fecha de Inicio del Sistema
+                      </Label>
                       <Input
                         id="fechaInicioSistema"
                         type="date"
                         value={paymentConfig.fechaInicioSistema}
-                        onChange={(e) => handlePaymentConfigChange('fechaInicioSistema', e.target.value)}
+                        onChange={(e) =>
+                          handlePaymentConfigChange(
+                            "fechaInicioSistema",
+                            e.target.value,
+                          )
+                        }
                       />
                       <p className="text-sm text-muted-foreground">
-                        Fecha desde la cual se pueden calcular pagos retroactivos
+                        Fecha desde la cual se pueden calcular pagos
+                        retroactivos
                       </p>
                     </div>
                   </div>
@@ -499,7 +620,8 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
                 {!paymentConfig.permitePagosRetroactivos && (
                   <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
                     <p className="text-sm text-amber-800">
-                      ⚠️ Los pagos retroactivos están deshabilitados. Los residentes solo podrán pagar el mes actual.
+                      ⚠️ Los pagos retroactivos están deshabilitados. Los
+                      residentes solo podrán pagar el mes actual.
                     </p>
                   </div>
                 )}
@@ -522,7 +644,9 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label htmlFor="useBankInfo">Usar Información Bancaria</Label>
+                    <Label htmlFor="useBankInfo">
+                      Usar Información Bancaria
+                    </Label>
                     <p className="text-sm text-muted-foreground">
                       Habilita la configuración de datos bancarios para pagos
                     </p>
@@ -533,100 +657,187 @@ const PaymentConfigurationDialog: React.FC<PaymentConfigurationDialogProps> = ({
                     onCheckedChange={setUseBankInfo}
                   />
                 </div>
-                
+
                 {!useBankInfo && (
                   <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-sm text-blue-800">
-                      ℹ️ Sin información bancaria configurada. Los residentes no podrán ver datos bancarios para realizar pagos.
+                      ℹ️ Sin información bancaria configurada. Los residentes no
+                      podrán ver datos bancarios para realizar pagos.
                     </p>
                   </div>
                 )}
-                
+
                 {useBankInfo && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="banco">Banco</Label>
+                      <Input
+                        id="banco"
+                        value={bankInfo.banco}
+                        onChange={(e) =>
+                          handleBankInfoChange("banco", e.target.value)
+                        }
+                        placeholder="BBVA, Santander, etc."
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="cuenta">Número de Cuenta</Label>
+                      <Input
+                        id="cuenta"
+                        value={bankInfo.cuenta}
+                        onChange={(e) =>
+                          handleBankInfoChange("cuenta", e.target.value)
+                        }
+                        placeholder="1234567890"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="clabe">CLABE</Label>
+                      <Input
+                        id="clabe"
+                        value={bankInfo.clabe}
+                        onChange={(e) =>
+                          handleBankInfoChange("clabe", e.target.value)
+                        }
+                        placeholder="012345678901234567"
+                        maxLength={18}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="titular">Titular de la Cuenta</Label>
+                      <Input
+                        id="titular"
+                        value={bankInfo.titular}
+                        onChange={(e) =>
+                          handleBankInfoChange("titular", e.target.value)
+                        }
+                        placeholder="Coto Sur Administración"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="tipoCuenta">Tipo de Cuenta</Label>
+                      <Input
+                        id="tipoCuenta"
+                        value={bankInfo.tipoCuenta}
+                        onChange={(e) =>
+                          handleBankInfoChange("tipoCuenta", e.target.value)
+                        }
+                        placeholder="corriente"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="referencia">Referencia</Label>
+                      <Input
+                        id="referencia"
+                        value={bankInfo.referencia}
+                        onChange={(e) =>
+                          handleBankInfoChange("referencia", e.target.value)
+                        }
+                        placeholder="COTO-SUR-MANTENIMIENTO"
+                      />
+                    </div>
+
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="instrucciones">
+                        Instrucciones para Residentes
+                      </Label>
+                      <Input
+                        id="instrucciones"
+                        value={bankInfo.instrucciones}
+                        onChange={(e) =>
+                          handleBankInfoChange("instrucciones", e.target.value)
+                        }
+                        placeholder="Usar como referencia: COTO-SUR-MANTENIMIENTO"
+                      />
+                    </div>
+
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="contacto">Contacto para Dudas</Label>
+                      <Input
+                        id="contacto"
+                        type="email"
+                        value={bankInfo.contacto}
+                        onChange={(e) =>
+                          handleBankInfoChange("contacto", e.target.value)
+                        }
+                        placeholder="admin@cotosur.com"
+                      />
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Separator />
+
+            {/* Datos Fiscales */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  Datos Fiscales
+                </CardTitle>
+                <CardDescription>
+                  Informacion fiscal para recibos y comprobantes del residencial
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="razonSocial">Razon Social</Label>
+                  <Input
+                    id="razonSocial"
+                    value={fiscalData.razonSocial}
+                    onChange={(e) =>
+                      setFiscalData((prev) => ({
+                        ...prev,
+                        razonSocial: e.target.value,
+                      }))
+                    }
+                    placeholder="Ej: Asociacion de Vecinos AC"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="banco">Banco</Label>
+                    <Label htmlFor="rfc">RFC</Label>
                     <Input
-                      id="banco"
-                      value={bankInfo.banco}
-                      onChange={(e) => handleBankInfoChange('banco', e.target.value)}
-                      placeholder="BBVA, Santander, etc."
+                      id="rfc"
+                      value={fiscalData.rfc}
+                      onChange={(e) =>
+                        setFiscalData((prev) => ({
+                          ...prev,
+                          rfc: e.target.value.toUpperCase(),
+                        }))
+                      }
+                      placeholder="ABC123456XY0"
+                      maxLength={13}
+                      className="font-mono uppercase"
                     />
+                    <p className="text-sm text-muted-foreground">
+                      12 o 13 caracteres segun persona moral o fisica
+                    </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="cuenta">Número de Cuenta</Label>
+                    <Label htmlFor="domicilioFiscal">Domicilio Fiscal</Label>
                     <Input
-                      id="cuenta"
-                      value={bankInfo.cuenta}
-                      onChange={(e) => handleBankInfoChange('cuenta', e.target.value)}
-                      placeholder="1234567890"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="clabe">CLABE</Label>
-                    <Input
-                      id="clabe"
-                      value={bankInfo.clabe}
-                      onChange={(e) => handleBankInfoChange('clabe', e.target.value)}
-                      placeholder="012345678901234567"
-                      maxLength={18}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="titular">Titular de la Cuenta</Label>
-                    <Input
-                      id="titular"
-                      value={bankInfo.titular}
-                      onChange={(e) => handleBankInfoChange('titular', e.target.value)}
-                      placeholder="Coto Sur Administración"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="tipoCuenta">Tipo de Cuenta</Label>
-                    <Input
-                      id="tipoCuenta"
-                      value={bankInfo.tipoCuenta}
-                      onChange={(e) => handleBankInfoChange('tipoCuenta', e.target.value)}
-                      placeholder="corriente"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="referencia">Referencia</Label>
-                    <Input
-                      id="referencia"
-                      value={bankInfo.referencia}
-                      onChange={(e) => handleBankInfoChange('referencia', e.target.value)}
-                      placeholder="COTO-SUR-MANTENIMIENTO"
-                    />
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="instrucciones">Instrucciones para Residentes</Label>
-                    <Input
-                      id="instrucciones"
-                      value={bankInfo.instrucciones}
-                      onChange={(e) => handleBankInfoChange('instrucciones', e.target.value)}
-                      placeholder="Usar como referencia: COTO-SUR-MANTENIMIENTO"
-                    />
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="contacto">Contacto para Dudas</Label>
-                    <Input
-                      id="contacto"
-                      type="email"
-                      value={bankInfo.contacto}
-                      onChange={(e) => handleBankInfoChange('contacto', e.target.value)}
-                      placeholder="admin@cotosur.com"
+                      id="domicilioFiscal"
+                      value={fiscalData.domicilioFiscal}
+                      onChange={(e) =>
+                        setFiscalData((prev) => ({
+                          ...prev,
+                          domicilioFiscal: e.target.value,
+                        }))
+                      }
+                      placeholder="Calle, Colonia, CP"
                     />
                   </div>
                 </div>
-                )}
               </CardContent>
             </Card>
           </div>
