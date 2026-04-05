@@ -321,7 +321,7 @@ export default function TagsPage() {
             const casasDelResidencial = await obtenerCasasReales(residencialDocId);
             casasData.push(...casasDelResidencial);
           } catch (error) {
-            console.error(`🏠 [TAGS] Error obteniendo casas del residencial ${residencial.id}:`, error);
+            console.error(`Error obteniendo casas del residencial ${residencial.id}:`, error);
           }
         }
 
