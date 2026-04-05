@@ -171,11 +171,9 @@ export default function TagsPage() {
       // 3. Si aún no hay casas, buscar en usuarios que pertenezcan a este residencial
       if (casas.length === 0 && residencialID) {
         try {
-          console.log(`🏠 [TAGS] Buscando casas únicas en usuarios con residencialID: ${residencialID}`);
           const usuariosRef = collection(db, 'usuarios');
           const q = query(usuariosRef, where('residencialID', '==', residencialID));
           const usuariosSnapshot = await getDocs(q);
-          console.log(`🏠 [TAGS] Usuarios encontrados: ${usuariosSnapshot.docs.length}`);
 
           // Usar la misma lógica que la página de usuarios para obtener TODAS las casas únicas
           const sanitize = (s?: string) => (s || '')
