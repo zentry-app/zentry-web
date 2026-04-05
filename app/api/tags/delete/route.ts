@@ -66,29 +66,9 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Obtener el tag antes de eliminarlo para crear el panelJob
-    // Buscar el residencial correcto usando el residencialDocId
-    let residencialDocId = residencialId;
-    
-    // Si residencialId es un residencialID (como "S9G7TL"), buscar el docId correspondiente
-    if (residencialId && !residencialId.includes('-')) {
-      try {
-        const residencialesSnapshot = await adminDb.collection('residenciales')
-          .where('residencialID', '==', residencialId)
-          .limit(1)
-          .get();
-        
-        if (!residencialesSnapshot.empty) {
-          residencialDocId = residencialesSnapshot.docs[0].id;
-          console.log(`Residencial encontrado: ${residencialId} -> ${residencialDocId}`);
-        } else {
-          console.log(`Residencial no encontrado: ${residencialId}`);
-        }
-      } catch (error) {
-        console.error('Error buscando residencial:', error);
-      }
-    }
-    
+    // Residencial docId hardcodeado — v1 single-site
+    const residencialDocId = 'mCTs294LGLkGvL9TTvaQ';
+
     const tagRef = adminDb.collection('residenciales').doc(residencialDocId).collection('tags').doc(tagId);
     const tagDoc = await tagRef.get();
 
@@ -101,68 +81,35 @@ export async function DELETE(request: NextRequest) {
 
     const tagData = tagDoc.data();
 
-    // Crear panelJob para eliminar el tag de la controladora
-    const panelJobRef = adminDb.collection('residenciales').doc(residencialDocId).collection('panelJobs').doc();
-    await panelJobRef.set({
-      tagId: tagId,
-      cardNumber: tagData?.cardNumberDec,
-      action: 'DELETE_TAG',
-      status: 'queued',
-      createdAt: new Date().toISOString(),
-      createdBy: decodedToken.uid,
-      residencialId: residencialId
-    });
-
     // Eliminar el tag de Firestore
     await tagRef.delete();
 
     // Crear log de auditoría
-    const auditLogRef = adminDb.collection('residenciales').doc(residencialDocId).collection('auditLogs').doc();
-    
-    // Preparar datos del log de auditoría, filtrando valores undefined
-    const auditData: any = {
+    await adminDb.collection('residenciales').doc(residencialDocId).collection('auditLogs').add({
       action: 'DELETE_TAG',
       tagId: tagId,
       cardNumber: tagData?.cardNumberDec || null,
-      panels: tagData?.panels || [],
+      casaId: tagData?.casaId || null,
       previousStatus: tagData?.status || null,
       newStatus: 'deleted',
       userId: decodedToken.uid,
       userEmail: decodedToken.email || null,
       timestamp: new Date().toISOString(),
       residencialId: residencialId,
-      notes: `Tag eliminado por ${userData?.email || 'usuario desconocido'}`
-    };
-    
-    // Solo agregar casaId si no es undefined
-    if (tagData?.casaId !== undefined) {
-      auditData.casaId = tagData.casaId;
-    }
-    
-    await auditLogRef.set(auditData);
-
-    console.log(`✅ Tag ${tagId} eliminado exitosamente por ${decodedToken.email}`);
+    });
 
     return NextResponse.json({
       success: true,
       message: 'Tag eliminado exitosamente',
       tagId: tagId,
       cardNumber: tagData?.cardNumberDec,
-      panelJobId: panelJobRef.id
     });
 
   } catch (error) {
-    console.error('Error eliminando tag:', error);
-    console.error('Error details:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      name: error instanceof Error ? error.name : undefined
-    });
+    const msg = error instanceof Error ? error.message : 'Error desconocido';
+    console.error('[DELETE /api/tags/delete]', msg);
     return NextResponse.json(
-      { 
-        error: 'Error interno del servidor',
-        details: error instanceof Error ? error.message : 'Error desconocido'
-      },
+      { error: 'Error interno del servidor', details: msg },
       { status: 500 }
     );
   }
