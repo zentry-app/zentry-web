@@ -83,11 +83,8 @@ export function TagStatusToggle({
       }
 
       await onStatusChange(tagId, newStatus);
-      
-      toast.success(`Tag ${newStatus === 'active' ? 'activado' : 'desactivado'} correctamente`);
     } catch (error) {
       console.error('Error al cambiar estado del tag:', error);
-      toast.error('Error al cambiar el estado del tag');
     } finally {
       setIsChanging(false);
     }
