@@ -155,7 +155,6 @@ export async function PUT(request: NextRequest) {
     
     await auditLogRef.set(auditData);
 
-    console.log(`✅ Tag ${tagId} actualizado exitosamente por ${decodedToken.email}`);
 
     return NextResponse.json({
       success: true,
