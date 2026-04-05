@@ -719,6 +719,8 @@ export default function TagsPage() {
             onStatusChange={handleStatusChange}
             onTagDeleted={handleTagDeleted}
             currentUserId={currentUserId}
+            processingTagId={processingTagId}
+            zentryLinkOnline={isZentryLinkOnline(zentryLinkStatus)}
           />
         </CardContent>
       </Card>
