@@ -230,7 +230,7 @@ export function TagsTable({
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedTags = sortedTags.slice(startIndex, startIndex + itemsPerPage);
 
-  const handleSort = (field: 'createdAt' | 'updatedAt' | 'cardNumber') => {
+  const handleSort = (field: 'lastChangedAt' | 'cardNumber') => {
     if (sortBy === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
