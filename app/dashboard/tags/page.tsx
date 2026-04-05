@@ -249,20 +249,10 @@ export default function TagsPage() {
       // 4. Último fallback: buscar todas las casas sin filtro
       if (casas.length === 0) {
         try {
-          console.log(`🏠 [TAGS] Último fallback: buscando todas las casas`);
           const casasMainRef = collection(db, 'casas');
           const casasMainSnapshot = await getDocs(casasMainRef);
-          console.log(`🏠 [TAGS] Total de casas en colección principal: ${casasMainSnapshot.docs.length}`);
 
           if (casasMainSnapshot.docs.length > 0) {
-            console.log(`🏠 [TAGS] Primeras 5 casas encontradas:`,
-              casasMainSnapshot.docs.slice(0, 5).map(doc => ({
-                id: doc.id,
-                data: doc.data(),
-                residencialID: doc.data().residencialID
-              }))
-            );
-
             // Filtrar por residencialID si está disponible
             casas = casasMainSnapshot.docs
               .filter(doc => !residencialID || doc.data().residencialID === residencialID)
@@ -277,14 +267,13 @@ export default function TagsPage() {
               });
           }
         } catch (error) {
-          console.log(`🏠 [TAGS] Error en último fallback:`, error);
+          console.error(`Error en último fallback casas:`, error);
         }
       }
 
-      console.log(`🏠 [TAGS] Casas finales encontradas: ${casas.length}`, casas);
       return casas;
     } catch (error) {
-      console.error('🏠 [TAGS] Error obteniendo casas reales:', error);
+      console.error('Error obteniendo casas reales:', error);
       return [];
     }
   };
