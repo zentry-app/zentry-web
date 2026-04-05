@@ -148,16 +148,13 @@ export default function TagsPage() {
       // 2. Si no hay casas y tenemos residencialID, buscar en colección principal de casas
       if (casas.length === 0 && residencialID) {
         try {
-          console.log(`🏠 [TAGS] Buscando en colección principal 'casas' con residencialID: ${residencialID}`);
           const casasMainRef = collection(db, 'casas');
           const q = query(casasMainRef, where('residencialID', '==', residencialID));
           const casasMainSnapshot = await getDocs(q);
-          console.log(`🏠 [TAGS] Documentos en colección 'casas' con residencialID ${residencialID}: ${casasMainSnapshot.docs.length}`);
 
           if (casasMainSnapshot.docs.length > 0) {
             casas = casasMainSnapshot.docs.map(doc => {
               const data = doc.data();
-              console.log(`🏠 [TAGS] Procesando casa principal ${doc.id}:`, data);
               return {
                 id: doc.id,
                 nombre: data.nombre || data.houseID || data.direccion || `Casa ${doc.id}`,
@@ -167,7 +164,7 @@ export default function TagsPage() {
             });
           }
         } catch (error) {
-          console.log(`🏠 [TAGS] Error en colección principal casas:`, error);
+          console.error(`Error en colección principal casas:`, error);
         }
       }
 
