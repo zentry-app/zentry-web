@@ -79,7 +79,6 @@ export function TagsTable({
   residenciales,
   casas,
   loading,
-
   onEditTag,
   onStatusChange,
   onTagDeleted,
