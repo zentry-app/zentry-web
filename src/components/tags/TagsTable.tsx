@@ -89,7 +89,7 @@ export function TagsTable({
   const [searchTerm, setSearchTerm] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<string>("todos");
   const [showUnassigned, setShowUnassigned] = useState(false);
-  const [sortBy, setSortBy] = useState<'createdAt' | 'updatedAt' | 'cardNumber'>('cardNumber');
+  const [sortBy, setSortBy] = useState<'lastChangedAt' | 'cardNumber'>('cardNumber');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(50);
