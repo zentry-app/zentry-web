@@ -89,6 +89,8 @@ export default function TagsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentTag, setCurrentTag] = useState<VehicularTag | null>(null);
   const [currentUserId] = useState("current-user-id"); // TODO: Obtener del contexto de auth
+  const [zentryLinkStatus, setZentryLinkStatus] = useState<ZentryLinkStatus | null>(null);
+  const [processingTagId, setProcessingTagId] = useState<string | null>(null);
 
   // Obtener contexto de autenticación
   const { user, userClaims, loading: authLoading } = useAuth();
