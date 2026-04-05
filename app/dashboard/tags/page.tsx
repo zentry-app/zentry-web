@@ -21,6 +21,13 @@ import {
   Usuario
 } from "@/lib/firebase/firestore";
 import { updateTagStatus, getTagsSync } from "@/lib/firebase/tags-sync";
+import {
+  sendTagCommand,
+  watchZentryLinkStatus,
+  isZentryLinkOnline,
+  ZentryLinkStatus,
+} from '@/lib/firebase/zentrylink';
+import { ZentryLinkStatusBar } from '@/components/zentrylink/StatusBar';
 import { AddTagModal } from "@/components/tags/AddTagModal";
 import { EditTagModal } from "@/components/tags/EditTagModal";
 import { TagsTable } from "@/components/tags/TagsTable";
@@ -81,7 +88,8 @@ export default function TagsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentTag, setCurrentTag] = useState<VehicularTag | null>(null);
-  const [currentUserId] = useState("current-user-id"); // TODO: Obtener del contexto de auth
+  const [zentryLinkStatus, setZentryLinkStatus] = useState<ZentryLinkStatus | null>(null);
+  const [processingTagId, setProcessingTagId] = useState<string | null>(null);
 
   // Obtener contexto de autenticación
   const { user, userClaims, loading: authLoading } = useAuth();
@@ -303,28 +311,6 @@ export default function TagsPage() {
     }
   };
 
-  // Función helper para obtener residencialDocId desde residencialID
-  const obtenerResidencialDocId = async (residencialID: string): Promise<string | null> => {
-    try {
-      const { collection, query, where, getDocs, limit } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase/config');
-
-      const residencialesRef = collection(db, 'residenciales');
-      const q = query(residencialesRef, where('residencialID', '==', residencialID), limit(1));
-      const snapshot = await getDocs(q);
-
-      if (!snapshot.empty) {
-        return snapshot.docs[0].id;
-      }
-
-      console.log(`🏠 [TAGS] No se encontró residencialDocId para residencialID: ${residencialID}`);
-      return null;
-    } catch (error) {
-      console.error('🏠 [TAGS] Error obteniendo residencialDocId:', error);
-      return null;
-    }
-  };
-
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -332,15 +318,8 @@ export default function TagsPage() {
 
         // Solo cargar datos si el usuario está autenticado
         if (authLoading || !userClaims) {
-          console.log('🏠 [TAGS] Esperando autenticación...');
           return;
         }
-
-        console.log('🏠 [TAGS] Usuario autenticado:', {
-          role: userClaims.role,
-          isGlobalAdmin: userClaims.isGlobalAdmin,
-          residencialIdDelAdmin
-        });
 
         // Obtener datos básicos
         const residencialesData = await getResidenciales();
@@ -356,24 +335,15 @@ export default function TagsPage() {
         let residencialesAProcesar = residencialesValidados;
 
         if (esAdminDeResidencial && residencialIdDelAdmin) {
-          // Admin de residencial: usar directamente el residencialDocId conocido
           if (residencialIdDelAdmin === 'S9G7TL') {
-            // Para S9G7TL, crear un objeto residencial temporal con el residencialDocId conocido
             residencialesAProcesar = [{
-              id: 'mCTs294LGLkGvL9TTvaQ', // residencialDocId conocido
+              id: 'mCTs294LGLkGvL9TTvaQ',
               nombre: 'Residencial S9G7TL'
             }];
           } else {
-            // Para otros residenciales, buscar en la lista
             residencialesAProcesar = residencialesValidados.filter(r => (r as any).residencialID === residencialIdDelAdmin);
           }
-          console.log(`🏠 [TAGS] Admin de residencial - procesando solo: ${residencialIdDelAdmin}`);
-        } else if (userClaims?.isGlobalAdmin) {
-          // Admin global: usar todos los residenciales disponibles
-          console.log('🏠 [TAGS] Admin global - procesando todos los residenciales');
-          console.log(`🏠 [TAGS] Residenciales disponibles para admin global: ${residencialesValidados.length}`);
-        } else {
-          console.log('🏠 [TAGS] Usuario sin permisos de admin - no procesando residenciales');
+        } else if (!userClaims?.isGlobalAdmin) {
           residencialesAProcesar = [];
         }
 
@@ -381,18 +351,10 @@ export default function TagsPage() {
 
         // Obtener casas reales de la colección casas
         const casasData: Casa[] = [];
-        console.log('🏠 [TAGS] Iniciando carga de casas reales...');
-        console.log('🏠 [TAGS] Residenciales a procesar:', residencialesAProcesar.length);
 
         for (const residencial of residencialesAProcesar) {
           try {
-            console.log(`🏠 [TAGS] Procesando residencial: ${residencial.nombre} (${residencial.id})`);
-
-            // El residencial.id ya es el residencialDocId, no necesitamos convertirlo
             const residencialDocId = residencial.id;
-            console.log(`🏠 [TAGS] Usando residencialDocId: ${residencialDocId}`);
-
-            // Obtener casas reales de la colección casas
             const casasDelResidencial = await obtenerCasasReales(residencialDocId);
             casasData.push(...casasDelResidencial);
           } catch (error) {
@@ -400,42 +362,24 @@ export default function TagsPage() {
           }
         }
 
-        console.log('🏠 [TAGS] Total de casas cargadas:', casasData.length);
-        console.log('🏠 [TAGS] Casas finales:', casasData);
-
         // Plumas de acceso para residentes - entrada y salida automáticas
         const panelesData: Panel[] = residencialesValidados.map(residencial => [
           { id: `${residencial.id}-entrada-residente`, nombre: `🚗 Entrada Residente`, tipo: 'vehicular' as const, residencialId: residencial.id },
           { id: `${residencial.id}-salida-residente`, nombre: `🚗 Salida Residente`, tipo: 'vehicular' as const, residencialId: residencial.id },
         ]).flat();
 
-        console.log('🏠 [TAGS] Plumas generadas:', panelesData);
-
-        // 🆕 CARGAR TAGS REALES DE FIRESTORE
+        // Cargar tags reales de Firestore
         const tagsData: VehicularTag[] = [];
-        console.log('🏠 [TAGS] Iniciando carga de tags...');
-        console.log('🏠 [TAGS] Residenciales a procesar:', residencialesAProcesar.map(r => ({ id: r.id, nombre: r.nombre })));
 
         for (const residencial of residencialesAProcesar) {
           try {
-            console.log(`🏠 [TAGS] Cargando tags del residencial: ${residencial.nombre} (${residencial.id})`);
-
-            // Usar getTagsSync para obtener tags del residencial
             const tagsDelResidencial = await getTagsSync(residencial.id);
-            console.log(`🏠 [TAGS] Tags encontrados en ${residencial.nombre}:`, tagsDelResidencial.length);
-            console.log(`🏠 [TAGS] Primeros 3 tags:`, tagsDelResidencial.slice(0, 3).map(t => ({
-              id: t.id,
-              cardNumberDec: t.cardNumberDec,
-              status: t.status,
-              plate: t.plate
-            })));
 
-            // Convertir a VehicularTag y agregar
             const vehicularTags = tagsDelResidencial.map(tag => ({
               id: tag.id || '',
               cardNumberDec: tag.cardNumberDec,
               residencialId: residencial.id,
-              casaId: tag.ownerRef || tag.residentId || '', // Usar ownerRef como casaId
+              casaId: tag.ownerRef || tag.residentId || '',
               panels: tag.panels || [],
               status: tag.status as 'active' | 'disabled',
               plate: tag.plate || '',
@@ -453,17 +397,12 @@ export default function TagsPage() {
           }
         }
 
-        console.log('🏠 [TAGS] Total de tags cargados:', tagsData.length);
-        console.log('🏠 [TAGS] Tags finales:', tagsData);
-
-        // 🆕 Ordenar tags por cardNumberDec en orden ascendente
+        // Ordenar tags por cardNumberDec en orden ascendente
         tagsData.sort((a, b) => {
           const cardA = parseInt(a.cardNumberDec) || 0;
           const cardB = parseInt(b.cardNumberDec) || 0;
-          return cardA - cardB; // Ascendente (menor número primero)
+          return cardA - cardB;
         });
-
-        console.log('🏠 [TAGS] Tags ordenados por cardNumberDec ascendente:', tagsData.slice(0, 5).map(t => t.cardNumberDec));
 
         setTags(tagsData);
         setCasas(casasData);
@@ -479,6 +418,17 @@ export default function TagsPage() {
 
     fetchData();
   }, [authLoading, userClaims, esAdminDeResidencial, residencialIdDelAdmin]);
+
+  useEffect(() => {
+    // Only subscribe for residencial admins
+    if (!esAdminDeResidencial) return;
+    // For v1: use known docId for S9G7TL
+    const docId = residencialIdDelAdmin === 'S9G7TL'
+      ? 'mCTs294LGLkGvL9TTvaQ'
+      : null;
+    if (!docId) return;
+    return watchZentryLinkStatus(docId, setZentryLinkStatus);
+  }, [esAdminDeResidencial, residencialIdDelAdmin]);
 
   const handleAddTag = async (newTag: VehicularTag) => {
     try {
@@ -513,26 +463,46 @@ export default function TagsPage() {
   };
 
   const handleStatusChange = async (tagId: string, newStatus: string) => {
+    const online = isZentryLinkOnline(zentryLinkStatus);
+    if (!online) {
+      toast.error('ZentryLink sin conexión — no es posible cambiar el estado del tag');
+      return;
+    }
+
+    const op = newStatus === 'active' ? 'activate' : 'deactivate';
+    const userId = user?.uid || 'unknown';
+
+    // Find the tag to get its residencialId
+    const tag = tags.find(t => t.id === tagId);
+    if (!tag) return;
+    const residencialDocId = tag.residencialId;
+
+    setProcessingTagId(tagId);
     try {
-      await updateTagStatus(tagId, newStatus, currentUserId);
+      await sendTagCommand(residencialDocId, op, tagId, userId);
 
-      // Recargar la lista de tags para asegurar que esté actualizada
-      await loadTags();
+      // Optimistic local update — ZentryLink already wrote the real status to Firestore
+      setTags(prev =>
+        prev.map(t =>
+          t.id === tagId
+            ? { ...t, status: newStatus as 'active' | 'disabled' }
+            : t
+        )
+      );
 
-    } catch (error) {
-      console.error("Error al cambiar estado del tag:", error);
-      throw error;
+      toast.success(op === 'activate' ? 'Tag activado ✓' : 'Tag desactivado ✓');
+    } catch (err: any) {
+      toast.error(err.message || 'Error al procesar el comando');
+    } finally {
+      setProcessingTagId(null);
     }
   };
 
-  // 🆕 FUNCIÓN PARA CARGAR TAGS
+  // Función para recargar tags
   const loadTags = async () => {
     try {
-      console.log('🔄 [TAGS] Recargando tags...');
-
       // Solo cargar si el usuario está autenticado
       if (authLoading || !userClaims) {
-        console.log('🔄 [TAGS] Esperando autenticación...');
         return;
       }
 
@@ -555,16 +525,13 @@ export default function TagsPage() {
 
       for (const residencial of residencialesAProcesar) {
         try {
-          console.log(`🔄 [TAGS] Recargando tags del residencial: ${residencial.nombre}`);
-
           const tagsDelResidencial = await getTagsSync(residencial.id);
-          console.log(`🔄 [TAGS] Tags encontrados: ${tagsDelResidencial.length}`);
 
           const vehicularTags = tagsDelResidencial.map(tag => ({
             id: tag.id || '',
             cardNumberDec: tag.cardNumberDec,
             residencialId: residencial.id,
-            casaId: tag.ownerRef || tag.residentId || '', // Usar ownerRef como casaId
+            casaId: tag.ownerRef || tag.residentId || '',
             panels: tag.panels || [],
             status: tag.status as 'active' | 'disabled',
             plate: tag.plate || '',
@@ -582,7 +549,6 @@ export default function TagsPage() {
         }
       }
 
-      console.log(`🔄 [TAGS] Total de tags recargados: ${tagsData.length}`);
       setTags(tagsData);
 
     } catch (error) {
@@ -591,13 +557,9 @@ export default function TagsPage() {
     }
   };
 
-  // 🆕 FUNCIÓN PARA MANEJAR ELIMINACIÓN DE TAGS
   const handleTagDeleted = async (tagId: string) => {
     try {
-      console.log(`🔄 [TAGS] Recargando tags después de eliminar: ${tagId}`);
-      // Recargar la lista de tags después de eliminar
       await loadTags();
-      console.log(`✅ [TAGS] Tags recargados exitosamente después de eliminar`);
     } catch (error) {
       console.error('❌ [TAGS] Error recargando tags después de eliminación:', error);
       toast.error('Error recargando la lista de tags');
@@ -655,6 +617,15 @@ export default function TagsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-8">
+          {/* ZentryLink status bar */}
+          {esAdminDeResidencial && residencialIdDelAdmin === 'S9G7TL' && (
+            <div className="mb-4">
+              <ZentryLinkStatusBar
+                residencialDocId="mCTs294LGLkGvL9TTvaQ"
+                onRefresh={loadTags}
+              />
+            </div>
+          )}
           <TagsTable
             tags={tags}
             residenciales={residenciales}
@@ -664,7 +635,9 @@ export default function TagsPage() {
             onEditTag={handleOpenEditModal}
             onStatusChange={handleStatusChange}
             onTagDeleted={handleTagDeleted}
-            currentUserId={currentUserId}
+            currentUserId={user?.uid || ''}
+            processingTagId={processingTagId}
+            zentryLinkOnline={isZentryLinkOnline(zentryLinkStatus)}
           />
         </CardContent>
       </Card>
@@ -677,7 +650,7 @@ export default function TagsPage() {
         residenciales={residenciales}
         casas={casas}
         paneles={paneles}
-        currentUserId={currentUserId}
+        currentUserId={user?.uid || ''}
         esAdminDeResidencial={esAdminDeResidencial}
         residencialIdDelAdmin={residencialIdDelAdmin}
       />
@@ -690,7 +663,7 @@ export default function TagsPage() {
         tag={currentTag}
         casas={casas}
         paneles={paneles}
-        currentUserId={currentUserId}
+        currentUserId={user?.uid || ''}
       />
     </div>
   );
