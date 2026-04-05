@@ -124,7 +124,17 @@ export default function DashboardPage() {
     const esAdminDeResidencial = (userClaims?.role === 'admin') && !esAdminGlobal;
     const residencialId = useMemo(() => {
         if (!esAdminDeResidencial) return null;
-        return userClaims?.managedResidencials?.[0] || userClaims?.residencialId || null;
+        return userClaims?.managedResidencials?.[0] || (userClaims as any)?.residencialId || null;
+    }, [esAdminDeResidencial, userClaims]);
+
+    const residencialDocIdParaWidget = useMemo(() => {
+        if (!esAdminDeResidencial || !userClaims) return null;
+        // managedResidencials contains the shortcode (e.g. 'S9G7TL'), not the docId.
+        const shortcode = (userClaims as any).managedResidencials?.[0] || (userClaims as any).residencialId;
+        if (shortcode === 'S9G7TL') return 'mCTs294LGLkGvL9TTvaQ';
+        // Fallback: if residencialId is already the docId (Firestore format: length > 6)
+        if (shortcode && shortcode.length > 6) return shortcode;
+        return null;
     }, [esAdminDeResidencial, userClaims]);
 
     // Reloj y Resize
