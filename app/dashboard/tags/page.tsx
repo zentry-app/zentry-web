@@ -344,7 +344,7 @@ export default function TagsPage() {
               residencialId: residencial.id,
               casaId: tag.ownerRef || tag.residentId || '',
               panels: tag.panels || [],
-              status: tag.status as 'active' | 'disabled',
+              status: tag.status as VehicularTag['status'],
               plate: tag.plate || '',
               notes: tag.notes || '',
               validFrom: tag.validFrom || '',
@@ -448,7 +448,7 @@ export default function TagsPage() {
       setTags(prev =>
         prev.map(t =>
           t.id === tagId
-            ? { ...t, status: newStatus as 'active' | 'disabled' }
+            ? { ...t, status: newStatus as VehicularTag['status'] }
             : t
         )
       );
@@ -496,7 +496,7 @@ export default function TagsPage() {
             residencialId: residencial.id,
             casaId: tag.ownerRef || tag.residentId || '',
             panels: tag.panels || [],
-            status: tag.status as 'active' | 'disabled',
+            status: tag.status as VehicularTag['status'],
             plate: tag.plate || '',
             notes: tag.notes || '',
             validFrom: tag.validFrom || '',
