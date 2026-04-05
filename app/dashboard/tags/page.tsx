@@ -73,6 +73,8 @@ interface Panel {
   residencialId: string;
 }
 
+const RESIDENCIAL_DOCID_S9G7TL = 'mCTs294LGLkGvL9TTvaQ';
+
 export default function TagsPage() {
   const [tags, setTags] = useState<VehicularTag[]>([]);
   const [residenciales, setResidenciales] = useState<Residencial[]>([]);
