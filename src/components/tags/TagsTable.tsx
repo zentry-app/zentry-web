@@ -520,11 +520,16 @@ export function TagsTable({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <TagStatusToggle
-                        tagId={tag.id}
-                        currentStatus={tag.status}
-                        onStatusChange={onStatusChange}
-                      />
+                      <div
+                        title={!zentryLinkOnline ? 'ZentryLink sin conexión' : undefined}
+                      >
+                        <TagStatusToggle
+                          tagId={tag.id}
+                          currentStatus={tag.status}
+                          onStatusChange={onStatusChange}
+                          isProcessing={processingTagId === tag.id || !zentryLinkOnline}
+                        />
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
