@@ -524,7 +524,7 @@ export default function TagsPage() {
     try {
       await loadTags();
     } catch (error) {
-      console.error('❌ [TAGS] Error recargando tags después de eliminación:', error);
+      console.error('Error recargando tags después de eliminación:', error);
       toast.error('Error recargando la lista de tags');
     }
   };
