@@ -533,15 +533,38 @@ export default function TagsPage() {
   };
 
   const handleStatusChange = async (tagId: string, newStatus: string) => {
+    const online = isZentryLinkOnline(zentryLinkStatus);
+    if (!online) {
+      toast.error('ZentryLink sin conexión — no es posible cambiar el estado del tag');
+      return;
+    }
+
+    const op = newStatus === 'active' ? 'activate' : 'deactivate';
+    const userId = user?.uid || 'unknown';
+
+    // Find the tag to get its residencialId
+    const tag = tags.find(t => t.id === tagId);
+    if (!tag) return;
+    const residencialDocId = tag.residencialId;
+
+    setProcessingTagId(tagId);
     try {
-      await updateTagStatus(tagId, newStatus, currentUserId);
+      await sendTagCommand(residencialDocId, op, tagId, userId);
 
-      // Recargar la lista de tags para asegurar que esté actualizada
-      await loadTags();
+      // Optimistic local update — ZentryLink already wrote the real status to Firestore
+      setTags(prev =>
+        prev.map(t =>
+          t.id === tagId
+            ? { ...t, status: newStatus as 'active' | 'disabled' }
+            : t
+        )
+      );
 
-    } catch (error) {
-      console.error("Error al cambiar estado del tag:", error);
-      throw error;
+      toast.success(op === 'activate' ? 'Tag activado ✓' : 'Tag desactivado ✓');
+    } catch (err: any) {
+      toast.error(err.message || 'Error al procesar el comando');
+    } finally {
+      setProcessingTagId(null);
     }
   };
 
