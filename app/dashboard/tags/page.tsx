@@ -624,7 +624,6 @@ export default function TagsPage() {
         onTagUpdated={handleEditTag}
         tag={currentTag}
         casas={casas}
-        paneles={paneles}
         currentUserId={user?.uid || ''}
       />
     </div>
