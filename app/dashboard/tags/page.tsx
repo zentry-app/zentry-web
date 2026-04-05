@@ -21,6 +21,13 @@ import {
   Usuario
 } from "@/lib/firebase/firestore";
 import { updateTagStatus, getTagsSync } from "@/lib/firebase/tags-sync";
+import {
+  sendTagCommand,
+  watchZentryLinkStatus,
+  isZentryLinkOnline,
+  ZentryLinkStatus,
+} from '@/lib/firebase/zentrylink';
+import { ZentryLinkStatusBar } from '@/components/zentrylink/StatusBar';
 import { AddTagModal } from "@/components/tags/AddTagModal";
 import { EditTagModal } from "@/components/tags/EditTagModal";
 import { TagsTable } from "@/components/tags/TagsTable";
