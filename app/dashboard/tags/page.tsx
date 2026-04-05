@@ -111,19 +111,14 @@ export default function TagsPage() {
       const { collection, getDocs, doc, getDoc, query, where } = await import('firebase/firestore');
       const { db } = await import('@/lib/firebase/config');
 
-      console.log(`🏠 [TAGS] Obteniendo casas reales para residencial: ${residencialDocId}`);
-
       // PRIMERO: Verificar que el residencial existe y obtener su residencialID
       const residencialRef = doc(db, 'residenciales', residencialDocId);
       const residencialDoc = await getDoc(residencialRef);
-      console.log(`🏠 [TAGS] Residencial existe:`, residencialDoc.exists());
 
       let residencialID = null;
       if (residencialDoc.exists()) {
         const residencialData = residencialDoc.data();
         residencialID = residencialData?.residencialID;
-        console.log(`🏠 [TAGS] Datos del residencial:`, residencialData);
-        console.log(`🏠 [TAGS] ResidencialID encontrado:`, residencialID);
       }
 
       // SEGUNDO: Buscar casas en múltiples ubicaciones
