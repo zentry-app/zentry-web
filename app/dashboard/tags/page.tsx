@@ -73,7 +73,7 @@ interface Panel {
   residencialId: string;
 }
 
-const RESIDENCIAL_DOCID_S9G7TL = 'mCTs294LGLkGvL9TTvaQ';
+const RESIDENCIAL_DOCID_S9G7TL = RESIDENCIAL_DOCID_S9G7TL;
 
 export default function TagsPage() {
   const [tags, setTags] = useState<VehicularTag[]>([]);
@@ -300,7 +300,7 @@ export default function TagsPage() {
         if (esAdminDeResidencial && residencialIdDelAdmin) {
           if (residencialIdDelAdmin === 'S9G7TL') {
             residencialesAProcesar = [{
-              id: 'mCTs294LGLkGvL9TTvaQ',
+              id: RESIDENCIAL_DOCID_S9G7TL,
               nombre: 'Residencial S9G7TL'
             }];
           } else {
@@ -387,7 +387,7 @@ export default function TagsPage() {
     if (!esAdminDeResidencial) return;
     // For v1: use known docId for S9G7TL
     const docId = residencialIdDelAdmin === 'S9G7TL'
-      ? 'mCTs294LGLkGvL9TTvaQ'
+      ? RESIDENCIAL_DOCID_S9G7TL
       : null;
     if (!docId) return;
     return watchZentryLinkStatus(docId, setZentryLinkStatus);
@@ -475,7 +475,7 @@ export default function TagsPage() {
       if (esAdminDeResidencial && residencialIdDelAdmin) {
         if (residencialIdDelAdmin === 'S9G7TL') {
           residencialesAProcesar = [{
-            id: 'mCTs294LGLkGvL9TTvaQ',
+            id: RESIDENCIAL_DOCID_S9G7TL,
             nombre: 'Residencial S9G7TL'
           }];
         } else {
