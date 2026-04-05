@@ -80,8 +80,8 @@ export async function DELETE(request: NextRequest) {
       casaId: tagData?.casaId || null,
       previousStatus: tagData?.status || null,
       newStatus: 'deleted',
-      userId: decodedToken.uid,
-      userEmail: decodedToken.email || null,
+      userId: uid,
+      userEmail: email || null,
       timestamp: new Date().toISOString(),
       residencialId: residencialId,
     });
