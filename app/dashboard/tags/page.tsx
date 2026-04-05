@@ -584,7 +584,7 @@ export default function TagsPage() {
           {esAdminDeResidencial && residencialIdDelAdmin === 'S9G7TL' && (
             <div className="mb-4">
               <ZentryLinkStatusBar
-                residencialDocId="mCTs294LGLkGvL9TTvaQ"
+                residencialDocId={RESIDENCIAL_DOCID_S9G7TL}
                 onRefresh={loadTags}
               />
             </div>
