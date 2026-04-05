@@ -109,67 +109,26 @@ export async function POST(request: NextRequest) {
       type: 'TAG_CREATED',
       tagId: tagId,
       from: null,
-      to: status,
+      to: 'disabled',
       byUserId: uid,
       at: new Date().toISOString(),
       details: {
         cardNumberDec,
         residencialId,
         casaId,
-        panels,
         plate,
         notes,
-        applyImmediately
       },
-      panelFanoutJobs: 0
     });
 
-    // Si se debe aplicar inmediatamente y el estado es activo
-    if (applyImmediately && status === 'active') {
-      // Crear panelJobs para cada panel
-      const panelJobsRef = adminDb!.collection('residenciales').doc(residencialDocId).collection('panelJobs');
-      
-      for (const panelId of panels) {
-        await panelJobsRef.add({
-          tagId: tagId,
-          panelId: panelId,
-          action: 'APPLY_TAG_STATUS',
-          desiredStatus: status,
-          attempts: 0,
-          maxAttempts: 3,
-          status: 'queued',
-          createdAt: new Date().toISOString(),
-          claimedBy: null,
-          claimedAt: null,
-          completedAt: null
-        });
-      }
-
-      // Actualizar el auditLog con el número de jobs creados
-      await adminDb!.collection('residenciales').doc(residencialDocId).collection('auditLogs')
-        .where('tagId', '==', tagId)
-        .where('type', '==', 'TAG_CREATED')
-        .limit(1)
-        .get()
-        .then((snapshot: any) => {
-          if (!snapshot.empty) {
-            const auditLogId = snapshot.docs[0].id;
-            adminDb!.collection('residenciales').doc(residencialDocId).collection('auditLogs')
-              .doc(auditLogId)
-              .update({ panelFanoutJobs: panels.length });
-          }
-        });
-    }
-
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: 'Tag creado correctamente',
       tagId: tagId,
       tag: {
         id: tagId,
         ...tagData
       },
-      panelJobsCreated: applyImmediately && status === 'active' ? panels.length : 0
     });
 
   } catch (error) {
