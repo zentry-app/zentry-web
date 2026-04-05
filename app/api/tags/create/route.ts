@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     // Verificar el token y obtener las claims del usuario
     const decodedToken = await adminAuth.verifyIdToken(idToken);
-    const { uid, email, admin, superadmin, isAdmin } = decodedToken;
+    const { uid, admin, superadmin, isAdmin } = decodedToken;
 
     // Verificar que el usuario sea admin (usar isAdmin que es el claim correcto)
     if (!admin && !superadmin && !isAdmin) {
