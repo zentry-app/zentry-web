@@ -515,7 +515,7 @@ export default function TagsPage() {
       setTags(tagsData);
 
     } catch (error) {
-      console.error('🔄 [TAGS] Error recargando tags:', error);
+      console.error('Error recargando tags:', error);
       toast.error('Error recargando la lista de tags');
     }
   };
