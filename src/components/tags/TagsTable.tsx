@@ -203,7 +203,7 @@ export function TagsTable({
       getCasaNombre(tag.casaId).toLowerCase().includes(searchTerm.toLowerCase()) ||
       (tag.plate && tag.plate.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const matchesEstado = estadoFilter === "todos" || tag.status === estadoFilter;
+    const matchesEstado = estadoFilter === "todos" || (estadoFilter === 'disabled' ? tag.status !== 'active' : tag.status === estadoFilter);
     const matchesUnassigned = !showUnassigned || !tag.casaId || tag.casaId === '';
 
     return matchesSearch && matchesEstado && matchesUnassigned;
