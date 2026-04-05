@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { AdminService, DashboardService } from "@/lib/services";
+import { ZentryLinkStatusWidget } from '@/components/zentrylink/StatusWidget';
 import type {
     SystemHealth
 } from "@/lib/services/dashboard-service";
