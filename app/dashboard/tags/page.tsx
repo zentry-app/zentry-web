@@ -489,6 +489,17 @@ export default function TagsPage() {
     fetchData();
   }, [authLoading, userClaims, esAdminDeResidencial, residencialIdDelAdmin]);
 
+  useEffect(() => {
+    // Only subscribe for residencial admins
+    if (!esAdminDeResidencial) return;
+    // For v1: use known docId for S9G7TL
+    const docId = residencialIdDelAdmin === 'S9G7TL'
+      ? 'mCTs294LGLkGvL9TTvaQ'
+      : null;
+    if (!docId) return;
+    return watchZentryLinkStatus(docId, setZentryLinkStatus);
+  }, [esAdminDeResidencial, residencialIdDelAdmin]);
+
   const handleAddTag = async (newTag: VehicularTag) => {
     try {
       // Recargar la lista completa de tags para asegurar que esté actualizada
