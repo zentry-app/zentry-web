@@ -699,12 +699,10 @@ export default function TagsPage() {
         </CardHeader>
         <CardContent className="p-8">
           {/* ZentryLink status bar */}
-          {esAdminDeResidencial && (
+          {esAdminDeResidencial && residencialIdDelAdmin === 'S9G7TL' && (
             <div className="mb-4">
               <ZentryLinkStatusBar
-                residencialDocId={
-                  residencialIdDelAdmin === 'S9G7TL' ? 'mCTs294LGLkGvL9TTvaQ' : ''
-                }
+                residencialDocId="mCTs294LGLkGvL9TTvaQ"
                 onRefresh={loadTags}
               />
             </div>
