@@ -26,19 +26,8 @@ export async function POST(request: NextRequest) {
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const { uid, email, admin, superadmin, isAdmin } = decodedToken;
 
-    // Log para debugging
-    console.log('🔍 Usuario intentando crear tag:', {
-      uid,
-      email,
-      admin: !!admin,
-      superadmin: !!superadmin,
-      isAdmin: !!isAdmin,
-      claims: decodedToken
-    });
-
     // Verificar que el usuario sea admin (usar isAdmin que es el claim correcto)
     if (!admin && !superadmin && !isAdmin) {
-      console.log('⚠️ Usuario sin permisos de admin');
       return NextResponse.json(
         { error: 'Permisos insuficientes. Se requiere rol de administrador.' },
         { status: 403 }
@@ -50,32 +39,14 @@ export async function POST(request: NextRequest) {
       cardNumberDec,
       residencialId,
       casaId,
-      panels,
-      status,
       plate,
       notes,
-      applyImmediately
     } = await request.json();
 
     // Validaciones
-    if (!cardNumberDec || !residencialId || !casaId || !panels || !status) {
+    if (!cardNumberDec || !residencialId) {
       return NextResponse.json(
-        { error: 'cardNumberDec, residencialId, casaId, panels y status son requeridos' },
-        { status: 400 }
-      );
-    }
-
-    if (!Array.isArray(panels) || panels.length === 0) {
-      return NextResponse.json(
-        { error: 'Debe seleccionar al menos un panel' },
-        { status: 400 }
-      );
-    }
-
-    const validStatuses = ['active', 'disabled'];
-    if (!validStatuses.includes(status)) {
-      return NextResponse.json(
-        { error: `Estado inválido. Debe ser uno de: ${validStatuses.join(', ')}` },
+        { error: 'cardNumberDec y residencialId son requeridos' },
         { status: 400 }
       );
     }
