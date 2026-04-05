@@ -61,18 +61,10 @@ interface Casa {
   houseID?: string;
 }
 
-interface Panel {
-  id: string;
-  nombre: string;
-  tipo: 'vehicular' | 'peatonal';
-  residencialId: string;
-}
-
 interface TagsTableProps {
   tags: Tag[];
   residenciales: Residencial[];
   casas: Casa[];
-  paneles: Panel[];
   loading: boolean;
   onEditTag: (tag: Tag) => void;
   onStatusChange: (tagId: string, newStatus: string) => void;
