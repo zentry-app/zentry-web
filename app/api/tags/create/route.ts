@@ -70,33 +70,31 @@ export async function POST(request: NextRequest) {
     // Generar ID único para ZKTeco (usando timestamp + random)
     const zktecoUserId = Date.now() + Math.floor(Math.random() * 1000);
     
-    // Crear el tag
+    // Crear el tag — status siempre 'disabled' al crear (ZentryLink lo activa después)
     const tagData = {
       type: "vehicular",
       ownerType: "unit",
-      ownerRef: casaId,
+      ownerRef: casaId || null,
       cardNumberDec: cardNumberDec,
-      format: "W26", // Formato por defecto para ZKTeco
+      format: "W26",
       facilityCode: null,
       residencialId: residencialId,
-      panels: panels,
-      status: status,
+      panels: [],
+      status: 'disabled',
       plate: plate || null,
       notes: notes || null,
       lastChangedBy: uid,
       lastChangedAt: new Date().toISOString(),
       source: "Web",
       createdAt: new Date().toISOString(),
-      // Campos adicionales para compatibilidad
       cardHex: null,
       holder: {
         name: `Tag Vehicular ${cardNumberDec}`,
         externalId: cardNumberDec
       },
-      residentId: casaId,
+      residentId: casaId || null,
       validFrom: null,
       validTo: null,
-      // 🆕 Campos críticos de ZKTeco (para consistencia con tags importados)
       zktecoUserId: zktecoUserId,
       zktecoBadgeNumber: cardNumberDec,
       zktecoAccGroup: 0
