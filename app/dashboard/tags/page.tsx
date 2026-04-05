@@ -127,15 +127,12 @@ export default function TagsPage() {
       // 1. Buscar en residenciales/{docId}/casas (estructura esperada)
       try {
         const casasRef = collection(db, 'residenciales', residencialDocId, 'casas');
-        console.log(`🏠 [TAGS] Consultando colección: residenciales/${residencialDocId}/casas`);
 
         const casasSnapshot = await getDocs(casasRef);
-        console.log(`🏠 [TAGS] Documentos encontrados en subcolección: ${casasSnapshot.docs.length}`);
 
         if (casasSnapshot.docs.length > 0) {
           casas = casasSnapshot.docs.map(doc => {
             const data = doc.data();
-            console.log(`🏠 [TAGS] Procesando casa ${doc.id}:`, data);
             return {
               id: doc.id,
               nombre: data.nombre || data.houseID || data.direccion || `Casa ${doc.id}`,
@@ -145,7 +142,7 @@ export default function TagsPage() {
           });
         }
       } catch (error) {
-        console.log(`🏠 [TAGS] Error en subcolección casas:`, error);
+        console.error(`Error en subcolección casas:`, error);
       }
 
       // 2. Si no hay casas y tenemos residencialID, buscar en colección principal de casas
