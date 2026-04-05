@@ -33,7 +33,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const { uid, admin: isAdmin, superadmin, isAdmin: isAdminClaim } = decodedToken;
+    const { uid, email, admin: isAdmin, superadmin, isAdmin: isAdminClaim } = decodedToken;
 
     if (!isAdmin && !superadmin && !isAdminClaim) {
       return NextResponse.json(
