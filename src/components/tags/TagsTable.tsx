@@ -254,7 +254,7 @@ export function TagsTable({
       {/* Stats bar */}
       <div className="flex flex-wrap gap-2 mb-2">
         <button
-          onClick={() => { setEstadoFilter('todos'); }}
+          onClick={() => { setEstadoFilter('todos'); setShowUnassigned(false); }}
           className={`text-sm px-3 py-1 rounded-full border font-medium transition-colors ${estadoFilter === 'todos' && !showUnassigned ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
         >
           {tags.length} total
