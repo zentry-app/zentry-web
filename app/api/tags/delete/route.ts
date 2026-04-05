@@ -22,15 +22,23 @@ export async function DELETE(request: NextRequest) {
 
     const token = authHeader.split('Bearer ')[1];
 
-    // Verificar el token
+    // Verificar el token y leer claims
     let decodedToken;
     try {
       decodedToken = await adminAuth.verifyIdToken(token);
-    } catch (error) {
-      console.error('Error verificando token:', error);
+    } catch {
       return NextResponse.json(
         { error: 'Token de autenticación inválido' },
         { status: 401 }
+      );
+    }
+
+    const { uid, admin: isAdmin, superadmin, isAdmin: isAdminClaim } = decodedToken;
+
+    if (!isAdmin && !superadmin && !isAdminClaim) {
+      return NextResponse.json(
+        { error: 'Permisos insuficientes. Se requiere rol de administrador.' },
+        { status: 403 }
       );
     }
 
@@ -43,26 +51,6 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json(
         { error: 'tagId y residencialId son requeridos' },
         { status: 400 }
-      );
-    }
-
-    // Verificar permisos del usuario
-    const userDoc = await adminDb.collection('usuarios').doc(decodedToken.uid).get();
-    if (!userDoc.exists) {
-      return NextResponse.json(
-        { error: 'Usuario no encontrado' },
-        { status: 404 }
-      );
-    }
-
-    const userData = userDoc.data();
-    const isGlobalAdmin = userData?.role === 'admin';
-    const isResidencialAdmin = userData?.role === 'admin' && userData?.residencialID === residencialId;
-
-    if (!isGlobalAdmin && !isResidencialAdmin) {
-      return NextResponse.json(
-        { error: 'No tienes permisos para eliminar tags' },
-        { status: 403 }
       );
     }
 
