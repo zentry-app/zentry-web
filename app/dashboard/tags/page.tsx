@@ -240,16 +240,9 @@ export default function TagsPage() {
 
           if (casasUnicas.size > 0) {
             casas = Array.from(casasUnicas.values());
-            console.log(`🏠 [TAGS] Casas únicas extraídas de residentes: ${casas.length}`);
-            console.log(`🏠 [TAGS] Primeras 3 casas:`, casas.slice(0, 3).map(c => ({
-              id: c.id,
-              nombre: c.nombre,
-              calle: c.calle,
-              houseNumber: c.houseNumber
-            })));
           }
         } catch (error) {
-          console.log(`🏠 [TAGS] Error extrayendo casas de usuarios:`, error);
+          console.error(`Error extrayendo casas de usuarios:`, error);
         }
       }
 
