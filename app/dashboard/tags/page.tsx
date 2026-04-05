@@ -508,7 +508,7 @@ export default function TagsPage() {
 
           tagsData.push(...vehicularTags);
         } catch (error) {
-          console.error(`🔄 [TAGS] Error recargando tags del residencial ${residencial.id}:`, error);
+          console.error(`Error recargando tags del residencial ${residencial.id}:`, error);
         }
       }
 
