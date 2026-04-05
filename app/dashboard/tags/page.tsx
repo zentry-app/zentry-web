@@ -611,7 +611,6 @@ export default function TagsPage() {
         onTagCreated={handleAddTag}
         residenciales={residenciales}
         casas={casas}
-        paneles={paneles}
         currentUserId={user?.uid || ''}
         esAdminDeResidencial={esAdminDeResidencial}
         residencialIdDelAdmin={residencialIdDelAdmin}
