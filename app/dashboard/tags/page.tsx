@@ -630,7 +630,6 @@ export default function TagsPage() {
             tags={tags}
             residenciales={residenciales}
             casas={casas}
-            paneles={paneles}
             loading={loading}
             onEditTag={handleOpenEditModal}
             onStatusChange={handleStatusChange}
