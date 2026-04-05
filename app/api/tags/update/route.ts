@@ -86,8 +86,8 @@ export async function PUT(request: NextRequest) {
         if (!residencialesSnapshot.empty) {
           residencialDocId = residencialesSnapshot.docs[0].id;
         }
-      } catch (error) {
-        console.error('Error buscando residencial:', error);
+      } catch {
+        // residencialDocId stays as-is
       }
     }
 
