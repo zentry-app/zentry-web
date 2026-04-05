@@ -10,17 +10,12 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  getTags,
   getResidenciales,
-  getUsuariosPorResidencial,
-  crearTag,
-  actualizarTag,
-  cambiarEstadoTag,
   Tag,
   Residencial as FirestoreResidencial,
   Usuario
 } from "@/lib/firebase/firestore";
-import { updateTagStatus, getTagsSync } from "@/lib/firebase/tags-sync";
+import { getTagsSync } from "@/lib/firebase/tags-sync";
 import {
   sendTagCommand,
   watchZentryLinkStatus,
