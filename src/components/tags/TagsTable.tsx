@@ -87,6 +87,8 @@ interface TagsTableProps {
   onStatusChange: (tagId: string, newStatus: string) => void;
   onTagDeleted?: (tagId: string) => void; // 🆕 Nueva prop para manejar eliminación
   currentUserId: string;
+  processingTagId?: string | null;
+  zentryLinkOnline?: boolean;
 }
 
 interface PanelJob {
