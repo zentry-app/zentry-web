@@ -109,7 +109,9 @@ export function TagsTable({
   onEditTag,
   onStatusChange,
   onTagDeleted, // 🆕 Nueva prop
-  currentUserId
+  currentUserId,
+  processingTagId,
+  zentryLinkOnline = true,
 }: TagsTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<string>("todos");
