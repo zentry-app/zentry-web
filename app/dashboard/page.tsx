@@ -480,6 +480,9 @@ export default function DashboardPage() {
                     trend={{ val: 3, up: false }}
                     loading={loadingStats}
                 />
+                {residencialDocIdParaWidget && (
+                    <ZentryLinkStatusWidget residencialDocId={residencialDocIdParaWidget} />
+                )}
             </div>
 
             {/* Dashboard Bento Grid */}
