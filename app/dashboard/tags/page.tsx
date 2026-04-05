@@ -41,7 +41,7 @@ interface VehicularTag {
   residencialId: string;
   casaId: string;
   panels: string[];
-  status: 'active' | 'disabled';
+  status: 'active' | 'disabled' | 'lost' | 'stolen' | string;
   plate?: string;
   notes?: string;
   validFrom?: string;
