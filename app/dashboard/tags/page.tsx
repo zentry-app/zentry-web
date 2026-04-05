@@ -195,8 +195,6 @@ export default function TagsPage() {
               return u.role === 'resident' && !!tieneCasa;
             });
 
-          console.log(`🏠 [TAGS] Residentes con casa encontrados: ${soloResidentes.length}`);
-
           for (const usuario of soloResidentes) {
             const rawHid = ((usuario as any).houseID || (usuario as any).houseId || '').toString();
             const hidSanitized = sanitize(rawHid);
