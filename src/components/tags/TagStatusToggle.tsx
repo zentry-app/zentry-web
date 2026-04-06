@@ -15,7 +15,7 @@ import { toast } from "sonner";
 
 interface TagStatusToggleProps {
   tagId: string;
-  currentStatus: 'active' | 'disabled' | 'lost' | 'stolen';
+  currentStatus: 'active' | 'disabled' | 'inactive' | 'lost' | 'stolen';
   onStatusChange: (tagId: string, newStatus: string) => Promise<void>;
   isProcessing?: boolean;
 }
