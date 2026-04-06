@@ -79,6 +79,7 @@ export default function AddPropiedadDialog({
         interior: interior.trim() || undefined,
         tipo,
         estadoOcupacion,
+        mesesAdeudados: mesesAdeudados > 0 ? mesesAdeudados : undefined,
       });
       toast.success("Propiedad creada correctamente");
       onOpenChange(false);
