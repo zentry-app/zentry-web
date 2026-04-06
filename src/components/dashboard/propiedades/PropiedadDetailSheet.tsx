@@ -144,9 +144,7 @@ export default function PropiedadDetailSheet({
 
       if (usuarios.length > 0) {
         await Promise.all(
-          usuarios.map((uid) =>
-            cambiarEstadoMoroso(uid, newValue),
-          ),
+          usuarios.map((uid) => cambiarEstadoMoroso(uid, newValue)),
         );
       }
 
@@ -357,9 +355,9 @@ export default function PropiedadDetailSheet({
                 <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
                   Usuarios vinculados
                 </span>
-                {propiedad.usuariosVinculados.length > 0 && (
+                {usuarios.length > 0 && (
                   <span className="ml-auto text-[11px] font-bold text-slate-400 dark:text-slate-500">
-                    {propiedad.usuariosVinculados.length}
+                    {usuarios.length}
                   </span>
                 )}
               </div>
