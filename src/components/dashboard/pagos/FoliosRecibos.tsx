@@ -34,7 +34,10 @@ import {
   FileDown,
 } from "lucide-react";
 import { toast } from "sonner";
-import { generateReceiptPDF, formatHouseLabel } from "@/lib/utils/generate-receipt-pdf";
+import {
+  generateReceiptPDF,
+  formatHouseLabel,
+} from "@/lib/utils/generate-receipt-pdf";
 import { fmtFull } from "./payments-types";
 
 interface FolioEntry {
@@ -62,8 +65,18 @@ type MethodFilter = "all" | "cash" | "transfer" | "card";
 type SortOrder = "newest" | "oldest" | "amount_desc" | "amount_asc";
 
 const MONTH_NAMES_ES = [
-  "enero", "febrero", "marzo", "abril", "mayo", "junio",
-  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
 ];
 
 function formatReceiptTimestamp(date: Date): string {
@@ -77,10 +90,14 @@ function formatReceiptTimestamp(date: Date): string {
 
 function methodLabel(method: string): string {
   switch (method) {
-    case "cash": return "Efectivo";
-    case "transfer": return "Transferencia";
-    case "card": return "Tarjeta";
-    default: return method || "—";
+    case "cash":
+      return "Efectivo";
+    case "transfer":
+      return "Transferencia";
+    case "card":
+      return "Tarjeta";
+    default:
+      return method || "—";
   }
 }
 
@@ -237,8 +254,10 @@ export default function FoliosRecibos({ residencialId }: FoliosRecibosProps) {
 
     // Sort
     result.sort((a, b) => {
-      if (sortOrder === "newest") return b.validatedAt.getTime() - a.validatedAt.getTime();
-      if (sortOrder === "oldest") return a.validatedAt.getTime() - b.validatedAt.getTime();
+      if (sortOrder === "newest")
+        return b.validatedAt.getTime() - a.validatedAt.getTime();
+      if (sortOrder === "oldest")
+        return a.validatedAt.getTime() - b.validatedAt.getTime();
       if (sortOrder === "amount_desc") return b.amountCents - a.amountCents;
       if (sortOrder === "amount_asc") return a.amountCents - b.amountCents;
       return 0;
@@ -290,7 +309,9 @@ export default function FoliosRecibos({ residencialId }: FoliosRecibosProps) {
             <Receipt className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h2 className="text-lg font-bold tracking-tight">Folios & Recibos</h2>
+            <h2 className="text-lg font-bold tracking-tight">
+              Folios & Recibos
+            </h2>
             <p className="text-xs text-muted-foreground">
               Historial de recibos generados — reimprime cualquier folio
             </p>
@@ -320,7 +341,10 @@ export default function FoliosRecibos({ residencialId }: FoliosRecibosProps) {
               />
             </div>
 
-            <Select value={dateFilter} onValueChange={(v) => setDateFilter(v as DateFilter)}>
+            <Select
+              value={dateFilter}
+              onValueChange={(v) => setDateFilter(v as DateFilter)}
+            >
               <SelectTrigger className="h-10">
                 <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
                 <SelectValue />
@@ -334,7 +358,10 @@ export default function FoliosRecibos({ residencialId }: FoliosRecibosProps) {
               </SelectContent>
             </Select>
 
-            <Select value={methodFilter} onValueChange={(v) => setMethodFilter(v as MethodFilter)}>
+            <Select
+              value={methodFilter}
+              onValueChange={(v) => setMethodFilter(v as MethodFilter)}
+            >
               <SelectTrigger className="h-10">
                 <Banknote className="h-4 w-4 mr-2 text-muted-foreground" />
                 <SelectValue />
@@ -349,7 +376,10 @@ export default function FoliosRecibos({ residencialId }: FoliosRecibosProps) {
           </div>
 
           <div className="mt-3 flex justify-end">
-            <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as SortOrder)}>
+            <Select
+              value={sortOrder}
+              onValueChange={(v) => setSortOrder(v as SortOrder)}
+            >
               <SelectTrigger className="h-8 w-[200px] text-xs">
                 <ArrowDownUp className="h-3 w-3 mr-2 text-muted-foreground" />
                 <SelectValue />
@@ -433,7 +463,9 @@ export default function FoliosRecibos({ residencialId }: FoliosRecibosProps) {
                     {entry.referenceNumber && (
                       <>
                         {" · "}
-                        <span className="font-mono">Ref: {entry.referenceNumber}</span>
+                        <span className="font-mono">
+                          Ref: {entry.referenceNumber}
+                        </span>
                       </>
                     )}
                   </div>

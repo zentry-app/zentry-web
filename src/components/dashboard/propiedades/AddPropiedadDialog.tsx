@@ -229,7 +229,8 @@ export default function AddPropiedadDialog({
             />
             {mesesAdeudados > 0 && (
               <p className="text-xs text-muted-foreground">
-                Se registrará una deuda inicial de {mesesAdeudados} mes{mesesAdeudados > 1 ? "es" : ""} de cuota
+                Se registrará una deuda inicial de {mesesAdeudados} mes
+                {mesesAdeudados > 1 ? "es" : ""} de cuota
               </p>
             )}
           </div>
