@@ -38,6 +38,7 @@ import {
   ShieldCheck,
   Download,
   BarChart3,
+  Receipt,
 } from "lucide-react";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/lib/firebase/config";
