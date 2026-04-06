@@ -473,6 +473,12 @@ export default function PaymentsDashboard({
       )}
 
       {/* ─── Tab: Libro Mayor ────────────────────────────────────── */}
+      {activeTab === "folios" && (
+        <div className="animate-fadeIn">
+          <FoliosRecibos residencialId={residencialId} />
+        </div>
+      )}
+
       {activeTab === "libro_mayor" && (
         <div className="animate-fadeIn">
           <AccountingDashboard residencialId={residencialId} />
