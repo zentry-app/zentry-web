@@ -103,7 +103,7 @@ export default function PropiedadDetailSheet({
       setUserDetails([]);
       return;
     }
-    if (propiedad.usuariosVinculados.length === 0) {
+    if ((propiedad.usuariosVinculados ?? []).length === 0) {
       setUserDetails([]);
       return;
     }
