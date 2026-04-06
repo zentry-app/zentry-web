@@ -212,6 +212,27 @@ export default function AddPropiedadDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Meses adeudados (opcional) */}
+          <div className="space-y-1.5">
+            <Label>
+              Meses adeudados{" "}
+              <span className="text-muted-foreground text-xs">(opcional)</span>
+            </Label>
+            <Input
+              type="number"
+              min={0}
+              max={24}
+              placeholder="0"
+              value={mesesAdeudados || ""}
+              onChange={(e) => setMesesAdeudados(Number(e.target.value) || 0)}
+            />
+            {mesesAdeudados > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Se registrará una deuda inicial de {mesesAdeudados} mes{mesesAdeudados > 1 ? "es" : ""} de cuota
+              </p>
+            )}
+          </div>
         </div>
 
         <DialogFooter>
