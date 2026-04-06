@@ -101,6 +101,7 @@ const FoliosRecibos = dynamic(() => import("./FoliosRecibos"), {
 // Analytics removed: redundant with KPIs + Libro Mayor. 2026-03-25.
 const tabs = [
   { id: "validacion", label: "Validación", icon: ShieldCheck },
+  { id: "folios", label: "Folios & Recibos", icon: Receipt },
   { id: "estado_cuenta", label: "Estado de Cuenta", icon: Home },
   { id: "libro_mayor", label: "Libro Mayor", icon: BookOpen },
   { id: "movimientos", label: "Movimientos", icon: ArrowLeftRight },
