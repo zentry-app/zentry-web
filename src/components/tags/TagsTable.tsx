@@ -199,7 +199,7 @@ export function TagsTable({
 
   const filteredTags = tags.filter(tag => {
     const matchesSearch =
-      tag.cardNumberDec.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(tag.cardNumberDec).toLowerCase().includes(searchTerm.toLowerCase()) ||
       getCasaNombre(tag.casaId).toLowerCase().includes(searchTerm.toLowerCase()) ||
       (tag.plate && tag.plate.toLowerCase().includes(searchTerm.toLowerCase()));
 
