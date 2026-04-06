@@ -302,6 +302,7 @@ export function TagsTable({
             <SelectContent>
               <SelectItem value="todos">Todos los estados</SelectItem>
               <SelectItem value="active">Activo</SelectItem>
+              <SelectItem value="inactive">Inactivo</SelectItem>
               <SelectItem value="disabled">Desactivado</SelectItem>
             </SelectContent>
           </Select>
