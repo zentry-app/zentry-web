@@ -870,30 +870,28 @@ export default function CashTerminal({
                     />
                   </div>
                   {filteredHouses.length > 0 && !selectedHouse && (
-                    <div className="mt-1 border border-slate-200 rounded-xl overflow-hidden shadow-lg bg-white">
-                      <ScrollArea className="max-h-[180px]">
-                        {filteredHouses.map((h) => (
-                          <button
-                            key={h.houseId}
-                            onClick={() => handleSelectHouse(h)}
-                            className="w-full flex items-center justify-between p-3 hover:bg-slate-50 transition-colors text-left border-b border-slate-50 last:border-0"
-                          >
-                            <div>
-                              <span className="font-bold text-sm text-slate-800">
-                                {h.label}
-                              </span>
-                              <span className="text-xs text-muted-foreground ml-2">
-                                {h.residentName}
-                              </span>
-                            </div>
-                            {h.deudaCents > 0 && (
-                              <span className="text-[10px] font-bold text-red-500">
-                                Debe {fmtFull(h.deudaCents)}
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                      </ScrollArea>
+                    <div className="mt-1 border border-slate-200 rounded-xl shadow-lg bg-white max-h-[320px] overflow-y-auto">
+                      {filteredHouses.map((h) => (
+                        <button
+                          key={h.houseId}
+                          onClick={() => handleSelectHouse(h)}
+                          className="w-full flex items-center justify-between p-3 hover:bg-slate-50 transition-colors text-left border-b border-slate-50 last:border-0"
+                        >
+                          <div>
+                            <span className="font-bold text-sm text-slate-800">
+                              {h.label}
+                            </span>
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {h.residentName}
+                            </span>
+                          </div>
+                          {h.deudaCents > 0 && (
+                            <span className="text-[10px] font-bold text-red-500">
+                              Debe {fmtFull(h.deudaCents)}
+                            </span>
+                          )}
+                        </button>
+                      ))}
                     </div>
                   )}
                   {selectedHouse && (
