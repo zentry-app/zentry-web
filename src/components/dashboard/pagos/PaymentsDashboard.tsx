@@ -89,6 +89,13 @@ const FinancialDashboard = dynamic(() => import("./FinancialDashboard"), {
   ),
 });
 
+const FoliosRecibos = dynamic(() => import("./FoliosRecibos"), {
+  ssr: false,
+  loading: () => (
+    <p className="py-12 text-center text-muted-foreground">Cargando...</p>
+  ),
+});
+
 // Tabs — "Validación" is the default view (home), rest are tools
 // Periodos removed: billing is automatic via BillingAgentCron. 2026-03-25.
 // Analytics removed: redundant with KPIs + Libro Mayor. 2026-03-25.
