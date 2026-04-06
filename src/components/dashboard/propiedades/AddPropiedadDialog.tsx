@@ -106,6 +106,7 @@ export default function AddPropiedadDialog({
     setInterior("");
     setTipo("casa");
     setEstadoOcupacion("desocupada");
+    setMesesAdeudados(0);
   };
 
   return (
