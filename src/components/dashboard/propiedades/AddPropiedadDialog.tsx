@@ -59,6 +59,7 @@ export default function AddPropiedadDialog({
   const [tipo, setTipo] = useState<PropiedadWeb["tipo"]>("casa");
   const [estadoOcupacion, setEstadoOcupacion] =
     useState<PropiedadWeb["estadoOcupacion"]>("desocupada");
+  const [mesesAdeudados, setMesesAdeudados] = useState(0);
   const [loading, setLoading] = useState(false);
 
   const calleEfectiva = calle === "__nueva__" ? calleNueva.trim() : calle;
