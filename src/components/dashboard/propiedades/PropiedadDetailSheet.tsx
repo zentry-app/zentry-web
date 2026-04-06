@@ -129,7 +129,8 @@ export default function PropiedadDetailSheet({
     : "—";
 
   const isMorosa = propiedad.isMorosa === true;
-  const userCount = propiedad.usuariosVinculados.length;
+  const usuarios = propiedad.usuariosVinculados ?? [];
+  const userCount = usuarios.length;
 
   const handleConfirmMorosa = async () => {
     setTogglingMorosa(true);
