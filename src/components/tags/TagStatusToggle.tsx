@@ -112,14 +112,14 @@ export function TagStatusToggle({
         size="sm"
         onClick={handleToggle}
         disabled={isChanging || isProcessing}
-        className="h-8 w-8 p-0"
+        className="h-9 w-9 p-0"
       >
         {isChanging ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className="h-5 w-5 animate-spin" />
         ) : currentStatus === 'active' ? (
-          <ToggleRight className="h-4 w-4 text-green-600" />
+          <ToggleRight className="h-6 w-6 text-green-600" />
         ) : (
-          <ToggleLeft className="h-4 w-4 text-gray-400" />
+          <ToggleLeft className="h-6 w-6 text-gray-400" />
         )}
       </Button>
     </div>
