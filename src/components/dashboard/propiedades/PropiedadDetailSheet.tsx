@@ -369,7 +369,7 @@ export default function PropiedadDetailSheet({
                     Cargando usuarios...
                   </span>
                 </div>
-              ) : propiedad.usuariosVinculados.length === 0 ? (
+              ) : usuarios.length === 0 ? (
                 <div className="py-4 text-center">
                   <p className="text-sm text-slate-400 dark:text-slate-500">
                     Sin usuarios vinculados
