@@ -142,9 +142,9 @@ export default function PropiedadDetailSheet({
         isMorosa: newValue,
       });
 
-      if (propiedad.usuariosVinculados.length > 0) {
+      if (usuarios.length > 0) {
         await Promise.all(
-          propiedad.usuariosVinculados.map((uid) =>
+          usuarios.map((uid) =>
             cambiarEstadoMoroso(uid, newValue),
           ),
         );
