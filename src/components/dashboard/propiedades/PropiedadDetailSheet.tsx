@@ -108,7 +108,7 @@ export default function PropiedadDetailSheet({
       return;
     }
     setLoadingUsers(true);
-    PropiedadesService.getUserDetails(propiedad.usuariosVinculados)
+    PropiedadesService.getUserDetails(propiedad.usuariosVinculados ?? [])
       .then(setUserDetails)
       .catch(() => setUserDetails([]))
       .finally(() => setLoadingUsers(false));
