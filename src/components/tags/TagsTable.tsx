@@ -194,7 +194,7 @@ export function TagsTable({
   };
 
   const totalActive = tags.filter(t => t.status === 'active').length;
-  const totalDisabled = tags.filter(t => t.status !== 'active').length;
+  const totalInactive = tags.filter(t => t.status === 'inactive' || t.status === 'disabled').length;
   const totalUnassigned = tags.filter(t => !t.casaId || t.casaId === '').length;
 
   const filteredTags = tags.filter(tag => {
