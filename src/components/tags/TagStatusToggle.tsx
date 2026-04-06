@@ -44,6 +44,13 @@ export function TagStatusToggle({
           icon: XCircle,
           color: 'text-gray-600'
         };
+      case 'inactive':
+        return {
+          label: 'Inactivo',
+          variant: 'outline' as const,
+          icon: XCircle,
+          color: 'text-slate-500'
+        };
       case 'lost':
         return {
           label: 'Perdido',
