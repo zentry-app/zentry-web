@@ -267,10 +267,10 @@ export function TagsTable({
           {totalActive} activos
         </button>
         <button
-          onClick={() => { setEstadoFilter('disabled'); setShowUnassigned(false); }}
-          className={`text-sm px-3 py-1 rounded-full border font-medium transition-colors ${estadoFilter === 'disabled' ? 'bg-slate-600 text-white border-slate-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+          onClick={() => { setEstadoFilter('noactive'); setShowUnassigned(false); }}
+          className={`text-sm px-3 py-1 rounded-full border font-medium transition-colors ${estadoFilter === 'noactive' ? 'bg-slate-600 text-white border-slate-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
         >
-          {totalDisabled} inactivos
+          {totalInactive} inactivos
         </button>
         <button
           onClick={() => setShowUnassigned(prev => !prev)}
