@@ -101,9 +101,7 @@ function buildConcept(data: any): string {
   }
   // Fallback: strip admin prefix from validationNote if present
   if (data.validationNote && typeof data.validationNote === "string") {
-    return data.validationNote
-      .replace(/^Admin direct cash:\s*/i, "")
-      .trim();
+    return data.validationNote.replace(/^Admin direct cash:\s*/i, "").trim();
   }
   return data.concept || data.description || "Cuota Ordinaria";
 }
@@ -246,7 +244,7 @@ export default function FoliosRecibos({ residencialId }: FoliosRecibosProps) {
             payerName: data.payerName || data.residentName || "",
             amountCents: data.amountCents || data.amount || 0,
             method: data.method || "",
-            concept: data.concept || data.description || "Cuota Ordinaria",
+            concept: buildConcept(data),
             validatedAt,
             createdAt,
             referenceNumber: data.referenceNumber || data.reference,
