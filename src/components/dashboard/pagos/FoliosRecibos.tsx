@@ -210,6 +210,44 @@ export default function FoliosRecibos({ residencialId }: FoliosRecibosProps) {
           });
         });
 
+        // Fallback: for entries without payerName, fetch ownerName from housePaymentBalance.
+        // Historical payments (before payerName was persisted) won't have the field.
+        const missingNames = entries.filter((e) => !e.payerName && e.houseId);
+        if (missingNames.length > 0) {
+          const uniqueHouseIds = Array.from(
+            new Set(missingNames.map((e) => e.houseId)),
+          );
+          const balanceCache = new Map<string, string>();
+          await Promise.all(
+            uniqueHouseIds.map(async (houseId) => {
+              try {
+                const balSnap = await getDoc(
+                  doc(
+                    db,
+                    "residenciales",
+                    residencialDocId,
+                    "housePaymentBalance",
+                    houseId,
+                  ),
+                );
+                if (balSnap.exists()) {
+                  const bd = balSnap.data();
+                  const name = bd.residentName || bd.ownerName || "";
+                  if (name) balanceCache.set(houseId, name);
+                }
+              } catch {
+                // ignore — fallback will show dash
+              }
+            }),
+          );
+          for (const e of entries) {
+            if (!e.payerName && balanceCache.has(e.houseId)) {
+              e.payerName = balanceCache.get(e.houseId) || "";
+              if (!e.residentName) e.residentName = e.payerName;
+            }
+          }
+        }
+
         setFolios(entries);
       } catch (err) {
         console.error("[FoliosRecibos] Error loading folios:", err);
