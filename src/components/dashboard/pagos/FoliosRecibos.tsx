@@ -64,6 +64,50 @@ type DateFilter = "all" | "today" | "week" | "month" | "3months";
 type MethodFilter = "all" | "cash" | "transfer" | "card";
 type SortOrder = "newest" | "oldest" | "amount_desc" | "amount_asc";
 
+const MONTH_NAMES_CAPITALIZED = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
+
+/**
+ * Builds the full concept string from the stored paymentIntent data.
+ * Mirrors the logic used by CashTerminal when the receipt is first generated.
+ */
+function buildConcept(data: any): string {
+  // Product payment
+  if (data.paymentType === "product" && data.productName) {
+    return data.productName;
+  }
+  // Fee payment with months selected
+  if (Array.isArray(data.months) && data.months.length > 0) {
+    return data.months
+      .map((m: string) => {
+        const [y, mo] = m.split("-");
+        const idx = parseInt(mo, 10) - 1;
+        const mesName = MONTH_NAMES_CAPITALIZED[idx] ?? mo;
+        return `Cuota Ordinaria ${mesName} ${y}`;
+      })
+      .join(", ");
+  }
+  // Fallback: strip admin prefix from validationNote if present
+  if (data.validationNote && typeof data.validationNote === "string") {
+    return data.validationNote
+      .replace(/^Admin direct cash:\s*/i, "")
+      .trim();
+  }
+  return data.concept || data.description || "Cuota Ordinaria";
+}
+
 const MONTH_NAMES_ES = [
   "enero",
   "febrero",
