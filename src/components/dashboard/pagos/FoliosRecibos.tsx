@@ -252,15 +252,18 @@ export default function FoliosRecibos({ residencialId }: FoliosRecibosProps) {
           });
         });
 
-        // Fallback: for entries without payerName, fetch ownerName from housePaymentBalance.
-        // Historical payments (before payerName was persisted) won't have the field.
+        // Fallback: for entries without payerName, resolve the owner name via
+        // housePaymentBalance → propiedades.propietarioUid → usuarios.fullName.
+        // Historical payments (before payerName was persisted) need this.
         const missingNames = entries.filter((e) => !e.payerName && e.houseId);
         if (missingNames.length > 0) {
           const uniqueHouseIds = Array.from(
             new Set(missingNames.map((e) => e.houseId)),
           );
-          const balanceCache = new Map<string, string>();
-          await Promise.all(
+          const nameCache = new Map<string, string>();
+
+          // Step 1: try housePaymentBalance (fast path if populated)
+          const balanceResults = await Promise.all(
             uniqueHouseIds.map(async (houseId) => {
               try {
                 const balSnap = await getDoc(
@@ -275,16 +278,87 @@ export default function FoliosRecibos({ residencialId }: FoliosRecibosProps) {
                 if (balSnap.exists()) {
                   const bd = balSnap.data();
                   const name = bd.residentName || bd.ownerName || "";
-                  if (name) balanceCache.set(houseId, name);
+                  if (name) return { houseId, name };
                 }
               } catch {
-                // ignore — fallback will show dash
+                /* ignore */
               }
+              return { houseId, name: "" };
             }),
           );
+          for (const { houseId, name } of balanceResults) {
+            if (name) nameCache.set(houseId, name);
+          }
+
+          // Step 2: for houses still missing, read propiedades → propietarioUid,
+          // then resolve usuarios/{uid}.fullName.
+          const stillMissing = uniqueHouseIds.filter((h) => !nameCache.has(h));
+          if (stillMissing.length > 0) {
+            const propResults = await Promise.all(
+              stillMissing.map(async (houseId) => {
+                try {
+                  const propSnap = await getDoc(
+                    doc(
+                      db,
+                      "residenciales",
+                      residencialDocId,
+                      "propiedades",
+                      houseId,
+                    ),
+                  );
+                  if (!propSnap.exists()) return { houseId, uid: "" };
+                  const pd = propSnap.data();
+                  const uid =
+                    pd.propietarioUid ||
+                    (Array.isArray(pd.usuariosVinculados)
+                      ? pd.usuariosVinculados[0]
+                      : "") ||
+                    "";
+                  return { houseId, uid };
+                } catch {
+                  return { houseId, uid: "" };
+                }
+              }),
+            );
+
+            // Dedupe UIDs so we only fetch each user once
+            const uniqueUids = Array.from(
+              new Set(propResults.map((p) => p.uid).filter(Boolean)),
+            );
+            const userNameByUid = new Map<string, string>();
+            await Promise.all(
+              uniqueUids.map(async (uid) => {
+                try {
+                  const userSnap = await getDoc(doc(db, "usuarios", uid));
+                  if (userSnap.exists()) {
+                    const ud = userSnap.data();
+                    const name =
+                      ud.fullName ||
+                      [ud.nombre, ud.paternalLastName, ud.maternalLastName]
+                        .filter(Boolean)
+                        .join(" ")
+                        .trim() ||
+                      ud.displayName ||
+                      ud.email ||
+                      "";
+                    if (name) userNameByUid.set(uid, name);
+                  }
+                } catch {
+                  /* ignore */
+                }
+              }),
+            );
+
+            for (const { houseId, uid } of propResults) {
+              const name = userNameByUid.get(uid);
+              if (name) nameCache.set(houseId, name);
+            }
+          }
+
+          // Apply resolved names to entries
           for (const e of entries) {
-            if (!e.payerName && balanceCache.has(e.houseId)) {
-              e.payerName = balanceCache.get(e.houseId) || "";
+            if (!e.payerName && nameCache.has(e.houseId)) {
+              e.payerName = nameCache.get(e.houseId) || "";
               if (!e.residentName) e.residentName = e.payerName;
             }
           }
