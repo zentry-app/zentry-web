@@ -609,10 +609,12 @@ export default function CashTerminal({
     setPaymentMethod("cash");
     setTransferRef("");
     // Reset paymentDate a hoy
-    setPaymentDate(() => {
+    {
       const d = new Date();
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    })();
+      setPaymentDate(
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+      );
+    }
     setHouseUsers([]);
     setSelectedPayerUid(null);
     setShowCustomPayer(false);
