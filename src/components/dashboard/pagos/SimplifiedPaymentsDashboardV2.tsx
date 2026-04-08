@@ -85,8 +85,11 @@ import {
 } from "@/lib/services/unified-payments-service";
 import { CatalogService, Product } from "@/lib/services/catalog-service";
 import UnifiedPaymentsTable from "./UnifiedPaymentsTable";
-import BulkPaymentImport from "@/components/financial/bulk-import/BulkPaymentImport";
-import BulkPaymentBatchesList from "@/components/financial/bulk-import/BulkPaymentBatchesList";
+// Bulk payment import — feature completa pero oculta hasta que se haga QA manual
+// con la admin de Coto Sur. Para activar: descomentar imports + el botón "Carga
+// masiva histórica" + la sección BulkPaymentBatchesList más abajo.
+// import BulkPaymentImport from "@/components/financial/bulk-import/BulkPaymentImport";
+// import BulkPaymentBatchesList from "@/components/financial/bulk-import/BulkPaymentBatchesList";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
