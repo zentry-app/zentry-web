@@ -942,15 +942,51 @@ const SimplifiedPaymentsDashboard: React.FC<
                   id="paymentDate"
                   type="date"
                   value={newCashPayment.paymentDate}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    // Cuando cambia la fecha del pago, sincroniza el "Mes que cubre"
+                    // automáticamente al mismo periodo (caso normal). El admin
+                    // puede sobrescribirlo después si la cuota aplica a otro mes.
+                    const newMonth = e.target.value
+                      ? e.target.value.slice(0, 7)
+                      : newCashPayment.month;
                     setNewCashPayment({
                       ...newCashPayment,
                       paymentDate: e.target.value,
-                    })
-                  }
+                      month: newMonth,
+                    });
+                  }}
                   className="h-11"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Fecha real en que se recibió el efectivo
+                </p>
               </div>
+            </div>
+
+            {/* Mes que cubre el pago — separado de la fecha real porque puede
+                aplicar a un periodo distinto (ej. cobro recibido en abril
+                que corresponde a la cuota de marzo). */}
+            <div className="space-y-2">
+              <Label htmlFor="paymentMonth" className="text-sm font-medium">
+                Mes que cubre *
+              </Label>
+              <Input
+                id="paymentMonth"
+                type="month"
+                value={newCashPayment.month}
+                onChange={(e) =>
+                  setNewCashPayment({
+                    ...newCashPayment,
+                    month: e.target.value,
+                  })
+                }
+                className="h-11"
+              />
+              <p className="text-xs text-muted-foreground">
+                Periodo de la cuota que se está pagando. Por defecto coincide
+                con el mes del pago, pero puedes cambiarlo si el cobro
+                corresponde a otro mes (ej. registrar hoy un pago de marzo).
+              </p>
             </div>
 
             {/* Concepto del pago */}
