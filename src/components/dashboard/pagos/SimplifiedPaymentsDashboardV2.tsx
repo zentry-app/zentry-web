@@ -116,6 +116,7 @@ const SimplifiedPaymentsDashboard: React.FC<
   const [confirmDialog, setConfirmDialog] = useState(false);
   const [editDialog, setEditDialog] = useState(false);
   const [configDialog, setConfigDialog] = useState(false);
+  const [bulkImportDialog, setBulkImportDialog] = useState(false);
   const [editingPayment, setEditingPayment] = useState<CashPayment | null>(
     null,
   );
