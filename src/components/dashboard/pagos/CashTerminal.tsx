@@ -1321,6 +1321,45 @@ export default function CashTerminal({
                   </div>
                 )}
 
+                {/* Fecha del cobro — permite registrar pagos retroactivos
+                    (caso Coto Sur: cobros físicos hechos en marzo que se
+                    registran en abril). Cuando es distinta a hoy, el folio
+                    sale del mes de la fecha (ej. ZNT-202603-NNN) y el
+                    `dateStr` del intent refleja la fecha real del cobro. */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                    Fecha del cobro
+                  </label>
+                  <Input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    max={(() => {
+                      const d = new Date();
+                      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                    })()}
+                    className="mt-1.5 h-11 rounded-xl border-slate-200 font-medium text-sm"
+                  />
+                  {(() => {
+                    const d = new Date();
+                    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                    if (paymentDate && paymentDate !== today) {
+                      return (
+                        <p className="text-[10px] text-amber-700 bg-amber-50 rounded-lg px-2 py-1 mt-1.5">
+                          ⚠️ Pago retroactivo — el folio se generará en la
+                          serie del mes <strong>{paymentDate.slice(0, 7)}</strong>.
+                        </p>
+                      );
+                    }
+                    return (
+                      <p className="text-[10px] text-slate-400 mt-1 ml-1">
+                        Fecha real en que se recibió el efectivo. Por defecto
+                        es hoy.
+                      </p>
+                    );
+                  })()}
+                </div>
+
                 {/* Notes */}
                 <div>
                   <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
