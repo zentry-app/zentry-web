@@ -83,6 +83,25 @@ export class CashPaymentService {
 
       const registerFn = httpsCallable<{ residencialId: string, data: any }, { success: boolean, paymentId: string }>(functions, 'apiRegisterDirectCashPayment');
 
+      // Si paymentData.mes viene en formato YYYY-MM lo mandamos como
+      // months[]: el backend lo usa para reconciliar la cuota correcta.
+      // Si paymentData.fechaPago es una Date/Timestamp distinta a hoy,
+      // la convertimos a YYYY-MM-DD y la mandamos como dateStr para que
+      // el folio y el periodo del recibo respeten la fecha real del cobro
+      // (caso Coto Sur: registrar en abril cobros físicos hechos en marzo).
+      const months = paymentData.mes ? [paymentData.mes] : undefined;
+      let dateStr: string | undefined;
+      if (paymentData.fechaPago) {
+        const d =
+          paymentData.fechaPago instanceof Date
+            ? paymentData.fechaPago
+            : (paymentData.fechaPago as Timestamp).toDate?.() ??
+              new Date(paymentData.fechaPago as any);
+        if (d && !isNaN(d.getTime())) {
+          dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+      }
+
       const result = await registerFn({
         residencialId,
         data: {
@@ -95,7 +114,9 @@ export class CashPaymentService {
           userAddress: paymentData.userAddress || {},
           isProduct: paymentData.isProduct || false,
           productId: paymentData.productId || null,
-          productPrice: paymentData.productPrice || null
+          productPrice: paymentData.productPrice || null,
+          months,
+          dateStr,
         }
       });
 
