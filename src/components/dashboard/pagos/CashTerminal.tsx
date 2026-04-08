@@ -333,6 +333,15 @@ export default function CashTerminal({
   );
   const [transferRef, setTransferRef] = useState("");
 
+  // Fecha real del cobro físico — default = hoy. Permite registrar pagos
+  // con fecha distinta a hoy (caso Coto Sur: registrar en abril cobros que
+  // la admin recibió en marzo). El backend usa este campo para el dateStr
+  // del intent Y para el folio (ej. ZNT-202603-001 si fecha=2026-03-15).
+  const [paymentDate, setPaymentDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
+
   // House label formatter
   function formatHouseLabel(houseId: string): string {
     if (!houseId) return "";
