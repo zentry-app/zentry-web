@@ -509,6 +509,10 @@ const SimplifiedPaymentsDashboard: React.FC<
             pais: "México",
             residencialID: residencialId,
           },
+          // 🆕 Fecha real del pago físico (puede ser distinta a hoy — caso
+          // Coto Sur: registrar en abril cobros que la admin recibió en marzo).
+          // Construimos un Date local con T12:00 para evitar drift de zona horaria.
+          fechaPago: new Date(`${newCashPayment.paymentDate}T12:00:00`),
           // 🆕 Campos adicionales para compatibilidad con Flutter y ERP v2
           houseId: selectedCasa.houseId,
           mes: newCashPayment.month,
