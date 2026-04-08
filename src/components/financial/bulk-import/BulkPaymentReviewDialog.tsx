@@ -201,11 +201,7 @@ export default function BulkPaymentReviewDialog({
       )}
 
       <div className="flex items-center justify-end gap-2 border-t pt-4">
-        <Button
-          variant="outline"
-          onClick={onClose}
-          disabled={submitting}
-        >
+        <Button variant="outline" onClick={onClose} disabled={submitting}>
           Cancelar
         </Button>
         {rejectMode ? (

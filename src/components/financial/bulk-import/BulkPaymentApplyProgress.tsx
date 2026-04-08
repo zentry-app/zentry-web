@@ -71,8 +71,7 @@ export default function BulkPaymentApplyProgress({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const total =
-    remaining != null ? processed + remaining + failed : processed;
+  const total = remaining != null ? processed + remaining + failed : processed;
   const pct = total > 0 ? Math.round(((processed + failed) / total) * 100) : 0;
 
   return (
@@ -117,11 +116,7 @@ export default function BulkPaymentApplyProgress({
             Reintentar
           </Button>
         )}
-        <Button
-          variant="outline"
-          onClick={onDone}
-          disabled={running}
-        >
+        <Button variant="outline" onClick={onDone} disabled={running}>
           {done ? "Cerrar" : "Cancelar"}
         </Button>
       </div>

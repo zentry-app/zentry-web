@@ -6,18 +6,12 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  RadioGroup,
-  RadioGroupItem,
-} from "@/components/ui/radio-group";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Download, Upload, AlertCircle, CheckCircle2 } from "lucide-react";
 import { BulkPaymentImportService } from "@/lib/services/BulkPaymentImportService";
-import type {
-  BulkImportMode,
-  BulkImportRawRow,
-} from "./types";
+import type { BulkImportMode, BulkImportRawRow } from "./types";
 
 interface Props {
   residencialId: string;
@@ -36,7 +30,9 @@ function normalizeRow(raw: any): BulkImportRawRow {
     amountRaw: String(raw.amountCents ?? raw.amount ?? "").trim(),
     paymentDateStr: String(raw.paymentDateStr ?? raw.fecha ?? "").trim(),
     appliesToMonthsRaw: String(raw.appliesToMonths ?? raw.meses ?? "").trim(),
-    paymentMethod: String(raw.paymentMethod ?? "cash").trim().toLowerCase(),
+    paymentMethod: String(raw.paymentMethod ?? "cash")
+      .trim()
+      .toLowerCase(),
     notes: raw.notes ? String(raw.notes).trim() : null,
   };
 }
@@ -79,7 +75,7 @@ export default function BulkPaymentImport({ residencialId, onSuccess }: Props) {
     !!preview &&
     preview.rows.length > 0 &&
     !submitting &&
-    (mode !== "pre_create_fees" || (Number(defaultFee) > 0));
+    (mode !== "pre_create_fees" || Number(defaultFee) > 0);
 
   const handleSubmit = async () => {
     if (!preview) return;
@@ -109,7 +105,9 @@ export default function BulkPaymentImport({ residencialId, onSuccess }: Props) {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h2 className="text-xl font-semibold">Carga masiva de pagos históricos</h2>
+        <h2 className="text-xl font-semibold">
+          Carga masiva de pagos históricos
+        </h2>
         <p className="text-sm text-muted-foreground">
           Sube un CSV con pagos pasados que la administración cobró antes de
           usar Zentry. El batch queda en revisión hasta que un super-admin lo
@@ -159,8 +157,8 @@ export default function BulkPaymentImport({ residencialId, onSuccess }: Props) {
                 <Label htmlFor="mode-otf" className="font-normal">
                   <span className="font-medium">Sobre la marcha</span>
                   <span className="block text-xs text-muted-foreground">
-                    Crea las cuotas faltantes en el mismo paso del pago.
-                    Ideal cuando los importes son variables.
+                    Crea las cuotas faltantes en el mismo paso del pago. Ideal
+                    cuando los importes son variables.
                   </span>
                 </Label>
               </div>
@@ -169,9 +167,8 @@ export default function BulkPaymentImport({ residencialId, onSuccess }: Props) {
                 <Label htmlFor="mode-pre" className="font-normal">
                   <span className="font-medium">Pre-crear cuotas</span>
                   <span className="block text-xs text-muted-foreground">
-                    Crea todas las cuotas pendientes con un monto fijo antes
-                    de procesar pagos. Mejor para residenciales con cuota
-                    uniforme.
+                    Crea todas las cuotas pendientes con un monto fijo antes de
+                    procesar pagos. Mejor para residenciales con cuota uniforme.
                   </span>
                 </Label>
               </div>
@@ -232,9 +229,9 @@ export default function BulkPaymentImport({ residencialId, onSuccess }: Props) {
           <div className="text-sm text-muted-foreground flex items-start gap-2 bg-amber-50 dark:bg-amber-950/30 p-3 rounded-lg">
             <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
             <div>
-              La validación final (matching de casas, duplicados, formato)
-              corre en el servidor cuando crees el batch. Aquí solo ves un
-              preview crudo.
+              La validación final (matching de casas, duplicados, formato) corre
+              en el servidor cuando crees el batch. Aquí solo ves un preview
+              crudo.
             </div>
           </div>
 

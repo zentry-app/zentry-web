@@ -13,17 +13,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { RefreshCw } from "lucide-react";
 import { BulkPaymentImportService } from "@/lib/services/BulkPaymentImportService";
-import type {
-  BulkImportBatch,
-  BulkImportBatchStatus,
-} from "./types";
+import type { BulkImportBatch, BulkImportBatchStatus } from "./types";
 import BulkPaymentReviewDialog from "./BulkPaymentReviewDialog";
 import BulkPaymentApplyProgress from "./BulkPaymentApplyProgress";
 import BulkPaymentRevertDialog from "./BulkPaymentRevertDialog";
@@ -92,7 +85,9 @@ export default function BulkPaymentBatchesList({ residencialId }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Batches de migración histórica</h3>
+        <h3 className="text-lg font-semibold">
+          Batches de migración histórica
+        </h3>
         <Button variant="outline" size="sm" onClick={load} disabled={loading}>
           <RefreshCw className="h-4 w-4 mr-2" />
           Refrescar
