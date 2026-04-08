@@ -818,14 +818,14 @@ const SimplifiedPaymentsDashboard: React.FC<
         </CardContent>
       </Card>
 
-      {/* Bulk import — batches de migración histórica */}
+      {/* Bulk import — secciones ocultas hasta QA manual con Coto Sur. Re-activar:
+          descomentar imports arriba + estos dos bloques + el botón en el header.
       <Card>
         <CardContent className="pt-6">
           <BulkPaymentBatchesList residencialId={residencialId} />
         </CardContent>
       </Card>
 
-      {/* Bulk import — dialog de upload */}
       <Dialog open={bulkImportDialog} onOpenChange={setBulkImportDialog}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
           <BulkPaymentImport
@@ -834,6 +834,7 @@ const SimplifiedPaymentsDashboard: React.FC<
           />
         </DialogContent>
       </Dialog>
+      */}
 
       {/* Modal de pago en efectivo */}
       <Dialog open={cashPaymentDialog} onOpenChange={setCashPaymentDialog}>
