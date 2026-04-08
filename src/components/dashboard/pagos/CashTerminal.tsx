@@ -608,6 +608,11 @@ export default function CashTerminal({
     setSelectedProduct(null);
     setPaymentMethod("cash");
     setTransferRef("");
+    // Reset paymentDate a hoy
+    setPaymentDate(() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    })();
     setHouseUsers([]);
     setSelectedPayerUid(null);
     setShowCustomPayer(false);
@@ -1346,15 +1351,15 @@ export default function CashTerminal({
                     if (paymentDate && paymentDate !== today) {
                       return (
                         <p className="text-[10px] text-amber-700 bg-amber-50 rounded-lg px-2 py-1 mt-1.5">
-                          ⚠️ Pago retroactivo — el folio se generará en la
-                          serie del mes <strong>{paymentDate.slice(0, 7)}</strong>.
+                          ⚠️ Pago retroactivo — el folio se generará en la serie
+                          del mes <strong>{paymentDate.slice(0, 7)}</strong>.
                         </p>
                       );
                     }
                     return (
                       <p className="text-[10px] text-slate-400 mt-1 ml-1">
-                        Fecha real en que se recibió el efectivo. Por defecto
-                        es hoy.
+                        Fecha real en que se recibió el efectivo. Por defecto es
+                        hoy.
                       </p>
                     );
                   })()}
