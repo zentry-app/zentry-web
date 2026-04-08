@@ -87,7 +87,6 @@ import { CatalogService, Product } from "@/lib/services/catalog-service";
 import UnifiedPaymentsTable from "./UnifiedPaymentsTable";
 import BulkPaymentImport from "@/components/financial/bulk-import/BulkPaymentImport";
 import BulkPaymentBatchesList from "@/components/financial/bulk-import/BulkPaymentBatchesList";
-import { Upload } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
