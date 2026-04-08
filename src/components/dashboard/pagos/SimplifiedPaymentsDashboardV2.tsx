@@ -780,6 +780,14 @@ const SimplifiedPaymentsDashboard: React.FC<
                 Actualizar
               </Button>
               <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBulkImportDialog(true)}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Carga masiva histórica
+              </Button>
+              <Button
                 onClick={() => setCashPaymentDialog(true)}
                 className="bg-green-600 hover:bg-green-700"
               >
