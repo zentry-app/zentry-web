@@ -786,14 +786,16 @@ const SimplifiedPaymentsDashboard: React.FC<
                 />
                 Actualizar
               </Button>
-              <Button
+              {/* Bulk import — oculto hasta QA manual. Re-activar:
+                  descomentar este botón + el dialog + la sección de batches. */}
+              {/* <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setBulkImportDialog(true)}
               >
                 <Upload className="h-4 w-4 mr-2" />
                 Carga masiva histórica
-              </Button>
+              </Button> */}
               <Button
                 onClick={() => setCashPaymentDialog(true)}
                 className="bg-green-600 hover:bg-green-700"
