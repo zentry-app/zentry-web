@@ -1165,9 +1165,8 @@ const SimplifiedPaymentsDashboard: React.FC<
                 <div className="text-xs text-amber-700 bg-amber-50 dark:bg-amber-950/30 rounded p-2 mt-2">
                   ⚠️ Este pago se registrará con fecha y folio de{" "}
                   <strong>{newCashPayment.paymentDate.slice(0, 7)}</strong> y
-                  aplicará a la cuota de{" "}
-                  <strong>{newCashPayment.month}</strong>. Verifica que ambos
-                  son correctos.
+                  aplicará a la cuota de <strong>{newCashPayment.month}</strong>
+                  . Verifica que ambos son correctos.
                 </div>
               )}
             </div>
