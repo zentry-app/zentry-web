@@ -809,6 +809,23 @@ const SimplifiedPaymentsDashboard: React.FC<
         </CardContent>
       </Card>
 
+      {/* Bulk import — batches de migración histórica */}
+      <Card>
+        <CardContent className="pt-6">
+          <BulkPaymentBatchesList residencialId={residencialId} />
+        </CardContent>
+      </Card>
+
+      {/* Bulk import — dialog de upload */}
+      <Dialog open={bulkImportDialog} onOpenChange={setBulkImportDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+          <BulkPaymentImport
+            residencialId={residencialId}
+            onSuccess={() => setBulkImportDialog(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
       {/* Modal de pago en efectivo */}
       <Dialog open={cashPaymentDialog} onOpenChange={setCashPaymentDialog}>
         <DialogContent className="max-w-2xl">
