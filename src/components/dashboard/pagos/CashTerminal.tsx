@@ -556,6 +556,15 @@ export default function CashTerminal({
           notes: fullNotes,
           userName: payerName.trim() || undefined,
           userId: selectedUser?.uid || undefined,
+          // Solo mandamos dateStr si NO es hoy. Así no rompemos el flujo
+          // normal (cuando es hoy el backend usa su default).
+          dateStr: (() => {
+            const d = new Date();
+            const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            return paymentDate && paymentDate !== today
+              ? paymentDate
+              : undefined;
+          })(),
         },
       });
       const now = new Date();
