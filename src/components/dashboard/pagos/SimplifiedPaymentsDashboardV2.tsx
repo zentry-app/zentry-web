@@ -1076,6 +1076,14 @@ const SimplifiedPaymentsDashboard: React.FC<
                         {formatDateInput(newCashPayment.paymentDate)}
                       </span>
                     </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        Mes que cubre:
+                      </span>
+                      <span className="font-medium">
+                        {newCashPayment.month}
+                      </span>
+                    </div>
                   </div>
                 </div>
               )}
