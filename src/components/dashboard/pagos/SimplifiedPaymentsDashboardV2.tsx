@@ -1151,11 +1151,25 @@ const SimplifiedPaymentsDashboard: React.FC<
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Fecha:</span>
+                <span className="text-muted-foreground">Fecha del cobro:</span>
                 <span className="font-medium">
                   {formatDateInput(newCashPayment.paymentDate)}
                 </span>
               </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Mes que cubre:</span>
+                <span className="font-medium">{newCashPayment.month}</span>
+              </div>
+              {newCashPayment.month !==
+                newCashPayment.paymentDate.slice(0, 7) && (
+                <div className="text-xs text-amber-700 bg-amber-50 dark:bg-amber-950/30 rounded p-2 mt-2">
+                  ⚠️ Este pago se registrará con fecha y folio de{" "}
+                  <strong>{newCashPayment.paymentDate.slice(0, 7)}</strong> y
+                  aplicará a la cuota de{" "}
+                  <strong>{newCashPayment.month}</strong>. Verifica que ambos
+                  son correctos.
+                </div>
+              )}
             </div>
           </div>
 
