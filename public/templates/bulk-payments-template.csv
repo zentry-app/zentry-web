@@ -1,0 +1,4 @@
+houseLabel,clientFolio,amountCents,paymentDateStr,appliesToMonths,paymentMethod,notes
+"Cerrada del Sol 12",R-001234,150000,2024-10-05,2024-10,cash,Pago octubre
+"Cerrada del Sol 12",R-001298,300000,2024-11-08,2024-11|2024-12,cash,Pago adelantado dos meses
+"Av. Principal 45, Int. B",,150000,2024-10-12,2024-10,cash,
