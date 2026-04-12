@@ -10,6 +10,7 @@ export interface ReceiptData {
   method: string;
   timestamp: string; // formatted date string e.g. "1 de abril de 2026 · 14:30"
   isAdmin: boolean;
+  residencialId?: string; // included in QR URL so backend searches correct residencial
   residencialName?: string;
   residencialAddress?: string;
   referencia?: string;
