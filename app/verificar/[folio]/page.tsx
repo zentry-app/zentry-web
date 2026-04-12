@@ -53,7 +53,11 @@ export default function VerificarPage() {
           { valid: boolean; found: boolean; data?: VerificationData }
         >(functions, "apiVerifyReceipt");
 
-        const result = await apiVerifyReceipt({ folio, hash, ...(residencialId ? { residencialId } : {}) });
+        const result = await apiVerifyReceipt({
+          folio,
+          hash,
+          ...(residencialId ? { residencialId } : {}),
+        });
         const res = result.data;
 
         if (!res.found) {
