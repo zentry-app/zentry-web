@@ -438,6 +438,7 @@ export default function FoliosRecibos({ residencialId }: FoliosRecibosProps) {
         method: methodLabel(entry.method),
         timestamp: formatReceiptTimestamp(entry.validatedAt),
         isAdmin: true,
+        residencialId: residencialDocId,
         residencialName: residencialMeta.nombre,
         residencialAddress: residencialMeta.direccion,
         razonSocial: residencialMeta.razonSocial,
