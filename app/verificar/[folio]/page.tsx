@@ -31,6 +31,7 @@ export default function VerificarPage() {
 
   const folio = params?.folio ?? "";
   const hash = searchParams?.get("h") ?? "";
+  const residencialId = searchParams?.get("r") ?? "";
 
   const [state, setState] = useState<VerificationState>("loading");
   const [data, setData] = useState<VerificationData | null>(null);
