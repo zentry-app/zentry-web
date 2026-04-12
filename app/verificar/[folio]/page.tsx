@@ -49,11 +49,11 @@ export default function VerificarPage() {
 
         const functions = getFunctions(app, "us-central1");
         const apiVerifyReceipt = httpsCallable<
-          { folio: string; hash: string },
+          { folio: string; hash: string; residencialId?: string },
           { valid: boolean; found: boolean; data?: VerificationData }
         >(functions, "apiVerifyReceipt");
 
-        const result = await apiVerifyReceipt({ folio, hash });
+        const result = await apiVerifyReceipt({ folio, hash, ...(residencialId ? { residencialId } : {}) });
         const res = result.data;
 
         if (!res.found) {
