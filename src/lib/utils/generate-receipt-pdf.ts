@@ -641,7 +641,8 @@ async function drawReceiptPage(
 
 export async function generateReceiptPDF(data: ReceiptData): Promise<void> {
   const hash = await computeHash(data.folio, data.amountCents, data.houseId);
-  const verifyUrl = `https://zentrymx.com/verificar/${data.folio}?h=${hash}`;
+  const residencialParam = data.residencialId ? `&r=${data.residencialId}` : "";
+  const verifyUrl = `https://zentrymx.com/verificar/${data.folio}?h=${hash}${residencialParam}`;
 
   // Load assets in parallel
   const [qrDataUrl, logoDataUrl, interRegularB64, interBoldB64] =
