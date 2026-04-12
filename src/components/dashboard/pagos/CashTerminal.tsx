@@ -820,6 +820,7 @@ export default function CashTerminal({
                     payerName: receipt.payerName || receipt.resident || "",
                     concept: receipt.concept,
                     amountCents: Math.round(parseFloat(amount) * 100),
+                    residencialId,
                     method:
                       paymentMethod === "transfer"
                         ? "Transferencia"
