@@ -1,4 +1,4 @@
-import withBundleAnalyzer from '@next/bundle-analyzer';
+import withBundleAnalyzer from "@next/bundle-analyzer";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -6,7 +6,7 @@ const nextConfig = {
   swcMinify: true,
   trailingSlash: true,
   images: {
-    domains: ['firebasestorage.googleapis.com'],
+    domains: ["firebasestorage.googleapis.com"],
     unoptimized: false, // Habilitar optimización de imágenes para tamaños responsivos
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
@@ -21,20 +21,23 @@ const nextConfig = {
   // Optimizaciones específicas para mejorar carga y rendimiento
   compiler: {
     // Eliminar console.logs en producción
-    removeConsole: process.env.NODE_ENV === 'production' ? {
-      exclude: ['error', 'warn'], // Mantener errores y advertencias
-    } : false,
+    removeConsole:
+      process.env.NODE_ENV === "production"
+        ? {
+            exclude: ["error", "warn"], // Mantener errores y advertencias
+          }
+        : false,
   },
 
   // Mejorar el hot reloading y prevenir problemas de caché
   webpack: (config, { dev, isServer }) => {
     config.resolve.alias = {
       ...config.resolve.alias,
-      'node-fetch': 'undici', // Use undici instead of node-fetch
+      "node-fetch": "undici", // Use undici instead of node-fetch
     };
 
     // Prevent canvas from being bundled
-    config.externals = [...(config.externals || []), { canvas: 'canvas' }];
+    config.externals = [...(config.externals || []), { canvas: "canvas" }];
 
     // Configuraciones para mejorar rendimiento
     if (dev) {
@@ -42,7 +45,7 @@ const nextConfig = {
       config.watchOptions = {
         ...config.watchOptions,
         poll: 500,
-        ignored: ['node_modules/**', '.git/**', '.next/**'],
+        ignored: ["node_modules/**", ".git/**", ".next/**"],
       };
     } else {
       // Optimizaciones para producción
@@ -50,35 +53,37 @@ const nextConfig = {
         // Optimizar paquetes para cliente
         config.optimization = {
           ...config.optimization,
-          runtimeChunk: 'single',
+          runtimeChunk: "single",
           splitChunks: {
-            chunks: 'all',
+            chunks: "all",
             maxInitialRequests: 25,
             minSize: 20000,
             cacheGroups: {
               default: false,
               vendors: false,
               framework: {
-                name: 'framework',
+                name: "framework",
                 test: /[\\/]node_modules[\\/](react|react-dom|next|firebase)[\\/]/,
                 priority: 40,
                 enforce: true,
               },
               commons: {
-                name: 'commons',
+                name: "commons",
                 minChunks: 2,
                 priority: 20,
               },
               lib: {
                 test: /[\\/]node_modules[\\/]/,
                 name(module) {
-                  const match = module.context.match(/[\\/]node_modules[\\/](.*?)([\\/]|$)/);
+                  const match = module.context.match(
+                    /[\\/]node_modules[\\/](.*?)([\\/]|$)/,
+                  );
                   if (match && match[1]) {
                     const packageName = match[1];
-                    return `npm.${packageName.replace('@', '')}`;
+                    return `npm.${packageName.replace("@", "")}`;
                   }
                   // Fallback si no se puede determinar el nombre del paquete
-                  return 'npm.unknown';
+                  return "npm.unknown";
                 },
                 priority: 10,
                 minChunks: 1,
@@ -96,23 +101,23 @@ const nextConfig = {
   experimental: {
     // Aplicar lazy loading agresivo
     optimizePackageImports: [
-      '@headlessui/react',
-      '@radix-ui/react-avatar',
-      '@radix-ui/react-dropdown-menu',
-      '@radix-ui/react-dialog',
-      '@radix-ui/react-slot',
-      '@radix-ui/react-popover',
-      '@radix-ui/react-select',
-      '@radix-ui/react-tabs',
-      'lucide-react',
-      'date-fns',
-      'react-day-picker',
-      'sonner',
-      'clsx',
-      'lodash',
-      'framer-motion',
-      'recharts',
-      'three',
+      "@headlessui/react",
+      "@radix-ui/react-avatar",
+      "@radix-ui/react-dropdown-menu",
+      "@radix-ui/react-dialog",
+      "@radix-ui/react-slot",
+      "@radix-ui/react-popover",
+      "@radix-ui/react-select",
+      "@radix-ui/react-tabs",
+      "lucide-react",
+      "date-fns",
+      "react-day-picker",
+      "sonner",
+      "clsx",
+      "lodash",
+      "framer-motion",
+      "recharts",
+      "three",
     ],
   },
 
@@ -138,44 +143,50 @@ const nextConfig = {
   async headers() {
     return [
       {
-        source: '/:path*',
+        source: "/:path*",
         headers: [
-          { key: 'Cross-Origin-Opener-Policy', value: 'unsafe-none' },
-          { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
-          { key: 'X-Frame-Options', value: 'DENY' },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
-          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          { key: "Cross-Origin-Opener-Policy", value: "unsafe-none" },
+          { key: "Cross-Origin-Embedder-Policy", value: "unsafe-none" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=31536000; includeSubDomains",
+          },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=()",
+          },
         ],
       },
       // Cache agresivo para assets estáticos
       {
-        source: '/_next/static/:path*',
+        source: "/_next/static/:path*",
         headers: [
           {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
           },
         ],
       },
       // Cache para imágenes optimizadas
       {
-        source: '/_next/image/:path*',
+        source: "/_next/image/:path*",
         headers: [
           {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
           },
         ],
       },
       // Cache para assets públicos
       {
-        source: '/assets/:path*',
+        source: "/assets/:path*",
         headers: [
           {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
           },
         ],
       },
@@ -185,7 +196,7 @@ const nextConfig = {
 
 // Condicionalmente envolver la configuración con el analizador de bundles
 const bundleAnalyzer = withBundleAnalyzer({
-  enabled: process.env.ANALYZE === 'true',
+  enabled: process.env.ANALYZE === "true",
 });
 
 export default bundleAnalyzer(nextConfig);
