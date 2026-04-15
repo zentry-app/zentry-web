@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
       userId: uid,
       userEmail: userData?.email || null,
       timestamp: new Date().toISOString(),
-      residencialId: "S9G7TL",
+      residencialId: bodyResidencialId ?? null,
       notes: `Estado del tag actualizado por ${userData?.email || "usuario desconocido"}`,
     });
 
