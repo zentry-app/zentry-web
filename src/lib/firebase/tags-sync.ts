@@ -75,9 +75,11 @@ export interface AuditLog {
  * Actualiza el estado de un tag usando el endpoint API
  */
 export async function updateTagStatus(
-  tagId: string, 
-  newStatus: string, 
-  userId: string
+  tagId: string,
+  newStatus: string,
+  userId: string,
+  residencialDocId: string,
+  residencialId?: string
 ): Promise<void> {
   try {
     // Obtener token de autenticación
