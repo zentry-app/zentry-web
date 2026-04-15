@@ -47,12 +47,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Obtener datos del request
-    const { tagId, status } = await request.json();
+    const { tagId, status, residencialDocId: bodyResidencialDocId, residencialId: bodyResidencialId } = await request.json();
 
     // Validaciones
     if (!tagId || !status) {
       return NextResponse.json(
         { error: 'tagId y status son requeridos' },
+        { status: 400 }
+      );
+    }
+
+    if (!bodyResidencialDocId) {
+      return NextResponse.json(
+        { error: 'residencialDocId es requerido' },
         { status: 400 }
       );
     }
