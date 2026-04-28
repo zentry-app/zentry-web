@@ -48,6 +48,7 @@ export class PropiedadesService {
     interior?: string;
     tipo: PropiedadWeb["tipo"];
     estadoOcupacion: PropiedadWeb["estadoOcupacion"];
+    mesesAdeudados?: number;
   }): Promise<{ propiedadId: string }> {
     const fn = httpsCallable<typeof params, { propiedadId: string }>(
       functions,

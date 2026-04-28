@@ -59,6 +59,7 @@ export default function AddPropiedadDialog({
   const [tipo, setTipo] = useState<PropiedadWeb["tipo"]>("casa");
   const [estadoOcupacion, setEstadoOcupacion] =
     useState<PropiedadWeb["estadoOcupacion"]>("desocupada");
+  const [mesesAdeudados, setMesesAdeudados] = useState(0);
   const [loading, setLoading] = useState(false);
 
   const calleEfectiva = calle === "__nueva__" ? calleNueva.trim() : calle;
@@ -78,6 +79,7 @@ export default function AddPropiedadDialog({
         interior: interior.trim() || undefined,
         tipo,
         estadoOcupacion,
+        mesesAdeudados: mesesAdeudados > 0 ? mesesAdeudados : undefined,
       });
       toast.success("Propiedad creada correctamente");
       onOpenChange(false);
@@ -104,6 +106,7 @@ export default function AddPropiedadDialog({
     setInterior("");
     setTipo("casa");
     setEstadoOcupacion("desocupada");
+    setMesesAdeudados(0);
   };
 
   return (
@@ -208,6 +211,28 @@ export default function AddPropiedadDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Meses adeudados (opcional) */}
+          <div className="space-y-1.5">
+            <Label>
+              Meses adeudados{" "}
+              <span className="text-muted-foreground text-xs">(opcional)</span>
+            </Label>
+            <Input
+              type="number"
+              min={0}
+              max={24}
+              placeholder="0"
+              value={mesesAdeudados || ""}
+              onChange={(e) => setMesesAdeudados(Number(e.target.value) || 0)}
+            />
+            {mesesAdeudados > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Se registrará una deuda inicial de {mesesAdeudados} mes
+                {mesesAdeudados > 1 ? "es" : ""} de cuota
+              </p>
+            )}
           </div>
         </div>
 

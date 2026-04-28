@@ -333,6 +333,15 @@ export default function CashTerminal({
   );
   const [transferRef, setTransferRef] = useState("");
 
+  // Fecha real del cobro físico — default = hoy. Permite registrar pagos
+  // con fecha distinta a hoy (caso Coto Sur: registrar en abril cobros que
+  // la admin recibió en marzo). El backend usa este campo para el dateStr
+  // del intent Y para el folio (ej. ZNT-202603-001 si fecha=2026-03-15).
+  const [paymentDate, setPaymentDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
+
   // House label formatter
   function formatHouseLabel(houseId: string): string {
     if (!houseId) return "";
@@ -547,6 +556,15 @@ export default function CashTerminal({
           notes: fullNotes,
           userName: payerName.trim() || undefined,
           userId: selectedUser?.uid || undefined,
+          // Solo mandamos dateStr si NO es hoy. Así no rompemos el flujo
+          // normal (cuando es hoy el backend usa su default).
+          dateStr: (() => {
+            const d = new Date();
+            const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            return paymentDate && paymentDate !== today
+              ? paymentDate
+              : undefined;
+          })(),
         },
       });
       const now = new Date();
@@ -590,6 +608,13 @@ export default function CashTerminal({
     setSelectedProduct(null);
     setPaymentMethod("cash");
     setTransferRef("");
+    // Reset paymentDate a hoy
+    {
+      const d = new Date();
+      setPaymentDate(
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+      );
+    }
     setHouseUsers([]);
     setSelectedPayerUid(null);
     setShowCustomPayer(false);
@@ -795,6 +820,7 @@ export default function CashTerminal({
                     payerName: receipt.payerName || receipt.resident || "",
                     concept: receipt.concept,
                     amountCents: Math.round(parseFloat(amount) * 100),
+                    residencialId,
                     method:
                       paymentMethod === "transfer"
                         ? "Transferencia"
@@ -870,30 +896,28 @@ export default function CashTerminal({
                     />
                   </div>
                   {filteredHouses.length > 0 && !selectedHouse && (
-                    <div className="mt-1 border border-slate-200 rounded-xl overflow-hidden shadow-lg bg-white">
-                      <ScrollArea className="max-h-[180px]">
-                        {filteredHouses.map((h) => (
-                          <button
-                            key={h.houseId}
-                            onClick={() => handleSelectHouse(h)}
-                            className="w-full flex items-center justify-between p-3 hover:bg-slate-50 transition-colors text-left border-b border-slate-50 last:border-0"
-                          >
-                            <div>
-                              <span className="font-bold text-sm text-slate-800">
-                                {h.label}
-                              </span>
-                              <span className="text-xs text-muted-foreground ml-2">
-                                {h.residentName}
-                              </span>
-                            </div>
-                            {h.deudaCents > 0 && (
-                              <span className="text-[10px] font-bold text-red-500">
-                                Debe {fmtFull(h.deudaCents)}
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                      </ScrollArea>
+                    <div className="mt-1 border border-slate-200 rounded-xl shadow-lg bg-white max-h-[320px] overflow-y-auto">
+                      {filteredHouses.map((h) => (
+                        <button
+                          key={h.houseId}
+                          onClick={() => handleSelectHouse(h)}
+                          className="w-full flex items-center justify-between p-3 hover:bg-slate-50 transition-colors text-left border-b border-slate-50 last:border-0"
+                        >
+                          <div>
+                            <span className="font-bold text-sm text-slate-800">
+                              {h.label}
+                            </span>
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {h.residentName}
+                            </span>
+                          </div>
+                          {h.deudaCents > 0 && (
+                            <span className="text-[10px] font-bold text-red-500">
+                              Debe {fmtFull(h.deudaCents)}
+                            </span>
+                          )}
+                        </button>
+                      ))}
                     </div>
                   )}
                   {selectedHouse && (
@@ -1304,6 +1328,45 @@ export default function CashTerminal({
                     </p>
                   </div>
                 )}
+
+                {/* Fecha del cobro — permite registrar pagos retroactivos
+                    (caso Coto Sur: cobros físicos hechos en marzo que se
+                    registran en abril). Cuando es distinta a hoy, el folio
+                    sale del mes de la fecha (ej. ZNT-202603-NNN) y el
+                    `dateStr` del intent refleja la fecha real del cobro. */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                    Fecha del cobro
+                  </label>
+                  <Input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    max={(() => {
+                      const d = new Date();
+                      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                    })()}
+                    className="mt-1.5 h-11 rounded-xl border-slate-200 font-medium text-sm"
+                  />
+                  {(() => {
+                    const d = new Date();
+                    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                    if (paymentDate && paymentDate !== today) {
+                      return (
+                        <p className="text-[10px] text-amber-700 bg-amber-50 rounded-lg px-2 py-1 mt-1.5">
+                          ⚠️ Pago retroactivo — el folio se generará en la serie
+                          del mes <strong>{paymentDate.slice(0, 7)}</strong>.
+                        </p>
+                      );
+                    }
+                    return (
+                      <p className="text-[10px] text-slate-400 mt-1 ml-1">
+                        Fecha real en que se recibió el efectivo. Por defecto es
+                        hoy.
+                      </p>
+                    );
+                  })()}
+                </div>
 
                 {/* Notes */}
                 <div>

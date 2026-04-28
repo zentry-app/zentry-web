@@ -38,6 +38,7 @@ import {
   ShieldCheck,
   Download,
   BarChart3,
+  Receipt,
 } from "lucide-react";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/lib/firebase/config";
@@ -88,11 +89,19 @@ const FinancialDashboard = dynamic(() => import("./FinancialDashboard"), {
   ),
 });
 
+const FoliosRecibos = dynamic(() => import("./FoliosRecibos"), {
+  ssr: false,
+  loading: () => (
+    <p className="py-12 text-center text-muted-foreground">Cargando...</p>
+  ),
+});
+
 // Tabs — "Validación" is the default view (home), rest are tools
 // Periodos removed: billing is automatic via BillingAgentCron. 2026-03-25.
 // Analytics removed: redundant with KPIs + Libro Mayor. 2026-03-25.
 const tabs = [
   { id: "validacion", label: "Validación", icon: ShieldCheck },
+  { id: "folios", label: "Folios & Recibos", icon: Receipt },
   { id: "estado_cuenta", label: "Estado de Cuenta", icon: Home },
   { id: "libro_mayor", label: "Libro Mayor", icon: BookOpen },
   { id: "movimientos", label: "Movimientos", icon: ArrowLeftRight },
@@ -464,6 +473,12 @@ export default function PaymentsDashboard({
       )}
 
       {/* ─── Tab: Libro Mayor ────────────────────────────────────── */}
+      {activeTab === "folios" && (
+        <div className="animate-fadeIn">
+          <FoliosRecibos residencialId={residencialId} />
+        </div>
+      )}
+
       {activeTab === "libro_mayor" && (
         <div className="animate-fadeIn">
           <AccountingDashboard residencialId={residencialId} />

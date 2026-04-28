@@ -24,21 +24,10 @@ export async function POST(request: NextRequest) {
 
     // Verificar el token y obtener las claims del usuario
     const decodedToken = await adminAuth.verifyIdToken(idToken);
-    const { uid, email, admin, superadmin, isAdmin } = decodedToken;
-
-    // Log para debugging
-    console.log('🔍 Usuario intentando crear tag:', {
-      uid,
-      email,
-      admin: !!admin,
-      superadmin: !!superadmin,
-      isAdmin: !!isAdmin,
-      claims: decodedToken
-    });
+    const { uid, admin, superadmin, isAdmin } = decodedToken;
 
     // Verificar que el usuario sea admin (usar isAdmin que es el claim correcto)
     if (!admin && !superadmin && !isAdmin) {
-      console.log('⚠️ Usuario sin permisos de admin');
       return NextResponse.json(
         { error: 'Permisos insuficientes. Se requiere rol de administrador.' },
         { status: 403 }
@@ -50,32 +39,14 @@ export async function POST(request: NextRequest) {
       cardNumberDec,
       residencialId,
       casaId,
-      panels,
-      status,
       plate,
       notes,
-      applyImmediately
     } = await request.json();
 
     // Validaciones
-    if (!cardNumberDec || !residencialId || !casaId || !panels || !status) {
+    if (!cardNumberDec || !residencialId) {
       return NextResponse.json(
-        { error: 'cardNumberDec, residencialId, casaId, panels y status son requeridos' },
-        { status: 400 }
-      );
-    }
-
-    if (!Array.isArray(panels) || panels.length === 0) {
-      return NextResponse.json(
-        { error: 'Debe seleccionar al menos un panel' },
-        { status: 400 }
-      );
-    }
-
-    const validStatuses = ['active', 'disabled'];
-    if (!validStatuses.includes(status)) {
-      return NextResponse.json(
-        { error: `Estado inválido. Debe ser uno de: ${validStatuses.join(', ')}` },
+        { error: 'cardNumberDec y residencialId son requeridos' },
         { status: 400 }
       );
     }
@@ -99,33 +70,31 @@ export async function POST(request: NextRequest) {
     // Generar ID único para ZKTeco (usando timestamp + random)
     const zktecoUserId = Date.now() + Math.floor(Math.random() * 1000);
     
-    // Crear el tag
+    // Crear el tag — status siempre 'disabled' al crear (ZentryLink lo activa después)
     const tagData = {
       type: "vehicular",
       ownerType: "unit",
-      ownerRef: casaId,
+      ownerRef: casaId || null,
       cardNumberDec: cardNumberDec,
-      format: "W26", // Formato por defecto para ZKTeco
+      format: "W26",
       facilityCode: null,
       residencialId: residencialId,
-      panels: panels,
-      status: status,
+      panels: [],
+      status: 'disabled',
       plate: plate || null,
       notes: notes || null,
       lastChangedBy: uid,
       lastChangedAt: new Date().toISOString(),
       source: "Web",
       createdAt: new Date().toISOString(),
-      // Campos adicionales para compatibilidad
       cardHex: null,
       holder: {
         name: `Tag Vehicular ${cardNumberDec}`,
         externalId: cardNumberDec
       },
-      residentId: casaId,
+      residentId: casaId || null,
       validFrom: null,
       validTo: null,
-      // 🆕 Campos críticos de ZKTeco (para consistencia con tags importados)
       zktecoUserId: zktecoUserId,
       zktecoBadgeNumber: cardNumberDec,
       zktecoAccGroup: 0
@@ -140,67 +109,26 @@ export async function POST(request: NextRequest) {
       type: 'TAG_CREATED',
       tagId: tagId,
       from: null,
-      to: status,
+      to: 'disabled',
       byUserId: uid,
       at: new Date().toISOString(),
       details: {
         cardNumberDec,
         residencialId,
         casaId,
-        panels,
         plate,
         notes,
-        applyImmediately
       },
-      panelFanoutJobs: 0
     });
 
-    // Si se debe aplicar inmediatamente y el estado es activo
-    if (applyImmediately && status === 'active') {
-      // Crear panelJobs para cada panel
-      const panelJobsRef = adminDb!.collection('residenciales').doc(residencialDocId).collection('panelJobs');
-      
-      for (const panelId of panels) {
-        await panelJobsRef.add({
-          tagId: tagId,
-          panelId: panelId,
-          action: 'APPLY_TAG_STATUS',
-          desiredStatus: status,
-          attempts: 0,
-          maxAttempts: 3,
-          status: 'queued',
-          createdAt: new Date().toISOString(),
-          claimedBy: null,
-          claimedAt: null,
-          completedAt: null
-        });
-      }
-
-      // Actualizar el auditLog con el número de jobs creados
-      await adminDb!.collection('residenciales').doc(residencialDocId).collection('auditLogs')
-        .where('tagId', '==', tagId)
-        .where('type', '==', 'TAG_CREATED')
-        .limit(1)
-        .get()
-        .then((snapshot: any) => {
-          if (!snapshot.empty) {
-            const auditLogId = snapshot.docs[0].id;
-            adminDb!.collection('residenciales').doc(residencialDocId).collection('auditLogs')
-              .doc(auditLogId)
-              .update({ panelFanoutJobs: panels.length });
-          }
-        });
-    }
-
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: 'Tag creado correctamente',
       tagId: tagId,
       tag: {
         id: tagId,
         ...tagData
       },
-      panelJobsCreated: applyImmediately && status === 'active' ? panels.length : 0
     });
 
   } catch (error) {

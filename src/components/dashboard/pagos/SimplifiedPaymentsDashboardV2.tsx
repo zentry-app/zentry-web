@@ -1,17 +1,25 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { onSnapshot, collection, query, where, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase/config';
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  onSnapshot,
+  collection,
+  query,
+  where,
+  orderBy,
+  addDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase/config";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -19,15 +27,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { toast } from 'sonner';
+} from "@/components/ui/select";
+import { toast } from "sonner";
 import {
   DollarSign,
   TrendingUp,
@@ -44,30 +52,54 @@ import {
   Filter,
   RefreshCw,
   Settings,
-} from 'lucide-react';
-import PaymentConfigurationDialog from './PaymentConfigurationDialog';
+  Upload,
+} from "lucide-react";
+import PaymentConfigurationDialog from "./PaymentConfigurationDialog";
 import {
   AccountingSummary,
-  AccountingService
-} from '@/lib/services/accounting-service';
-import { PaymentValidationService, PaymentReceipt } from '@/lib/services/payment-validation-service';
-import { CashPaymentService, CashPayment } from '@/lib/services/cash-payment-service';
-import { AllPaymentsService, AllPayment } from '@/lib/services/all-payments-service';
-import { HousePaymentStatusService, HousePaymentStatus } from '@/lib/services/house-payment-status-service';
-import { CasasResidencialService, CasaResidencial } from '@/lib/services/casas-residencial-service';
-import { UnifiedPaymentsService, UnifiedPayment } from '@/lib/services/unified-payments-service';
-import { CatalogService, Product } from '@/lib/services/catalog-service';
-import UnifiedPaymentsTable from './UnifiedPaymentsTable';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+  AccountingService,
+} from "@/lib/services/accounting-service";
+import {
+  PaymentValidationService,
+  PaymentReceipt,
+} from "@/lib/services/payment-validation-service";
+import {
+  CashPaymentService,
+  CashPayment,
+} from "@/lib/services/cash-payment-service";
+import {
+  AllPaymentsService,
+  AllPayment,
+} from "@/lib/services/all-payments-service";
+import {
+  HousePaymentStatusService,
+  HousePaymentStatus,
+} from "@/lib/services/house-payment-status-service";
+import {
+  CasasResidencialService,
+  CasaResidencial,
+} from "@/lib/services/casas-residencial-service";
+import {
+  UnifiedPaymentsService,
+  UnifiedPayment,
+} from "@/lib/services/unified-payments-service";
+import { CatalogService, Product } from "@/lib/services/catalog-service";
+import UnifiedPaymentsTable from "./UnifiedPaymentsTable";
+// Bulk payment import — feature completa pero oculta hasta que se haga QA manual
+// con la admin de Coto Sur. Para activar: descomentar imports + el botón "Carga
+// masiva histórica" + la sección BulkPaymentBatchesList más abajo.
+// import BulkPaymentImport from "@/components/financial/bulk-import/BulkPaymentImport";
+// import BulkPaymentBatchesList from "@/components/financial/bulk-import/BulkPaymentBatchesList";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 interface SimplifiedPaymentsDashboardProps {
   residencialId: string;
 }
 
-const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = ({
-  residencialId,
-}) => {
+const SimplifiedPaymentsDashboard: React.FC<
+  SimplifiedPaymentsDashboardProps
+> = ({ residencialId }) => {
   const [loading, setLoading] = useState(true);
 
   // Estados para datos
@@ -77,35 +109,46 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
   const [productos, setProductos] = useState<Product[]>([]);
 
   // Estados para filtros
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [dateFilter, setDateFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
 
   // Estados para modales
   const [cashPaymentDialog, setCashPaymentDialog] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(false);
   const [editDialog, setEditDialog] = useState(false);
   const [configDialog, setConfigDialog] = useState(false);
-  const [editingPayment, setEditingPayment] = useState<CashPayment | null>(null);
+  const [bulkImportDialog, setBulkImportDialog] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<CashPayment | null>(
+    null,
+  );
   const [newCashPayment, setNewCashPayment] = useState({
-    casaId: '',
-    amount: '',
-    concept: '',
-    paymentDate: new Date().toISOString().split('T')[0],
+    casaId: "",
+    amount: "",
+    concept: "",
+    paymentDate: new Date().toISOString().split("T")[0],
     month: new Date().toISOString().slice(0, 7), // YYYY-MM format
   });
-  const [casaSearchTerm, setCasaSearchTerm] = useState('');
+  const [casaSearchTerm, setCasaSearchTerm] = useState("");
 
   const loadAllData = useCallback(async () => {
     if (!residencialId) return;
 
     setLoading(true);
     try {
-      console.log(`📊 [LOAD] Cargando datos para residencial: ${residencialId}`);
+      console.log(
+        `📊 [LOAD] Cargando datos para residencial: ${residencialId}`,
+      );
 
       // Cargar datos usando los servicios originales
-      const [allPayments, cashPayments, houseStatusesData, casasData, productosData] = await Promise.all([
+      const [
+        allPayments,
+        cashPayments,
+        houseStatusesData,
+        casasData,
+        productosData,
+      ] = await Promise.all([
         AllPaymentsService.getAllPayments(residencialId),
         CashPaymentService.getCashPayments(residencialId),
         HousePaymentStatusService.getHousePaymentStatuses(residencialId),
@@ -122,14 +165,18 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
       });
 
       // Convertir a formato unificado usando AllPaymentsService
-      const unifiedPaymentsData: UnifiedPayment[] = allPayments.map(payment =>
-        UnifiedPaymentsService.convertAllPaymentToUnified(payment)
+      const unifiedPaymentsData: UnifiedPayment[] = allPayments.map((payment) =>
+        UnifiedPaymentsService.convertAllPaymentToUnified(payment),
       );
 
       // Ordenar por fecha (más recientes primero)
       unifiedPaymentsData.sort((a, b) => {
-        const dateA = a.fechaPago?.toDate ? a.fechaPago.toDate() : new Date(a.fechaPago);
-        const dateB = b.fechaPago?.toDate ? b.fechaPago.toDate() : new Date(b.fechaPago);
+        const dateA = a.fechaPago?.toDate
+          ? a.fechaPago.toDate()
+          : new Date(a.fechaPago);
+        const dateB = b.fechaPago?.toDate
+          ? b.fechaPago.toDate()
+          : new Date(b.fechaPago);
         return dateB.getTime() - dateA.getTime();
       });
 
@@ -137,10 +184,9 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
       setHouseStatuses(houseStatusesData);
       setCasas(casasData);
       setProductos(productosData);
-
     } catch (error) {
-      console.error('Error cargando datos:', error);
-      toast.error('Error cargando datos del dashboard');
+      console.error("Error cargando datos:", error);
+      toast.error("Error cargando datos del dashboard");
     } finally {
       setLoading(false);
     }
@@ -157,61 +203,78 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
   useEffect(() => {
     if (!residencialId) return;
 
-    console.log(`🔄 [REALTIME] Configurando listener para residencial: ${residencialId}`);
+    console.log(
+      `🔄 [REALTIME] Configurando listener para residencial: ${residencialId}`,
+    );
 
-    const paymentsRef = collection(db, 'residenciales', residencialId, 'paymentIntents');
-    const q = query(paymentsRef, orderBy('createdAt', 'desc'));
+    const paymentsRef = collection(
+      db,
+      "residenciales",
+      residencialId,
+      "paymentIntents",
+    );
+    const q = query(paymentsRef, orderBy("createdAt", "desc"));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      console.log(`🔄 [REALTIME] Cambio detectado: ${snapshot.docs.length} documentos`);
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        console.log(
+          `🔄 [REALTIME] Cambio detectado: ${snapshot.docs.length} documentos`,
+        );
 
-      if (snapshot.docs.length > 0) {
-        console.log('🔄 [REALTIME] Recargando datos automáticamente...');
-        loadAllData();
-      }
-    }, (error) => {
-      console.error('❌ [REALTIME] Error en listener:', error);
-    });
+        if (snapshot.docs.length > 0) {
+          console.log("🔄 [REALTIME] Recargando datos automáticamente...");
+          loadAllData();
+        }
+      },
+      (error) => {
+        console.error("❌ [REALTIME] Error en listener:", error);
+      },
+    );
 
     return () => {
-      console.log('🔄 [REALTIME] Limpiando listener');
+      console.log("🔄 [REALTIME] Limpiando listener");
       unsubscribe();
     };
   }, [loadAllData, residencialId]);
 
   // Filtrar pagos unificados
-  const filteredPayments = UnifiedPaymentsService.filterPayments(unifiedPayments, {
-    searchTerm,
-    statusFilter,
-    typeFilter,
-    dateFilter,
-  });
+  const filteredPayments = UnifiedPaymentsService.filterPayments(
+    unifiedPayments,
+    {
+      searchTerm,
+      statusFilter,
+      typeFilter,
+      dateFilter,
+    },
+  );
 
   // Obtener estadísticas de pagos
   const paymentStats = UnifiedPaymentsService.getPaymentStats(unifiedPayments);
 
   // Filtrar casas para el modal
-  const filteredCasas = casas.filter(casa =>
-    casaSearchTerm === '' ||
-    casa.calle.toLowerCase().includes(casaSearchTerm.toLowerCase()) ||
-    casa.houseNumber.toLowerCase().includes(casaSearchTerm.toLowerCase()) ||
-    casa.usuarios.some(usuario =>
-      usuario.fullName.toLowerCase().includes(casaSearchTerm.toLowerCase())
-    )
+  const filteredCasas = casas.filter(
+    (casa) =>
+      casaSearchTerm === "" ||
+      casa.calle.toLowerCase().includes(casaSearchTerm.toLowerCase()) ||
+      casa.houseNumber.toLowerCase().includes(casaSearchTerm.toLowerCase()) ||
+      casa.usuarios.some((usuario) =>
+        usuario.fullName.toLowerCase().includes(casaSearchTerm.toLowerCase()),
+      ),
   );
 
   // Funciones de utilidad
   const formatAmount = (amount: number) => {
-    return new Intl.NumberFormat('es-MX', {
-      style: 'currency',
-      currency: 'MXN',
+    return new Intl.NumberFormat("es-MX", {
+      style: "currency",
+      currency: "MXN",
     }).format(amount);
   };
 
   const formatDateInput = (dateString: string) => {
     try {
       const date = new Date(dateString);
-      return format(date, 'dd MMM yyyy', { locale: es });
+      return format(date, "dd MMM yyyy", { locale: es });
     } catch {
       return dateString;
     }
@@ -220,61 +283,69 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
   const formatTimestampForInput = (timestamp: any) => {
     try {
       const date = timestamp?.toDate ? timestamp.toDate() : new Date(timestamp);
-      return format(date, 'yyyy-MM-dd');
+      return format(date, "yyyy-MM-dd");
     } catch {
-      return '';
+      return "";
     }
   };
 
   const formatPeriod = (monthString: string) => {
     try {
-      const [year, month] = monthString.split('-');
+      const [year, month] = monthString.split("-");
       const date = new Date(parseInt(year), parseInt(month) - 1);
-      return format(date, 'MMMM yyyy', { locale: es });
+      return format(date, "MMMM yyyy", { locale: es });
     } catch {
       return monthString;
     }
   };
 
   // Manejar validación de pagos
-  const handleValidatePayment = async (paymentId: string, validation: 'approved' | 'rejected', reason?: string) => {
+  const handleValidatePayment = async (
+    paymentId: string,
+    validation: "approved" | "rejected",
+    reason?: string,
+  ) => {
     try {
       await PaymentValidationService.validatePayment(residencialId, paymentId, {
         pagoId: paymentId,
-        status: validation === 'approved' ? 'validated' : 'rejected',
-        validadoPor: 'admin',
-        observaciones: reason || '',
+        status: validation === "approved" ? "validated" : "rejected",
+        validadoPor: "admin",
+        observaciones: reason || "",
       });
 
-      toast.success(validation === 'approved' ? 'Pago aprobado y saldo actualizado' : 'Pago rechazado');
+      toast.success(
+        validation === "approved"
+          ? "Pago aprobado y saldo actualizado"
+          : "Pago rechazado",
+      );
       loadAllData(); // Recargar datos
     } catch (error) {
-      console.error('Error validando pago:', error);
-      toast.error('Error al validar el pago');
+      console.error("Error validando pago:", error);
+      toast.error("Error al validar el pago");
     }
   };
 
   // Manejar edición de pagos
   const handleEditPayment = (payment: UnifiedPayment) => {
-    if (payment.type === 'cash') {
+    if (payment.type === "cash") {
       // Convertir a CashPayment para edición
       const cashPayment: CashPayment = {
         id: payment.id,
         amount: payment.amount,
         concept: payment.concept,
-        currency: payment.currency || 'MXN',
+        currency: payment.currency || "MXN",
         fechaPago: payment.fechaPago,
-        paymentMethod: 'cash',
-        status: payment.status as 'completed' | 'pending' | 'cancelled',
-        registradoPor: payment.registradoPor || 'admin',
+        paymentMethod: "cash",
+        status: payment.status as "completed" | "pending" | "cancelled",
+        registradoPor: payment.registradoPor || "admin",
         residencialId: payment.residencialId,
-        userId: payment.userId || '',
-        userName: payment.userName || '',
-        userEmail: payment.userEmail || '',
+        userId: payment.userId || "",
+        userName: payment.userName || "",
+        userEmail: payment.userEmail || "",
         userAddress: {
-          calle: payment.houseAddress || '',
-          houseNumber: payment.houseNumber || '',
-          pais: 'México',
+          calle: payment.houseAddress || "",
+          houseNumber: payment.houseNumber || "",
+          pais: "México",
           residencialID: payment.residencialId,
         },
       };
@@ -286,132 +357,175 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
   // Manejar eliminación o reversión de pagos
   const handleDeletePayment = async (payment: UnifiedPayment) => {
     try {
-      if (['validated', 'completed', 'paid'].includes(payment.status)) {
+      if (["validated", "completed", "paid"].includes(payment.status)) {
         // En lugar de borrarlo de Firestore, pedimos al LedgerEngine que genere un REVERSAL contable
-        const reason = payment.concept || 'Reversión solicitada por administrador';
-        await PaymentValidationService.reversePayment(residencialId, payment.id, reason);
-        toast.success(`Pago revertido exitosamente. La deuda ha sido devuelta al residente.`);
+        const reason =
+          payment.concept || "Reversión solicitada por administrador";
+        await PaymentValidationService.reversePayment(
+          residencialId,
+          payment.id,
+          reason,
+        );
+        toast.success(
+          `Pago revertido exitosamente. La deuda ha sido devuelta al residente.`,
+        );
       } else {
         // Si el pago no había tocado el Ledger (efectivo ingresado por error o transferencia rechazada)
-        if (payment.type === 'cash') {
+        if (payment.type === "cash") {
           // El servicio puede borrar el draft
           await CashPaymentService.deleteCashPayment(residencialId, payment.id);
         } else {
           // Si es transferencia y está pediente, simplemente lo rechazamos (soft-delete visual)
-          await PaymentValidationService.validatePayment(residencialId, payment.id, {
-            pagoId: payment.id,
-            status: 'rejected',
-            validadoPor: 'admin',
-            observaciones: 'Cancelado por el administrador antes de su validación.'
-          });
+          await PaymentValidationService.validatePayment(
+            residencialId,
+            payment.id,
+            {
+              pagoId: payment.id,
+              status: "rejected",
+              validadoPor: "admin",
+              observaciones:
+                "Cancelado por el administrador antes de su validación.",
+            },
+          );
         }
-        toast.success('Pago eliminado');
+        toast.success("Pago eliminado");
       }
 
       loadAllData(); // Recargar datos
     } catch (error: any) {
-      console.error('Error eliminando/revirtiendo pago:', error);
-      toast.error(error.message || 'Error al procesar la cancelación del pago');
+      console.error("Error eliminando/revirtiendo pago:", error);
+      toast.error(error.message || "Error al procesar la cancelación del pago");
     }
   };
 
   // Manejar visualización de comprobantes
   const handleViewReceipt = (payment: UnifiedPayment) => {
     if (payment.imageUrl) {
-      window.open(payment.imageUrl, '_blank');
+      window.open(payment.imageUrl, "_blank");
     }
   };
 
   // Manejar agregar pago en efectivo
   const handleAddCashPayment = () => {
-    if (!newCashPayment.casaId || !newCashPayment.amount || !newCashPayment.concept) {
-      toast.error('Por favor completa todos los campos obligatorios');
+    if (
+      !newCashPayment.casaId ||
+      !newCashPayment.amount ||
+      !newCashPayment.concept
+    ) {
+      toast.error("Por favor completa todos los campos obligatorios");
       return;
     }
     setConfirmDialog(true);
   };
 
   // Función para notificar a todos los usuarios de la casa sobre el pago en efectivo
-  const notifyAllHouseUsersCashPayment = async (paymentData: any, selectedCasa: any) => {
+  const notifyAllHouseUsersCashPayment = async (
+    paymentData: any,
+    selectedCasa: any,
+  ) => {
     try {
       if (!selectedCasa.usuarios || selectedCasa.usuarios.length === 0) {
-        console.log('⚠️ No hay usuarios en la casa, saltando notificaciones');
+        console.log("⚠️ No hay usuarios en la casa, saltando notificaciones");
         return;
       }
 
-      console.log(`🔔 Creando notificaciones para ${selectedCasa.usuarios.length} usuarios de la casa`);
+      console.log(
+        `🔔 Creando notificaciones para ${selectedCasa.usuarios.length} usuarios de la casa`,
+      );
 
       // Crear notificaciones para cada usuario de la casa
       for (const usuario of selectedCasa.usuarios) {
-        await addDoc(collection(db, 'usuarios', usuario.uid, 'notificaciones'), {
-          title: 'Pago en Efectivo Registrado',
-          message: `Tu ${paymentData.concept} de $${paymentData.amount.toFixed(2)} del mes ${paymentData.mes} ha sido registrado en efectivo por el administrador.`,
-          type: 'payment_cash_registered',
-          priority: 'normal',
-          read: false,
-          timestamp: serverTimestamp(),
-          data: {
-            paymentId: paymentData.paymentId,
-            amount: paymentData.amount,
-            mes: paymentData.mes,
-            concept: paymentData.concept,
-            status: 'completed',
-            residencialId: paymentData.residencialId,
-            paymentMethod: 'cash',
-            registradoPor: paymentData.registradoPor,
-            calle: paymentData.calle,
-            houseNumber: paymentData.houseNumber,
+        await addDoc(
+          collection(db, "usuarios", usuario.uid, "notificaciones"),
+          {
+            title: "Pago en Efectivo Registrado",
+            message: `Tu ${paymentData.concept} de $${paymentData.amount.toFixed(2)} del mes ${paymentData.mes} ha sido registrado en efectivo por el administrador.`,
+            type: "payment_cash_registered",
+            priority: "normal",
+            read: false,
+            timestamp: serverTimestamp(),
+            data: {
+              paymentId: paymentData.paymentId,
+              amount: paymentData.amount,
+              mes: paymentData.mes,
+              concept: paymentData.concept,
+              status: "completed",
+              residencialId: paymentData.residencialId,
+              paymentMethod: "cash",
+              registradoPor: paymentData.registradoPor,
+              calle: paymentData.calle,
+              houseNumber: paymentData.houseNumber,
+            },
+            titleColor: "#000000",
           },
-          titleColor: '#000000',
-        });
+        );
 
-        console.log(`✅ Notificación creada para usuario: ${usuario.fullName} (${usuario.email})`);
+        console.log(
+          `✅ Notificación creada para usuario: ${usuario.fullName} (${usuario.email})`,
+        );
       }
 
-      console.log(`✅ ${selectedCasa.usuarios.length} notificaciones de pago en efectivo creadas exitosamente`);
+      console.log(
+        `✅ ${selectedCasa.usuarios.length} notificaciones de pago en efectivo creadas exitosamente`,
+      );
     } catch (error) {
-      console.error('❌ Error al crear notificaciones de pago en efectivo:', error);
-      toast.error('Error al crear notificaciones');
+      console.error(
+        "❌ Error al crear notificaciones de pago en efectivo:",
+        error,
+      );
+      toast.error("Error al crear notificaciones");
     }
   };
 
   // Confirmar pago en efectivo
   const confirmCashPayment = async () => {
     try {
-      const selectedCasa = casas.find(c => c.houseId === newCashPayment.casaId);
+      const selectedCasa = casas.find(
+        (c) => c.houseId === newCashPayment.casaId,
+      );
       if (!selectedCasa) {
-        toast.error('Casa no encontrada');
+        toast.error("Casa no encontrada");
         return;
       }
 
       // Buscar si el concepto es un producto para pasar sus metadatos
-      const selectedProduct = productos.find(p => p.name === newCashPayment.concept);
+      const selectedProduct = productos.find(
+        (p) => p.name === newCashPayment.concept,
+      );
 
       // Registrar el pago en efectivo
-      const docId = await CashPaymentService.registerCashPayment(residencialId, {
-        amount: parseFloat(newCashPayment.amount),
-        concept: newCashPayment.concept,
-        currency: 'MXN',
-        paymentMethod: 'cash',
-        status: 'pending_validation',
-        residencialId: residencialId,
-        userId: selectedCasa.usuarios[0]?.uid || '',
-        userName: selectedCasa.usuarios[0]?.fullName || '',
-        userEmail: selectedCasa.usuarios[0]?.email || '',
-        userAddress: {
-          calle: selectedCasa.calle,
-          houseNumber: selectedCasa.houseNumber,
-          pais: 'México',
-          residencialID: residencialId,
+      const docId = await CashPaymentService.registerCashPayment(
+        residencialId,
+        {
+          amount: parseFloat(newCashPayment.amount),
+          concept: newCashPayment.concept,
+          currency: "MXN",
+          paymentMethod: "cash",
+          status: "pending_validation",
+          residencialId: residencialId,
+          userId: selectedCasa.usuarios[0]?.uid || "",
+          userName: selectedCasa.usuarios[0]?.fullName || "",
+          userEmail: selectedCasa.usuarios[0]?.email || "",
+          userAddress: {
+            calle: selectedCasa.calle,
+            houseNumber: selectedCasa.houseNumber,
+            pais: "México",
+            residencialID: residencialId,
+          },
+          // 🆕 Fecha real del pago físico (puede ser distinta a hoy — caso
+          // Coto Sur: registrar en abril cobros que la admin recibió en marzo).
+          // Construimos un Date local con T12:00 para evitar drift de zona horaria.
+          fechaPago: new Date(`${newCashPayment.paymentDate}T12:00:00`),
+          // 🆕 Campos adicionales para compatibilidad con Flutter y ERP v2
+          houseId: selectedCasa.houseId,
+          mes: newCashPayment.month,
+          concepto: newCashPayment.concept,
+          isProduct:
+            !!selectedProduct && selectedProduct.id !== "default_cuota",
+          productId: selectedProduct?.id || undefined,
+          productPrice: selectedProduct?.priceCents || 0,
         },
-        // 🆕 Campos adicionales para compatibilidad con Flutter y ERP v2
-        houseId: selectedCasa.houseId,
-        mes: newCashPayment.month,
-        concepto: newCashPayment.concept,
-        isProduct: !!selectedProduct && selectedProduct.id !== 'default_cuota',
-        productId: selectedProduct?.id || undefined,
-        productPrice: selectedProduct?.priceCents || 0
-      });
+      );
 
       // 🆕 Crear notificaciones para TODOS los usuarios de la casa
       const paymentData = {
@@ -420,34 +534,34 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
         concept: newCashPayment.concept,
         mes: newCashPayment.month,
         residencialId: residencialId,
-        registradoPor: 'Administrador',
+        registradoPor: "Administrador",
         calle: selectedCasa.calle,
         houseNumber: selectedCasa.houseNumber,
       };
 
       await notifyAllHouseUsersCashPayment(paymentData, selectedCasa);
 
-      toast.success('Pago en efectivo registrado exitosamente');
+      toast.success("Pago en efectivo registrado exitosamente");
       setConfirmDialog(false);
       setCashPaymentDialog(false);
       resetCashPaymentForm();
       loadAllData(); // Recargar datos
     } catch (error) {
-      console.error('Error registrando pago:', error);
-      toast.error('Error al registrar el pago');
+      console.error("Error registrando pago:", error);
+      toast.error("Error al registrar el pago");
     }
   };
 
   // Resetear formulario
   const resetCashPaymentForm = () => {
     setNewCashPayment({
-      casaId: '',
-      amount: '',
-      concept: '',
-      paymentDate: new Date().toISOString().split('T')[0],
+      casaId: "",
+      amount: "",
+      concept: "",
+      paymentDate: new Date().toISOString().split("T")[0],
       month: new Date().toISOString().slice(0, 7),
     });
-    setCasaSearchTerm('');
+    setCasaSearchTerm("");
   };
 
   // Manejar actualización de pago
@@ -456,13 +570,13 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
 
     try {
       // Aquí implementarías la lógica de actualización
-      toast.success('Pago actualizado');
+      toast.success("Pago actualizado");
       setEditDialog(false);
       setEditingPayment(null);
       loadAllData();
     } catch (error) {
-      console.error('Error actualizando pago:', error);
-      toast.error('Error al actualizar el pago');
+      console.error("Error actualizando pago:", error);
+      toast.error("Error al actualizar el pago");
     }
   };
 
@@ -471,11 +585,11 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
     try {
       setLoading(true);
       await PaymentValidationService.triggerManualBilling(residencialId);
-      toast.success('Facturación mensual iniciada con éxito');
+      toast.success("Facturación mensual iniciada con éxito");
       loadAllData();
     } catch (error: any) {
-      console.error('Error disparando facturación:', error);
-      toast.error(error.message || 'Error al disparar facturación');
+      console.error("Error disparando facturación:", error);
+      toast.error(error.message || "Error al disparar facturación");
     } finally {
       setLoading(false);
     }
@@ -513,7 +627,9 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
             <Clock className="h-4 w-4 text-yellow-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{paymentStats.pending}</div>
+            <div className="text-2xl font-bold text-yellow-600">
+              {paymentStats.pending}
+            </div>
             <p className="text-xs text-muted-foreground">
               Requieren validación
             </p>
@@ -526,10 +642,10 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
             <CheckCircle className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{paymentStats.validated}</div>
-            <p className="text-xs text-muted-foreground">
-              Pagos confirmados
-            </p>
+            <div className="text-2xl font-bold text-green-600">
+              {paymentStats.validated}
+            </div>
+            <p className="text-xs text-muted-foreground">Pagos confirmados</p>
           </CardContent>
         </Card>
 
@@ -539,10 +655,10 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
             <Home className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{houseStatuses.length}</div>
-            <p className="text-xs text-muted-foreground">
-              Total de casas
-            </p>
+            <div className="text-2xl font-bold text-blue-600">
+              {houseStatuses.length}
+            </div>
+            <p className="text-xs text-muted-foreground">Total de casas</p>
           </CardContent>
         </Card>
       </div>
@@ -639,7 +755,7 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
               </CardDescription>
             </div>
             <div className="flex items-center space-x-2">
-              {process.env.NODE_ENV !== 'production' && (
+              {process.env.NODE_ENV !== "production" && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -665,9 +781,21 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
                 onClick={loadAllData}
                 disabled={loading}
               >
-                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw
+                  className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`}
+                />
                 Actualizar
               </Button>
+              {/* Bulk import — oculto hasta QA manual. Re-activar:
+                  descomentar este botón + el dialog + la sección de batches. */}
+              {/* <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBulkImportDialog(true)}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Carga masiva histórica
+              </Button> */}
               <Button
                 onClick={() => setCashPaymentDialog(true)}
                 className="bg-green-600 hover:bg-green-700"
@@ -690,6 +818,24 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
         </CardContent>
       </Card>
 
+      {/* Bulk import — secciones ocultas hasta QA manual con Coto Sur. Re-activar:
+          descomentar imports arriba + estos dos bloques + el botón en el header.
+      <Card>
+        <CardContent className="pt-6">
+          <BulkPaymentBatchesList residencialId={residencialId} />
+        </CardContent>
+      </Card>
+
+      <Dialog open={bulkImportDialog} onOpenChange={setBulkImportDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+          <BulkPaymentImport
+            residencialId={residencialId}
+            onSuccess={() => setBulkImportDialog(false)}
+          />
+        </DialogContent>
+      </Dialog>
+      */}
+
       {/* Modal de pago en efectivo */}
       <Dialog open={cashPaymentDialog} onOpenChange={setCashPaymentDialog}>
         <DialogContent className="max-w-2xl">
@@ -703,7 +849,9 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
           <div className="space-y-6">
             {/* Selección de casa */}
             <div className="space-y-2">
-              <Label htmlFor="casa" className="text-sm font-medium">Casa *</Label>
+              <Label htmlFor="casa" className="text-sm font-medium">
+                Casa *
+              </Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -718,17 +866,25 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
               <div className="max-h-64 overflow-y-auto border rounded-lg bg-gray-50">
                 {filteredCasas.length === 0 ? (
                   <div className="p-4 text-sm text-muted-foreground text-center">
-                    {casaSearchTerm ? 'No se encontraron casas' : 'No hay casas disponibles'}
+                    {casaSearchTerm
+                      ? "No se encontraron casas"
+                      : "No hay casas disponibles"}
                   </div>
                 ) : (
                   filteredCasas.map((casa) => (
                     <div
                       key={casa.houseId}
-                      className={`p-4 cursor-pointer hover:bg-white transition-colors border-b last:border-b-0 ${newCashPayment.casaId === casa.houseId ? 'bg-blue-50 border-blue-200' : ''
-                        }`}
+                      className={`p-4 cursor-pointer hover:bg-white transition-colors border-b last:border-b-0 ${
+                        newCashPayment.casaId === casa.houseId
+                          ? "bg-blue-50 border-blue-200"
+                          : ""
+                      }`}
                       onClick={() => {
-                        setNewCashPayment({ ...newCashPayment, casaId: casa.houseId });
-                        setCasaSearchTerm('');
+                        setNewCashPayment({
+                          ...newCashPayment,
+                          casaId: casa.houseId,
+                        });
+                        setCasaSearchTerm("");
                       }}
                     >
                       <div className="flex items-center justify-between">
@@ -737,11 +893,16 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
                             {casa.calle} {casa.houseNumber}
                           </div>
                           <div className="text-sm text-gray-600 mt-1">
-                            {casa.usuarios.map(usuario => usuario.fullName).join(', ')}
+                            {casa.usuarios
+                              .map((usuario) => usuario.fullName)
+                              .join(", ")}
                           </div>
                         </div>
                         {newCashPayment.casaId === casa.houseId && (
-                          <Badge variant="default" className="text-xs bg-green-600">
+                          <Badge
+                            variant="default"
+                            className="text-xs bg-green-600"
+                          >
                             Seleccionada
                           </Badge>
                         )}
@@ -756,7 +917,9 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Monto */}
               <div className="space-y-2">
-                <Label htmlFor="amount" className="text-sm font-medium">Monto *</Label>
+                <Label htmlFor="amount" className="text-sm font-medium">
+                  Monto *
+                </Label>
                 <div className="relative">
                   <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -764,7 +927,12 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
                     type="number"
                     step="0.01"
                     value={newCashPayment.amount}
-                    onChange={(e) => setNewCashPayment({ ...newCashPayment, amount: e.target.value })}
+                    onChange={(e) =>
+                      setNewCashPayment({
+                        ...newCashPayment,
+                        amount: e.target.value,
+                      })
+                    }
                     placeholder="0.00"
                     className="pl-10 h-11"
                   />
@@ -773,32 +941,80 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
 
               {/* Fecha de Pago */}
               <div className="space-y-2">
-                <Label htmlFor="paymentDate" className="text-sm font-medium">Fecha de Pago</Label>
+                <Label htmlFor="paymentDate" className="text-sm font-medium">
+                  Fecha de Pago
+                </Label>
                 <Input
                   id="paymentDate"
                   type="date"
                   value={newCashPayment.paymentDate}
-                  onChange={(e) => setNewCashPayment({ ...newCashPayment, paymentDate: e.target.value })}
+                  onChange={(e) => {
+                    // Cuando cambia la fecha del pago, sincroniza el "Mes que cubre"
+                    // automáticamente al mismo periodo (caso normal). El admin
+                    // puede sobrescribirlo después si la cuota aplica a otro mes.
+                    const newMonth = e.target.value
+                      ? e.target.value.slice(0, 7)
+                      : newCashPayment.month;
+                    setNewCashPayment({
+                      ...newCashPayment,
+                      paymentDate: e.target.value,
+                      month: newMonth,
+                    });
+                  }}
                   className="h-11"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Fecha real en que se recibió el efectivo
+                </p>
               </div>
+            </div>
+
+            {/* Mes que cubre el pago — separado de la fecha real porque puede
+                aplicar a un periodo distinto (ej. cobro recibido en abril
+                que corresponde a la cuota de marzo). */}
+            <div className="space-y-2">
+              <Label htmlFor="paymentMonth" className="text-sm font-medium">
+                Mes que cubre *
+              </Label>
+              <Input
+                id="paymentMonth"
+                type="month"
+                value={newCashPayment.month}
+                onChange={(e) =>
+                  setNewCashPayment({
+                    ...newCashPayment,
+                    month: e.target.value,
+                  })
+                }
+                className="h-11"
+              />
+              <p className="text-xs text-muted-foreground">
+                Periodo de la cuota que se está pagando. Por defecto coincide
+                con el mes del pago, pero puedes cambiarlo si el cobro
+                corresponde a otro mes (ej. registrar hoy un pago de marzo).
+              </p>
             </div>
 
             {/* Concepto del pago */}
             <div className="space-y-2">
-              <Label htmlFor="concept" className="text-sm font-medium">Concepto del Pago *</Label>
+              <Label htmlFor="concept" className="text-sm font-medium">
+                Concepto del Pago *
+              </Label>
               <Select
                 value={newCashPayment.concept}
                 onValueChange={(value) => {
-                  const prod = productos.find(p => p.name === value);
-                  const newAmount = prod && prod.priceCents > 0 && (!newCashPayment.amount || newCashPayment.amount === '0')
-                    ? (prod.priceCents / 100).toString()
-                    : newCashPayment.amount;
+                  const prod = productos.find((p) => p.name === value);
+                  const newAmount =
+                    prod &&
+                    prod.priceCents > 0 &&
+                    (!newCashPayment.amount || newCashPayment.amount === "0")
+                      ? (prod.priceCents / 100).toString()
+                      : newCashPayment.amount;
 
                   setNewCashPayment({
                     ...newCashPayment,
                     concept: value,
-                    amount: newAmount
+                    amount: newAmount,
                   });
                 }}
               >
@@ -807,14 +1023,19 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
                 </SelectTrigger>
                 <SelectContent>
                   {/* Inyectar Cuota Mensual si no está en productos */}
-                  {(!productos.some(p => p.name.toLowerCase().includes('cuota') || p.name.toLowerCase().includes('mantenimiento'))) && (
-                    <SelectItem value="Cuota Mensual">
-                      Cuota Mensual
-                    </SelectItem>
+                  {!productos.some(
+                    (p) =>
+                      p.name.toLowerCase().includes("cuota") ||
+                      p.name.toLowerCase().includes("mantenimiento"),
+                  ) && (
+                    <SelectItem value="Cuota Mensual">Cuota Mensual</SelectItem>
                   )}
                   {productos.map((prod) => (
                     <SelectItem key={prod.id} value={prod.name}>
-                      {prod.name} {prod.priceCents > 0 ? `(${formatAmount(prod.priceCents / 100)})` : ''}
+                      {prod.name}{" "}
+                      {prod.priceCents > 0
+                        ? `(${formatAmount(prod.priceCents / 100)})`
+                        : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -822,31 +1043,56 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
             </div>
 
             {/* Resumen del pago */}
-            {newCashPayment.casaId && newCashPayment.amount && newCashPayment.concept && (
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-medium text-gray-900 mb-3">Resumen del Pago</h4>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Casa:</span>
-                    <span className="font-medium">
-                      {casas.find(c => c.houseId === newCashPayment.casaId)?.calle} {casas.find(c => c.houseId === newCashPayment.casaId)?.houseNumber}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Concepto:</span>
-                    <span className="font-medium">{newCashPayment.concept}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Monto:</span>
-                    <span className="font-bold text-green-600">{formatAmount(parseFloat(newCashPayment.amount))}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Fecha:</span>
-                    <span className="font-medium">{formatDateInput(newCashPayment.paymentDate)}</span>
+            {newCashPayment.casaId &&
+              newCashPayment.amount &&
+              newCashPayment.concept && (
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-medium text-gray-900 mb-3">
+                    Resumen del Pago
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Casa:</span>
+                      <span className="font-medium">
+                        {
+                          casas.find((c) => c.houseId === newCashPayment.casaId)
+                            ?.calle
+                        }{" "}
+                        {
+                          casas.find((c) => c.houseId === newCashPayment.casaId)
+                            ?.houseNumber
+                        }
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Concepto:</span>
+                      <span className="font-medium">
+                        {newCashPayment.concept}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Monto:</span>
+                      <span className="font-bold text-green-600">
+                        {formatAmount(parseFloat(newCashPayment.amount))}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Fecha:</span>
+                      <span className="font-medium">
+                        {formatDateInput(newCashPayment.paymentDate)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        Mes que cubre:
+                      </span>
+                      <span className="font-medium">
+                        {newCashPayment.month}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
           </div>
 
           <DialogFooter>
@@ -861,7 +1107,11 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
             </Button>
             <Button
               onClick={handleAddCashPayment}
-              disabled={!newCashPayment.casaId || !newCashPayment.amount || !newCashPayment.concept}
+              disabled={
+                !newCashPayment.casaId ||
+                !newCashPayment.amount ||
+                !newCashPayment.concept
+              }
               className="bg-green-600 hover:bg-green-700"
             >
               <Plus className="mr-2 h-4 w-4" />
@@ -886,7 +1136,14 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Casa:</span>
                 <span className="font-medium">
-                  {casas.find(c => c.houseId === newCashPayment.casaId)?.calle} {casas.find(c => c.houseId === newCashPayment.casaId)?.houseNumber}
+                  {
+                    casas.find((c) => c.houseId === newCashPayment.casaId)
+                      ?.calle
+                  }{" "}
+                  {
+                    casas.find((c) => c.houseId === newCashPayment.casaId)
+                      ?.houseNumber
+                  }
                 </span>
               </div>
               <div className="flex justify-between">
@@ -895,12 +1152,29 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Monto:</span>
-                <span className="font-bold text-green-600">{formatAmount(parseFloat(newCashPayment.amount))}</span>
+                <span className="font-bold text-green-600">
+                  {formatAmount(parseFloat(newCashPayment.amount))}
+                </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Fecha:</span>
-                <span className="font-medium">{formatDateInput(newCashPayment.paymentDate)}</span>
+                <span className="text-muted-foreground">Fecha del cobro:</span>
+                <span className="font-medium">
+                  {formatDateInput(newCashPayment.paymentDate)}
+                </span>
               </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Mes que cubre:</span>
+                <span className="font-medium">{newCashPayment.month}</span>
+              </div>
+              {newCashPayment.month !==
+                newCashPayment.paymentDate.slice(0, 7) && (
+                <div className="text-xs text-amber-700 bg-amber-50 dark:bg-amber-950/30 rounded p-2 mt-2">
+                  ⚠️ Este pago se registrará con fecha y folio de{" "}
+                  <strong>{newCashPayment.paymentDate.slice(0, 7)}</strong> y
+                  aplicará a la cuota de <strong>{newCashPayment.month}</strong>
+                  . Verifica que ambos son correctos.
+                </div>
+              )}
             </div>
           </div>
 
@@ -914,7 +1188,10 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
             >
               Cancelar
             </Button>
-            <Button onClick={confirmCashPayment} className="bg-green-600 hover:bg-green-700">
+            <Button
+              onClick={confirmCashPayment}
+              className="bg-green-600 hover:bg-green-700"
+            >
               <CheckCircle className="mr-2 h-4 w-4" />
               Confirmar Pago
             </Button>
@@ -963,7 +1240,9 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
                   <Input
                     id="edit-date"
                     type="date"
-                    defaultValue={formatTimestampForInput(editingPayment.fechaPago)}
+                    defaultValue={formatTimestampForInput(
+                      editingPayment.fechaPago,
+                    )}
                   />
                 </div>
               </>
@@ -980,7 +1259,10 @@ const SimplifiedPaymentsDashboard: React.FC<SimplifiedPaymentsDashboardProps> = 
             >
               Cancelar
             </Button>
-            <Button onClick={handleUpdatePayment} className="bg-blue-600 hover:bg-blue-700">
+            <Button
+              onClick={handleUpdatePayment}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
               <Edit className="mr-2 h-4 w-4" />
               Actualizar
             </Button>

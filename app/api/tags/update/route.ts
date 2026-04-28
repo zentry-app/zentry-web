@@ -85,12 +85,9 @@ export async function PUT(request: NextRequest) {
         
         if (!residencialesSnapshot.empty) {
           residencialDocId = residencialesSnapshot.docs[0].id;
-          console.log(`Residencial encontrado: ${residencialId} -> ${residencialDocId}`);
-        } else {
-          console.log(`Residencial no encontrado: ${residencialId}`);
         }
-      } catch (error) {
-        console.error('Error buscando residencial:', error);
+      } catch {
+        // residencialDocId stays as-is
       }
     }
 
@@ -158,7 +155,6 @@ export async function PUT(request: NextRequest) {
     
     await auditLogRef.set(auditData);
 
-    console.log(`✅ Tag ${tagId} actualizado exitosamente por ${decodedToken.email}`);
 
     return NextResponse.json({
       success: true,
@@ -168,14 +164,8 @@ export async function PUT(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error actualizando tag:', error);
-    console.error('Error details:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      name: error instanceof Error ? error.name : undefined
-    });
     return NextResponse.json(
-      { 
+      {
         error: 'Error interno del servidor',
         details: error instanceof Error ? error.message : 'Error desconocido'
       },

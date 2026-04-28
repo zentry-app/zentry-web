@@ -15,7 +15,7 @@ import { toast } from "sonner";
 
 interface TagStatusToggleProps {
   tagId: string;
-  currentStatus: 'active' | 'disabled' | 'lost' | 'stolen';
+  currentStatus: 'active' | 'disabled' | 'inactive' | 'lost' | 'stolen';
   onStatusChange: (tagId: string, newStatus: string) => Promise<void>;
   isProcessing?: boolean;
 }
@@ -43,6 +43,13 @@ export function TagStatusToggle({
           variant: 'secondary' as const,
           icon: XCircle,
           color: 'text-gray-600'
+        };
+      case 'inactive':
+        return {
+          label: 'Inactivo',
+          variant: 'outline' as const,
+          icon: XCircle,
+          color: 'text-slate-500'
         };
       case 'lost':
         return {
@@ -105,14 +112,14 @@ export function TagStatusToggle({
         size="sm"
         onClick={handleToggle}
         disabled={isChanging || isProcessing}
-        className="h-8 w-8 p-0"
+        className="h-9 w-9 p-0"
       >
         {isChanging ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className="h-5 w-5 animate-spin" />
         ) : currentStatus === 'active' ? (
-          <ToggleRight className="h-4 w-4 text-green-600" />
+          <ToggleRight className="h-6 w-6 text-green-600" />
         ) : (
-          <ToggleLeft className="h-4 w-4 text-gray-400" />
+          <ToggleLeft className="h-6 w-6 text-gray-400" />
         )}
       </Button>
     </div>

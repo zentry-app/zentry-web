@@ -103,12 +103,12 @@ export default function PropiedadDetailSheet({
       setUserDetails([]);
       return;
     }
-    if (propiedad.usuariosVinculados.length === 0) {
+    if ((propiedad.usuariosVinculados ?? []).length === 0) {
       setUserDetails([]);
       return;
     }
     setLoadingUsers(true);
-    PropiedadesService.getUserDetails(propiedad.usuariosVinculados)
+    PropiedadesService.getUserDetails(propiedad.usuariosVinculados ?? [])
       .then(setUserDetails)
       .catch(() => setUserDetails([]))
       .finally(() => setLoadingUsers(false));
@@ -129,7 +129,8 @@ export default function PropiedadDetailSheet({
     : "—";
 
   const isMorosa = propiedad.isMorosa === true;
-  const userCount = propiedad.usuariosVinculados.length;
+  const usuarios = propiedad.usuariosVinculados ?? [];
+  const userCount = usuarios.length;
 
   const handleConfirmMorosa = async () => {
     setTogglingMorosa(true);
@@ -141,11 +142,9 @@ export default function PropiedadDetailSheet({
         isMorosa: newValue,
       });
 
-      if (propiedad.usuariosVinculados.length > 0) {
+      if (usuarios.length > 0) {
         await Promise.all(
-          propiedad.usuariosVinculados.map((uid) =>
-            cambiarEstadoMoroso(uid, newValue),
-          ),
+          usuarios.map((uid) => cambiarEstadoMoroso(uid, newValue)),
         );
       }
 
@@ -356,9 +355,9 @@ export default function PropiedadDetailSheet({
                 <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
                   Usuarios vinculados
                 </span>
-                {propiedad.usuariosVinculados.length > 0 && (
+                {usuarios.length > 0 && (
                   <span className="ml-auto text-[11px] font-bold text-slate-400 dark:text-slate-500">
-                    {propiedad.usuariosVinculados.length}
+                    {usuarios.length}
                   </span>
                 )}
               </div>
@@ -370,7 +369,7 @@ export default function PropiedadDetailSheet({
                     Cargando usuarios...
                   </span>
                 </div>
-              ) : propiedad.usuariosVinculados.length === 0 ? (
+              ) : usuarios.length === 0 ? (
                 <div className="py-4 text-center">
                   <p className="text-sm text-slate-400 dark:text-slate-500">
                     Sin usuarios vinculados

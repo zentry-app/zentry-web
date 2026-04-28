@@ -23,19 +23,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { 
-  AlertCircle, 
-  Info, 
+import {
+  Info,
   Car,
-  Home,
-  Calendar,
-  FileText,
   RefreshCw,
-  History,
   Copy
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { TagPanelStatus } from "./TagPanelStatus";
 
 interface Tag {
   id: string;
@@ -57,20 +51,12 @@ interface Casa {
   residencialId: string;
 }
 
-interface Panel {
-  id: string;
-  nombre: string;
-  tipo: 'vehicular' | 'peatonal';
-  residencialId: string;
-}
-
 interface EditTagModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onTagUpdated: (tag: Tag) => void;
   tag: Tag | null;
   casas: Casa[];
-  paneles: Panel[];
   currentUserId: string;
 }
 
@@ -87,14 +73,12 @@ export function EditTagModal({
   onTagUpdated,
   tag,
   casas,
-  paneles,
   currentUserId
 }: EditTagModalProps) {
   const [formData, setFormData] = useState<Partial<Tag>>({});
   const [loading, setLoading] = useState(false);
   const [showReplaceModal, setShowReplaceModal] = useState(false);
   const [casasFiltradas, setCasasFiltradas] = useState<Casa[]>([]);
-  const [panelesFiltrados, setPanelesFiltrados] = useState<Panel[]>([]);
 
   // Inicializar formulario cuando se abre el modal
   useEffect(() => {
@@ -103,40 +87,24 @@ export function EditTagModal({
         cardNumberDec: tag.cardNumberDec,
         residencialId: tag.residencialId,
         casaId: tag.casaId,
-        panels: tag.panels,
-        status: tag.status,
         plate: tag.plate || "",
         notes: tag.notes || "",
       });
     }
   }, [tag, open]);
 
-  // Filtrar casas y paneles cuando cambia el residencial
+  // Filtrar casas cuando cambia el residencial
   useEffect(() => {
     if (formData.residencialId) {
       const casasDelResidencial = casas.filter(c => c.residencialId === formData.residencialId);
-      const panelesDelResidencial = paneles.filter(p => 
-        p.residencialId === formData.residencialId && p.tipo === 'vehicular'
-      );
-      
       setCasasFiltradas(casasDelResidencial);
-      setPanelesFiltrados(panelesDelResidencial);
     }
-  }, [formData.residencialId, casas, paneles]);
+  }, [formData.residencialId, casas]);
 
   const handleInputChange = (field: keyof Tag, value: any) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
-    }));
-  };
-
-  const handlePanelToggle = (panelId: string, checked: boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      panels: checked 
-        ? [...(prev.panels || []), panelId]
-        : (prev.panels || []).filter(id => id !== panelId)
     }));
   };
 
@@ -148,11 +116,6 @@ export function EditTagModal({
 
     if (!formData.casaId) {
       toast.error("Debe seleccionar una casa");
-      return false;
-    }
-
-    if (!formData.panels || formData.panels.length === 0) {
-      toast.error("Debe seleccionar al menos un panel");
       return false;
     }
 
@@ -168,7 +131,7 @@ export function EditTagModal({
       const { getAuthSafe } = await import('@/lib/firebase/config');
       const auth = await getAuthSafe();
       const user = auth?.currentUser;
-      
+
       if (!user) {
         toast.error("Usuario no autenticado");
         return;
@@ -189,7 +152,6 @@ export function EditTagModal({
           casaId: formData.casaId,
           plate: formData.plate,
           notes: formData.notes,
-          status: formData.status
         })
       });
 
@@ -199,7 +161,7 @@ export function EditTagModal({
       }
 
       const result = await response.json();
-      
+
       const updatedTag = {
         ...tag,
         ...formData,
@@ -234,10 +196,6 @@ export function EditTagModal({
     }
   };
 
-  const getPanelName = (panelId: string) => {
-    return panelesFiltrados.find(p => p.id === panelId)?.nombre || panelId;
-  };
-
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success("Copiado al portapapeles");
@@ -269,9 +227,8 @@ export function EditTagModal({
                 <Input
                   id="cardNumberDec"
                   value={formData.cardNumberDec || ""}
-                  onChange={(e) => handleInputChange('cardNumberDec', e.target.value)}
-                  placeholder="Ej: 118654653"
-                  className="flex-1"
+                  readOnly
+                  className="flex-1 bg-muted cursor-default"
                 />
                 <Button
                   variant="outline"
@@ -303,12 +260,12 @@ export function EditTagModal({
                 disabled={casasFiltradas.length === 0}
               >
                 <SelectTrigger>
-                  <SelectValue 
+                  <SelectValue
                     placeholder={
-                      casasFiltradas.length === 0 
-                        ? "No hay casas disponibles" 
+                      casasFiltradas.length === 0
+                        ? "No hay casas disponibles"
                         : "Seleccionar casa"
-                    } 
+                    }
                   />
                 </SelectTrigger>
                 <SelectContent>
@@ -321,69 +278,10 @@ export function EditTagModal({
               </Select>
             </div>
 
-            {/* Paneles */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">
-                Paneles *
-              </Label>
-              {panelesFiltrados.length === 0 ? (
-                <Alert className="border-orange-200 bg-orange-50">
-                  <AlertCircle className="h-4 w-4 text-orange-600" />
-                  <AlertDescription className="text-orange-800">
-                    No hay paneles vehiculares configurados en este residencial.
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <div className="space-y-2 max-h-32 overflow-y-auto border rounded-md p-3">
-                  {panelesFiltrados.map((panel) => (
-                    <div key={panel.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={panel.id}
-                        checked={(formData.panels || []).includes(panel.id)}
-                        onCheckedChange={(checked) => 
-                          handlePanelToggle(panel.id, checked as boolean)
-                        }
-                      />
-                      <Label 
-                        htmlFor={panel.id} 
-                        className="text-sm font-normal cursor-pointer"
-                      >
-                        {panel.nombre}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {formData.panels && formData.panels.length > 0 && (
-                <div className="text-xs text-muted-foreground">
-                  Seleccionados: {formData.panels.length} panel(es)
-                </div>
-              )}
-            </div>
-
-            {/* Estado */}
-            <div className="space-y-2">
-              <Label htmlFor="status" className="text-sm font-medium">
-                Estado
-              </Label>
-              <Select
-                value={formData.status || 'active'}
-                onValueChange={(value) => handleInputChange('status', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Activo</SelectItem>
-                  <SelectItem value="disabled">Desactivado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Campos opcionales */}
             <div className="space-y-4 border-t pt-4">
               <h4 className="text-sm font-medium text-muted-foreground">Información Adicional</h4>
-              
+
               {/* Placa */}
               <div className="space-y-2">
                 <Label htmlFor="plate" className="text-sm font-medium">
@@ -410,20 +308,6 @@ export function EditTagModal({
                   rows={3}
                 />
               </div>
-
-
-            </div>
-
-            {/* Estado de aplicación por panel */}
-            <div className="space-y-4 border-t pt-4">
-              <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <History className="h-4 w-4" />
-                Estado de Aplicación por Panel
-              </h4>
-              <TagPanelStatus
-                tagId={tag.id}
-                panels={formData.panels || []}
-              />
             </div>
           </div>
 

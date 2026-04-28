@@ -10,6 +10,7 @@ export interface ReceiptData {
   method: string;
   timestamp: string; // formatted date string e.g. "1 de abril de 2026 · 14:30"
   isAdmin: boolean;
+  residencialId?: string; // included in QR URL so backend searches correct residencial
   residencialName?: string;
   residencialAddress?: string;
   referencia?: string;
@@ -271,8 +272,19 @@ async function drawReceiptPage(
   // ═══════════════════════════════════════════════════════════════════════════
   // 2. INFORMACION DEL RECIBO
   // ═══════════════════════════════════════════════════════════════════════════
+  // Compute concept wrap BEFORE drawing the section so the box height adapts.
+  const conceptMaxW = contentW - pad * 2 - labelW;
+  doc.setFont(opts.fontName, "normal");
+  doc.setFontSize(8);
+  const conceptLines: string[] = doc.splitTextToSize(
+    data.concept || "—",
+    conceptMaxW,
+  );
+  const conceptRowH = rowH * conceptLines.length;
+  const conceptExtra = conceptRowH - rowH; // extra height beyond single row
+
   const infoRows = 4;
-  const infoH = 10 + infoRows * rowH + 3;
+  const infoH = 10 + infoRows * rowH + 3 + conceptExtra;
   drawSection(doc, margin, curY, contentW, infoH, { fill: C.grey50 });
 
   drawSectionTitle(
@@ -304,16 +316,18 @@ async function drawReceiptPage(
     opts.fontName,
   );
   rowY += rowH;
-  drawInfoRow(
-    doc,
-    "Concepto:",
-    data.concept || "—",
-    margin + pad,
-    rowY,
-    labelW,
-    opts.fontName,
-  );
-  rowY += rowH;
+  // Draw the concept label once, then each wrapped line
+  doc.setFont(opts.fontName, "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(...C.grey700);
+  doc.text("Concepto:", margin + pad, rowY);
+  doc.setFont(opts.fontName, "normal");
+  doc.setTextColor(...C.grey800);
+  const conceptLineH = 3.6; // tighter line spacing for wrapped text
+  for (let i = 0; i < conceptLines.length; i++) {
+    doc.text(conceptLines[i], margin + pad + labelW, rowY + i * conceptLineH);
+  }
+  rowY += Math.max(rowH, conceptLines.length * conceptLineH + 1);
   drawInfoRow(
     doc,
     "Estado:",
@@ -627,7 +641,8 @@ async function drawReceiptPage(
 
 export async function generateReceiptPDF(data: ReceiptData): Promise<void> {
   const hash = await computeHash(data.folio, data.amountCents, data.houseId);
-  const verifyUrl = `https://zentrymx.com/verificar/${data.folio}?h=${hash}`;
+  const residencialParam = data.residencialId ? `&r=${data.residencialId}` : "";
+  const verifyUrl = `https://zentrymx.com/verificar/${data.folio}?h=${hash}${residencialParam}`;
 
   // Load assets in parallel
   const [qrDataUrl, logoDataUrl, interRegularB64, interBoldB64] =

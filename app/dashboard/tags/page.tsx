@@ -10,17 +10,12 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  getTags,
   getResidenciales,
-  getUsuariosPorResidencial,
-  crearTag,
-  actualizarTag,
-  cambiarEstadoTag,
   Tag,
   Residencial as FirestoreResidencial,
   Usuario
 } from "@/lib/firebase/firestore";
-import { updateTagStatus, getTagsSync } from "@/lib/firebase/tags-sync";
+import { getTagsSync } from "@/lib/firebase/tags-sync";
 import {
   sendTagCommand,
   watchZentryLinkStatus,
@@ -37,7 +32,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 
@@ -47,7 +41,7 @@ interface VehicularTag {
   residencialId: string;
   casaId: string;
   panels: string[];
-  status: 'active' | 'disabled';
+  status: 'active' | 'disabled' | 'lost' | 'stolen' | string;
   plate?: string;
   notes?: string;
   validFrom?: string;
@@ -79,6 +73,8 @@ interface Panel {
   residencialId: string;
 }
 
+const RESIDENCIAL_DOCID_S9G7TL = 'mCTs294LGLkGvL9TTvaQ';
+
 export default function TagsPage() {
   const [tags, setTags] = useState<VehicularTag[]>([]);
   const [residenciales, setResidenciales] = useState<Residencial[]>([]);
@@ -88,7 +84,6 @@ export default function TagsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentTag, setCurrentTag] = useState<VehicularTag | null>(null);
-  const [currentUserId] = useState("current-user-id"); // TODO: Obtener del contexto de auth
   const [zentryLinkStatus, setZentryLinkStatus] = useState<ZentryLinkStatus | null>(null);
   const [processingTagId, setProcessingTagId] = useState<string | null>(null);
 
@@ -112,19 +107,14 @@ export default function TagsPage() {
       const { collection, getDocs, doc, getDoc, query, where } = await import('firebase/firestore');
       const { db } = await import('@/lib/firebase/config');
 
-      console.log(`🏠 [TAGS] Obteniendo casas reales para residencial: ${residencialDocId}`);
-
       // PRIMERO: Verificar que el residencial existe y obtener su residencialID
       const residencialRef = doc(db, 'residenciales', residencialDocId);
       const residencialDoc = await getDoc(residencialRef);
-      console.log(`🏠 [TAGS] Residencial existe:`, residencialDoc.exists());
 
       let residencialID = null;
       if (residencialDoc.exists()) {
         const residencialData = residencialDoc.data();
         residencialID = residencialData?.residencialID;
-        console.log(`🏠 [TAGS] Datos del residencial:`, residencialData);
-        console.log(`🏠 [TAGS] ResidencialID encontrado:`, residencialID);
       }
 
       // SEGUNDO: Buscar casas en múltiples ubicaciones
@@ -133,15 +123,12 @@ export default function TagsPage() {
       // 1. Buscar en residenciales/{docId}/casas (estructura esperada)
       try {
         const casasRef = collection(db, 'residenciales', residencialDocId, 'casas');
-        console.log(`🏠 [TAGS] Consultando colección: residenciales/${residencialDocId}/casas`);
 
         const casasSnapshot = await getDocs(casasRef);
-        console.log(`🏠 [TAGS] Documentos encontrados en subcolección: ${casasSnapshot.docs.length}`);
 
         if (casasSnapshot.docs.length > 0) {
           casas = casasSnapshot.docs.map(doc => {
             const data = doc.data();
-            console.log(`🏠 [TAGS] Procesando casa ${doc.id}:`, data);
             return {
               id: doc.id,
               nombre: data.nombre || data.houseID || data.direccion || `Casa ${doc.id}`,
@@ -151,22 +138,19 @@ export default function TagsPage() {
           });
         }
       } catch (error) {
-        console.log(`🏠 [TAGS] Error en subcolección casas:`, error);
+        console.error(`Error en subcolección casas:`, error);
       }
 
       // 2. Si no hay casas y tenemos residencialID, buscar en colección principal de casas
       if (casas.length === 0 && residencialID) {
         try {
-          console.log(`🏠 [TAGS] Buscando en colección principal 'casas' con residencialID: ${residencialID}`);
           const casasMainRef = collection(db, 'casas');
           const q = query(casasMainRef, where('residencialID', '==', residencialID));
           const casasMainSnapshot = await getDocs(q);
-          console.log(`🏠 [TAGS] Documentos en colección 'casas' con residencialID ${residencialID}: ${casasMainSnapshot.docs.length}`);
 
           if (casasMainSnapshot.docs.length > 0) {
             casas = casasMainSnapshot.docs.map(doc => {
               const data = doc.data();
-              console.log(`🏠 [TAGS] Procesando casa principal ${doc.id}:`, data);
               return {
                 id: doc.id,
                 nombre: data.nombre || data.houseID || data.direccion || `Casa ${doc.id}`,
@@ -176,18 +160,16 @@ export default function TagsPage() {
             });
           }
         } catch (error) {
-          console.log(`🏠 [TAGS] Error en colección principal casas:`, error);
+          console.error(`Error en colección principal casas:`, error);
         }
       }
 
       // 3. Si aún no hay casas, buscar en usuarios que pertenezcan a este residencial
       if (casas.length === 0 && residencialID) {
         try {
-          console.log(`🏠 [TAGS] Buscando casas únicas en usuarios con residencialID: ${residencialID}`);
           const usuariosRef = collection(db, 'usuarios');
           const q = query(usuariosRef, where('residencialID', '==', residencialID));
           const usuariosSnapshot = await getDocs(q);
-          console.log(`🏠 [TAGS] Usuarios encontrados: ${usuariosSnapshot.docs.length}`);
 
           // Usar la misma lógica que la página de usuarios para obtener TODAS las casas únicas
           const sanitize = (s?: string) => (s || '')
@@ -208,8 +190,6 @@ export default function TagsPage() {
               const tieneCasa = u.houseID || u.houseId || u.houseNumber || u.calle;
               return u.role === 'resident' && !!tieneCasa;
             });
-
-          console.log(`🏠 [TAGS] Residentes con casa encontrados: ${soloResidentes.length}`);
 
           for (const usuario of soloResidentes) {
             const rawHid = ((usuario as any).houseID || (usuario as any).houseId || '').toString();
@@ -256,36 +236,19 @@ export default function TagsPage() {
 
           if (casasUnicas.size > 0) {
             casas = Array.from(casasUnicas.values());
-            console.log(`🏠 [TAGS] Casas únicas extraídas de residentes: ${casas.length}`);
-            console.log(`🏠 [TAGS] Primeras 3 casas:`, casas.slice(0, 3).map(c => ({
-              id: c.id,
-              nombre: c.nombre,
-              calle: c.calle,
-              houseNumber: c.houseNumber
-            })));
           }
         } catch (error) {
-          console.log(`🏠 [TAGS] Error extrayendo casas de usuarios:`, error);
+          console.error(`Error extrayendo casas de usuarios:`, error);
         }
       }
 
       // 4. Último fallback: buscar todas las casas sin filtro
       if (casas.length === 0) {
         try {
-          console.log(`🏠 [TAGS] Último fallback: buscando todas las casas`);
           const casasMainRef = collection(db, 'casas');
           const casasMainSnapshot = await getDocs(casasMainRef);
-          console.log(`🏠 [TAGS] Total de casas en colección principal: ${casasMainSnapshot.docs.length}`);
 
           if (casasMainSnapshot.docs.length > 0) {
-            console.log(`🏠 [TAGS] Primeras 5 casas encontradas:`,
-              casasMainSnapshot.docs.slice(0, 5).map(doc => ({
-                id: doc.id,
-                data: doc.data(),
-                residencialID: doc.data().residencialID
-              }))
-            );
-
             // Filtrar por residencialID si está disponible
             casas = casasMainSnapshot.docs
               .filter(doc => !residencialID || doc.data().residencialID === residencialID)
@@ -300,37 +263,14 @@ export default function TagsPage() {
               });
           }
         } catch (error) {
-          console.log(`🏠 [TAGS] Error en último fallback:`, error);
+          console.error(`Error en último fallback casas:`, error);
         }
       }
 
-      console.log(`🏠 [TAGS] Casas finales encontradas: ${casas.length}`, casas);
       return casas;
     } catch (error) {
-      console.error('🏠 [TAGS] Error obteniendo casas reales:', error);
+      console.error('Error obteniendo casas reales:', error);
       return [];
-    }
-  };
-
-  // Función helper para obtener residencialDocId desde residencialID
-  const obtenerResidencialDocId = async (residencialID: string): Promise<string | null> => {
-    try {
-      const { collection, query, where, getDocs, limit } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase/config');
-
-      const residencialesRef = collection(db, 'residenciales');
-      const q = query(residencialesRef, where('residencialID', '==', residencialID), limit(1));
-      const snapshot = await getDocs(q);
-
-      if (!snapshot.empty) {
-        return snapshot.docs[0].id;
-      }
-
-      console.log(`🏠 [TAGS] No se encontró residencialDocId para residencialID: ${residencialID}`);
-      return null;
-    } catch (error) {
-      console.error('🏠 [TAGS] Error obteniendo residencialDocId:', error);
-      return null;
     }
   };
 
@@ -341,15 +281,8 @@ export default function TagsPage() {
 
         // Solo cargar datos si el usuario está autenticado
         if (authLoading || !userClaims) {
-          console.log('🏠 [TAGS] Esperando autenticación...');
           return;
         }
-
-        console.log('🏠 [TAGS] Usuario autenticado:', {
-          role: userClaims.role,
-          isGlobalAdmin: userClaims.isGlobalAdmin,
-          residencialIdDelAdmin
-        });
 
         // Obtener datos básicos
         const residencialesData = await getResidenciales();
@@ -365,24 +298,15 @@ export default function TagsPage() {
         let residencialesAProcesar = residencialesValidados;
 
         if (esAdminDeResidencial && residencialIdDelAdmin) {
-          // Admin de residencial: usar directamente el residencialDocId conocido
           if (residencialIdDelAdmin === 'S9G7TL') {
-            // Para S9G7TL, crear un objeto residencial temporal con el residencialDocId conocido
             residencialesAProcesar = [{
-              id: 'mCTs294LGLkGvL9TTvaQ', // residencialDocId conocido
+              id: RESIDENCIAL_DOCID_S9G7TL,
               nombre: 'Residencial S9G7TL'
             }];
           } else {
-            // Para otros residenciales, buscar en la lista
             residencialesAProcesar = residencialesValidados.filter(r => (r as any).residencialID === residencialIdDelAdmin);
           }
-          console.log(`🏠 [TAGS] Admin de residencial - procesando solo: ${residencialIdDelAdmin}`);
-        } else if (userClaims?.isGlobalAdmin) {
-          // Admin global: usar todos los residenciales disponibles
-          console.log('🏠 [TAGS] Admin global - procesando todos los residenciales');
-          console.log(`🏠 [TAGS] Residenciales disponibles para admin global: ${residencialesValidados.length}`);
-        } else {
-          console.log('🏠 [TAGS] Usuario sin permisos de admin - no procesando residenciales');
+        } else if (!userClaims?.isGlobalAdmin) {
           residencialesAProcesar = [];
         }
 
@@ -390,27 +314,16 @@ export default function TagsPage() {
 
         // Obtener casas reales de la colección casas
         const casasData: Casa[] = [];
-        console.log('🏠 [TAGS] Iniciando carga de casas reales...');
-        console.log('🏠 [TAGS] Residenciales a procesar:', residencialesAProcesar.length);
 
         for (const residencial of residencialesAProcesar) {
           try {
-            console.log(`🏠 [TAGS] Procesando residencial: ${residencial.nombre} (${residencial.id})`);
-
-            // El residencial.id ya es el residencialDocId, no necesitamos convertirlo
             const residencialDocId = residencial.id;
-            console.log(`🏠 [TAGS] Usando residencialDocId: ${residencialDocId}`);
-
-            // Obtener casas reales de la colección casas
             const casasDelResidencial = await obtenerCasasReales(residencialDocId);
             casasData.push(...casasDelResidencial);
           } catch (error) {
-            console.error(`🏠 [TAGS] Error obteniendo casas del residencial ${residencial.id}:`, error);
+            console.error(`Error obteniendo casas del residencial ${residencial.id}:`, error);
           }
         }
-
-        console.log('🏠 [TAGS] Total de casas cargadas:', casasData.length);
-        console.log('🏠 [TAGS] Casas finales:', casasData);
 
         // Plumas de acceso para residentes - entrada y salida automáticas
         const panelesData: Panel[] = residencialesValidados.map(residencial => [
@@ -418,35 +331,20 @@ export default function TagsPage() {
           { id: `${residencial.id}-salida-residente`, nombre: `🚗 Salida Residente`, tipo: 'vehicular' as const, residencialId: residencial.id },
         ]).flat();
 
-        console.log('🏠 [TAGS] Plumas generadas:', panelesData);
-
-        // 🆕 CARGAR TAGS REALES DE FIRESTORE
+        // Cargar tags reales de Firestore
         const tagsData: VehicularTag[] = [];
-        console.log('🏠 [TAGS] Iniciando carga de tags...');
-        console.log('🏠 [TAGS] Residenciales a procesar:', residencialesAProcesar.map(r => ({ id: r.id, nombre: r.nombre })));
 
         for (const residencial of residencialesAProcesar) {
           try {
-            console.log(`🏠 [TAGS] Cargando tags del residencial: ${residencial.nombre} (${residencial.id})`);
-
-            // Usar getTagsSync para obtener tags del residencial
             const tagsDelResidencial = await getTagsSync(residencial.id);
-            console.log(`🏠 [TAGS] Tags encontrados en ${residencial.nombre}:`, tagsDelResidencial.length);
-            console.log(`🏠 [TAGS] Primeros 3 tags:`, tagsDelResidencial.slice(0, 3).map(t => ({
-              id: t.id,
-              cardNumberDec: t.cardNumberDec,
-              status: t.status,
-              plate: t.plate
-            })));
 
-            // Convertir a VehicularTag y agregar
             const vehicularTags = tagsDelResidencial.map(tag => ({
               id: tag.id || '',
               cardNumberDec: tag.cardNumberDec,
               residencialId: residencial.id,
-              casaId: tag.ownerRef || tag.residentId || '', // Usar ownerRef como casaId
+              casaId: tag.ownerRef || tag.residentId || '',
               panels: tag.panels || [],
-              status: tag.status as 'active' | 'disabled',
+              status: tag.status as VehicularTag['status'],
               plate: tag.plate || '',
               notes: tag.notes || '',
               validFrom: tag.validFrom || '',
@@ -458,21 +356,16 @@ export default function TagsPage() {
 
             tagsData.push(...vehicularTags);
           } catch (error) {
-            console.error(`🏠 [TAGS] Error cargando tags del residencial ${residencial.id}:`, error);
+            console.error(`Error cargando tags del residencial ${residencial.id}:`, error);
           }
         }
 
-        console.log('🏠 [TAGS] Total de tags cargados:', tagsData.length);
-        console.log('🏠 [TAGS] Tags finales:', tagsData);
-
-        // 🆕 Ordenar tags por cardNumberDec en orden ascendente
+        // Ordenar tags por cardNumberDec en orden ascendente
         tagsData.sort((a, b) => {
           const cardA = parseInt(a.cardNumberDec) || 0;
           const cardB = parseInt(b.cardNumberDec) || 0;
-          return cardA - cardB; // Ascendente (menor número primero)
+          return cardA - cardB;
         });
-
-        console.log('🏠 [TAGS] Tags ordenados por cardNumberDec ascendente:', tagsData.slice(0, 5).map(t => t.cardNumberDec));
 
         setTags(tagsData);
         setCasas(casasData);
@@ -494,7 +387,7 @@ export default function TagsPage() {
     if (!esAdminDeResidencial) return;
     // For v1: use known docId for S9G7TL
     const docId = residencialIdDelAdmin === 'S9G7TL'
-      ? 'mCTs294LGLkGvL9TTvaQ'
+      ? RESIDENCIAL_DOCID_S9G7TL
       : null;
     if (!docId) return;
     return watchZentryLinkStatus(docId, setZentryLinkStatus);
@@ -555,7 +448,7 @@ export default function TagsPage() {
       setTags(prev =>
         prev.map(t =>
           t.id === tagId
-            ? { ...t, status: newStatus as 'active' | 'disabled' }
+            ? { ...t, status: newStatus as VehicularTag['status'] }
             : t
         )
       );
@@ -568,14 +461,11 @@ export default function TagsPage() {
     }
   };
 
-  // 🆕 FUNCIÓN PARA CARGAR TAGS
+  // Función para recargar tags
   const loadTags = async () => {
     try {
-      console.log('🔄 [TAGS] Recargando tags...');
-
       // Solo cargar si el usuario está autenticado
       if (authLoading || !userClaims) {
-        console.log('🔄 [TAGS] Esperando autenticación...');
         return;
       }
 
@@ -585,7 +475,7 @@ export default function TagsPage() {
       if (esAdminDeResidencial && residencialIdDelAdmin) {
         if (residencialIdDelAdmin === 'S9G7TL') {
           residencialesAProcesar = [{
-            id: 'mCTs294LGLkGvL9TTvaQ',
+            id: RESIDENCIAL_DOCID_S9G7TL,
             nombre: 'Residencial S9G7TL'
           }];
         } else {
@@ -598,18 +488,15 @@ export default function TagsPage() {
 
       for (const residencial of residencialesAProcesar) {
         try {
-          console.log(`🔄 [TAGS] Recargando tags del residencial: ${residencial.nombre}`);
-
           const tagsDelResidencial = await getTagsSync(residencial.id);
-          console.log(`🔄 [TAGS] Tags encontrados: ${tagsDelResidencial.length}`);
 
           const vehicularTags = tagsDelResidencial.map(tag => ({
             id: tag.id || '',
             cardNumberDec: tag.cardNumberDec,
             residencialId: residencial.id,
-            casaId: tag.ownerRef || tag.residentId || '', // Usar ownerRef como casaId
+            casaId: tag.ownerRef || tag.residentId || '',
             panels: tag.panels || [],
-            status: tag.status as 'active' | 'disabled',
+            status: tag.status as VehicularTag['status'],
             plate: tag.plate || '',
             notes: tag.notes || '',
             validFrom: tag.validFrom || '',
@@ -621,28 +508,23 @@ export default function TagsPage() {
 
           tagsData.push(...vehicularTags);
         } catch (error) {
-          console.error(`🔄 [TAGS] Error recargando tags del residencial ${residencial.id}:`, error);
+          console.error(`Error recargando tags del residencial ${residencial.id}:`, error);
         }
       }
 
-      console.log(`🔄 [TAGS] Total de tags recargados: ${tagsData.length}`);
       setTags(tagsData);
 
     } catch (error) {
-      console.error('🔄 [TAGS] Error recargando tags:', error);
+      console.error('Error recargando tags:', error);
       toast.error('Error recargando la lista de tags');
     }
   };
 
-  // 🆕 FUNCIÓN PARA MANEJAR ELIMINACIÓN DE TAGS
   const handleTagDeleted = async (tagId: string) => {
     try {
-      console.log(`🔄 [TAGS] Recargando tags después de eliminar: ${tagId}`);
-      // Recargar la lista de tags después de eliminar
       await loadTags();
-      console.log(`✅ [TAGS] Tags recargados exitosamente después de eliminar`);
     } catch (error) {
-      console.error('❌ [TAGS] Error recargando tags después de eliminación:', error);
+      console.error('Error recargando tags después de eliminación:', error);
       toast.error('Error recargando la lista de tags');
     }
   };
@@ -702,7 +584,7 @@ export default function TagsPage() {
           {esAdminDeResidencial && residencialIdDelAdmin === 'S9G7TL' && (
             <div className="mb-4">
               <ZentryLinkStatusBar
-                residencialDocId="mCTs294LGLkGvL9TTvaQ"
+                residencialDocId={RESIDENCIAL_DOCID_S9G7TL}
                 onRefresh={loadTags}
               />
             </div>
@@ -711,12 +593,11 @@ export default function TagsPage() {
             tags={tags}
             residenciales={residenciales}
             casas={casas}
-            paneles={paneles}
             loading={loading}
             onEditTag={handleOpenEditModal}
             onStatusChange={handleStatusChange}
             onTagDeleted={handleTagDeleted}
-            currentUserId={currentUserId}
+            currentUserId={user?.uid || ''}
             processingTagId={processingTagId}
             zentryLinkOnline={isZentryLinkOnline(zentryLinkStatus)}
           />
@@ -730,8 +611,7 @@ export default function TagsPage() {
         onTagCreated={handleAddTag}
         residenciales={residenciales}
         casas={casas}
-        paneles={paneles}
-        currentUserId={currentUserId}
+        currentUserId={user?.uid || ''}
         esAdminDeResidencial={esAdminDeResidencial}
         residencialIdDelAdmin={residencialIdDelAdmin}
       />
@@ -743,8 +623,7 @@ export default function TagsPage() {
         onTagUpdated={handleEditTag}
         tag={currentTag}
         casas={casas}
-        paneles={paneles}
-        currentUserId={currentUserId}
+        currentUserId={user?.uid || ''}
       />
     </div>
   );
