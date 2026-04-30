@@ -132,7 +132,7 @@ export function DocumentList() {
             </svg>
           </button>
         </div>
-        <Link href="/dashboard/documentos/nuevo">
+        <Link href="/dashboard/cotizaciones/nuevo">
           <Button className="h-10 px-5 font-black bg-blue-600 hover:bg-blue-700 text-white rounded-xl">
             <Plus className="h-4 w-4 mr-2" /> Nuevo
           </Button>
