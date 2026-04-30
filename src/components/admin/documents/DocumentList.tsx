@@ -215,7 +215,7 @@ export function DocumentList() {
                   <p className="text-slate-300 font-black text-sm uppercase tracking-widest">
                     Sin documentos
                   </p>
-                  <Link href="/dashboard/documentos/nuevo">
+                  <Link href="/dashboard/cotizaciones/nuevo">
                     <Button className="mt-4 bg-blue-600 text-white font-black rounded-xl h-9 px-5 hover:bg-blue-700">
                       <Plus className="h-4 w-4 mr-1" /> Crear primero
                     </Button>
