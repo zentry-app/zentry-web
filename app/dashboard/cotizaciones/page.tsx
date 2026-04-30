@@ -1,53 +1,9 @@
-'use client';
+"use client";
+import { DocumentList } from "@/components/admin/documents/DocumentList";
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-    PlusCircle,
-    Search,
-    Eye,
-    Trash2,
-    FileText,
-    Package,
-    ScrollText,
-    Edit,
-    Download,
-    TrendingUp,
-    FileSpreadsheet,
-    RefreshCw,
-    X,
-    Filter,
-    ChevronRight,
-    DollarSign,
-    CheckCircle,
-    Clock,
-    Activity,
-    FileCheck,
-    AlertCircle,
-    TrendingDown,
-} from 'lucide-react';
-import { QuotesService } from '@/lib/services/quotes-service';
-import type { Quote, QuoteStatus, QuoteConcept, QuoteTerm, ConceptCategory, ChargeType } from '@/types/quotes';
-import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import { useAuth } from '@/contexts/AuthContext';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
+export default function CotizacionesPage() {
+  return <DocumentList />;
+}
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
