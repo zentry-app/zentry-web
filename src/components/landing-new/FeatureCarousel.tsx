@@ -100,38 +100,19 @@ const FeatureCarousel = () => {
   const [cardWidth, setCardWidth] = useState(400); // Aumento del ancho inicial
   const [cardGap, setCardGap] = useState(24); // Gap entre tarjetas (equivalente a gap-6)
 
-  // Detectar si es móvil
+  // Detectar móvil y dimensiones en un solo listener de resize
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+    const update = () => {
+      const w = window.innerWidth;
+      setIsMobile(w < 768);
+      if (w < 768) { setCardWidth(360); setCardGap(24); }
+      else if (w < 1024) { setCardWidth(380); setCardGap(32); }
+      else if (w < 1280) { setCardWidth(400); setCardGap(32); }
+      else { setCardWidth(420); setCardGap(32); }
     };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-  // Actualizar dimensiones en función del tamaño de la pantalla
-  useEffect(() => {
-    const updateDimensions = () => {
-      if (window.innerWidth < 768) {
-        setCardWidth(360); // Mayor en móvil
-        setCardGap(24); // gap-6
-      } else if (window.innerWidth < 1024) {
-        setCardWidth(380); // Mayor en tablet
-        setCardGap(32); // gap-8
-      } else if (window.innerWidth < 1280) {
-        setCardWidth(400); // Mayor en desktop pequeño
-        setCardGap(32); // gap-8
-      } else {
-        setCardWidth(420); // Mayor en desktop grande
-        setCardGap(32); // gap-8
-      }
-    };
-
-    updateDimensions();
-    window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
   }, []);
 
   const nextSlide = useCallback(() => {
