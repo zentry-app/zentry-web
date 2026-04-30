@@ -120,8 +120,14 @@ export class DocumentsService {
       formData.descuentoPct,
       formData.ivaType,
     );
+    // Recalcular importe por línea
+    const items = formData.items.map((item) => ({
+      ...item,
+      importe: item.cantidad * item.tarifa,
+    }));
     await updateDoc(doc(db, COL, id), {
       ...formData,
+      items,
       subtotal: totals.subtotal,
       descuento: totals.descuento,
       iva: totals.iva,
