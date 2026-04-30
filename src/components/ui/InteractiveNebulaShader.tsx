@@ -170,7 +170,11 @@ export function InteractiveNebulaShader({
     <div
       ref={containerRef}
       className={`absolute inset-0 pointer-events-none ${className}`}
-      style={{ zIndex: 0, background: "radial-gradient(ellipse at 75% 50%, #0070ff 0%, #003399 35%, #001a66 70%, #000d33 100%)" }}
+      style={{
+        zIndex: 0,
+        background:
+          "radial-gradient(ellipse at 75% 50%, #0070ff 0%, #003399 35%, #001a66 70%, #000d33 100%)",
+      }}
       aria-hidden="true"
     />
   );
