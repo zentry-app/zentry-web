@@ -1,7 +1,10 @@
 import dynamic from "next/dynamic";
 import Navbar from "@/components/landing-new/Navbar";
 import HeroSection from "@/components/landing-new/HeroSection";
-import Footer from "@/components/landing-new/Footer";
+
+const Footer = dynamic(() => import("@/components/landing-new/Footer"), {
+  loading: () => <div className="h-48 bg-blue-700" />,
+});
 
 // Lazy load componentes no críticos para mejorar FCP y LCP
 const BrowseForMeSection = dynamic(() => import("@/components/landing-new/BrowseForMeSection"), {
