@@ -2,8 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
 import StoreBadges from './StoreBadges';
-import { InteractiveNebulaShader } from '../ui/InteractiveNebulaShader';
+
+const InteractiveNebulaShader = dynamic(
+  () => import('../ui/InteractiveNebulaShader').then(m => ({ default: m.InteractiveNebulaShader })),
+  { ssr: false, loading: () => null }
+);
 
 
 
