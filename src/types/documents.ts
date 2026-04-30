@@ -1,20 +1,20 @@
-export type DocumentTipo = 'COT' | 'NOT';
-export type DocumentEstado = 'borrador' | 'enviado' | 'aceptado' | 'rechazado';
-export type IVAType = '8' | '16' | 'exento';
+export type DocumentTipo = "COT" | "NOT";
+export type DocumentEstado = "borrador" | "enviado" | "aceptado" | "rechazado";
+export type IVAType = "8" | "16" | "exento";
 
 export interface DocumentItem {
-  conceptoId?: string;       // ref al catálogo (opcional)
+  conceptoId?: string; // ref al catálogo (opcional)
   nombre: string;
   descripcion: string;
   cantidad: number;
   tarifa: number;
-  importe: number;           // cantidad * tarifa (calculado)
+  importe: number; // cantidad * tarifa (calculado)
 }
 
 export interface ZentryDocument {
   id: string;
   tipo: DocumentTipo;
-  folio: string;             // "COT-0017" | "NOT-0017"
+  folio: string; // "COT-0017" | "NOT-0017"
   folioNumero: number;
 
   // Cliente
@@ -25,7 +25,7 @@ export interface ZentryDocument {
 
   // Cabecera
   numeroReferencia?: string;
-  fecha: string;             // "YYYY-MM-DD"
+  fecha: string; // "YYYY-MM-DD"
   fechaVencimiento?: string;
   vendedor?: string;
   proyecto?: string;
@@ -103,34 +103,34 @@ export interface Concept {
 
 // Defaults de texto
 export const DEFAULT_NOTAS_COT =
-  'Los precios mostrados no incluyen IVA. Se aplicará el IVA correspondiente al momento de la facturación.';
+  "Los precios mostrados no incluyen IVA. Se aplicará el IVA correspondiente al momento de la facturación.";
 
 export const DEFAULT_NOTAS_NOT =
-  'Este documento no es un comprobante fiscal.\nLa presente nota de venta es solo para efectos administrativos y de control interno.\nPrecios en MXN.';
+  "Este documento no es un comprobante fiscal.\nLa presente nota de venta es solo para efectos administrativos y de control interno.\nPrecios en MXN.";
 
 export const EMPTY_ITEM: DocumentItem = {
-  nombre: '',
-  descripcion: '',
+  nombre: "",
+  descripcion: "",
   cantidad: 1,
   tarifa: 0,
   importe: 0,
 };
 
 export const EMPTY_FORM: DocumentFormData = {
-  tipo: 'COT',
-  clienteId: '',
-  clienteNombre: '',
-  clienteEmpresa: '',
-  clienteDireccion: '',
-  numeroReferencia: '',
-  fecha: new Date().toISOString().split('T')[0],
-  fechaVencimiento: '',
-  vendedor: '',
-  proyecto: '',
-  asunto: '',
+  tipo: "COT",
+  clienteId: "",
+  clienteNombre: "",
+  clienteEmpresa: "",
+  clienteDireccion: "",
+  numeroReferencia: "",
+  fecha: new Date().toISOString().split("T")[0],
+  fechaVencimiento: "",
+  vendedor: "",
+  proyecto: "",
+  asunto: "",
   items: [{ ...EMPTY_ITEM }],
   descuentoPct: 0,
-  ivaType: '16',
+  ivaType: "16",
   notasCliente: DEFAULT_NOTAS_COT,
-  terminosCondiciones: '',
+  terminosCondiciones: "",
 };
