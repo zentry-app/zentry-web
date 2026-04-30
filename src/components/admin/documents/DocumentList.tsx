@@ -233,7 +233,7 @@ export function DocumentList() {
                   </TableCell>
                   <TableCell className="py-4">
                     <Link
-                      href={`/dashboard/documentos/${d.id}`}
+                      href={`/dashboard/cotizaciones/${d.id}`}
                       className="text-sm font-black text-blue-600 hover:text-blue-800 hover:underline"
                     >
                       {d.folio}
