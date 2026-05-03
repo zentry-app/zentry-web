@@ -809,7 +809,8 @@ function EstadoCuentaView({
             <select
               value={reportMonth}
               onChange={(e) => setReportMonth(e.target.value)}
-              className="h-9 px-2 pr-6 text-xs font-bold text-slate-500 border border-slate-200 rounded-xl bg-white focus:outline-none appearance-auto"
+              style={{ appearance: "auto" }}
+              className="h-9 px-2 pr-6 text-xs font-bold text-slate-500 border border-slate-200 rounded-xl bg-white focus:outline-none"
             >
               {MONTH_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
