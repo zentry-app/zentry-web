@@ -791,7 +791,9 @@ function EstadoCuentaView({
       ]);
 
       const csv = rows
-        .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
+        .map((r) =>
+          r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","),
+        )
         .join("\n");
       const blob = new Blob(["\uFEFF" + csv], {
         type: "text/csv;charset=utf-8;",
