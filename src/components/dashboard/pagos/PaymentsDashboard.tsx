@@ -671,8 +671,9 @@ function EstadoCuentaView({
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
 
   const exportCSV = () => {
-    const rows = [["Casa", "Residente", "Estado", "Deuda", "A Favor"]];
     const data = filtered.length > 0 ? filtered : houses;
+    const mesPago = data[0]?.mesPago ?? "";
+    const rows = [["Casa", "Residente", "Estado", "Deuda", "A Favor", `Pagado ${mesPago}`]];
     data.forEach((h) => {
       rows.push([
         h.label,
@@ -680,6 +681,7 @@ function EstadoCuentaView({
         normalizeStatus(h) === "con_deuda" ? "Con deuda" : "Al dia",
         h.deudaCents > 0 ? (h.deudaCents / 100).toFixed(2) : "0",
         h.saldoAFavorCents > 0 ? (h.saldoAFavorCents / 100).toFixed(2) : "0",
+        h.pagadoMesCents ? (h.pagadoMesCents / 100).toFixed(2) : "0",
       ]);
     });
     const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
