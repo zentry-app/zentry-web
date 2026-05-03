@@ -807,18 +807,19 @@ function EstadoCuentaView({
                 className="pl-9 h-9 w-48 text-sm rounded-xl border-slate-200"
               />
             </div>
-            <select
-              value={reportMonth}
-              onChange={(e) => setReportMonth(e.target.value)}
-              style={{ appearance: "auto" }}
-              className="h-9 px-2 pr-6 text-xs font-bold text-slate-500 border border-slate-200 rounded-xl bg-white focus:outline-none"
-            >
-              {MONTH_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center h-9 border border-slate-200 rounded-xl overflow-hidden text-xs font-bold text-slate-600">
+              <button
+                onClick={() => setMonthIdx((i) => Math.min(i + 1, MONTH_OPTIONS.length - 1))}
+                className="px-2 h-full hover:bg-slate-100 transition-colors disabled:opacity-30"
+                disabled={monthIdx >= MONTH_OPTIONS.length - 1}
+              >‹</button>
+              <span className="px-2 whitespace-nowrap">{MONTH_OPTIONS[monthIdx].label}</span>
+              <button
+                onClick={() => setMonthIdx((i) => Math.max(i - 1, 0))}
+                className="px-2 h-full hover:bg-slate-100 transition-colors disabled:opacity-30"
+                disabled={monthIdx === 0}
+              >›</button>
+            </div>
             <button
               onClick={exportCSV}
               disabled={exporting}
