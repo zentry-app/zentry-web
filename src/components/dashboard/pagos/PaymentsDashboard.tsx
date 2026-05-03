@@ -660,7 +660,10 @@ function buildMonthOptions() {
   return Array.from({ length: 12 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - 1 - i, 1);
     const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const label = d.toLocaleDateString("es-MX", { month: "short", year: "numeric" });
+    const label = d.toLocaleDateString("es-MX", {
+      month: "short",
+      year: "numeric",
+    });
     return { value, label };
   });
 }
@@ -702,7 +705,14 @@ function EstadoCuentaView({
 
       const data = filtered.length > 0 ? filtered : houses;
       const rows = [
-        ["Casa", "Residente", "Estado", "Deuda", "A Favor", `Pagado ${mesPagoLabel}`],
+        [
+          "Casa",
+          "Residente",
+          "Estado",
+          "Deuda",
+          "A Favor",
+          `Pagado ${mesPagoLabel}`,
+        ],
       ];
       data.forEach((h) => {
         rows.push([
@@ -715,7 +725,9 @@ function EstadoCuentaView({
         ]);
       });
       const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
-      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const blob = new Blob(["\uFEFF" + csv], {
+        type: "text/csv;charset=utf-8;",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -793,9 +805,19 @@ function EstadoCuentaView({
                 className="pl-9 h-9 w-48 text-sm rounded-xl border-slate-200"
               />
             </div>
+            <select
+              value={reportMonth}
+              onChange={(e) => setReportMonth(e.target.value)}
+              className="h-9 px-2 text-xs font-bold text-slate-500 border border-slate-200 rounded-xl bg-white focus:outline-none"
+            >
+              {MONTH_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
             <button
               onClick={exportCSV}
-              className="h-9 px-3 flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
+              disabled={exporting}
+              className="h-9 px-3 flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50"
               title="Exportar CSV"
             >
               <Download className="h-3.5 w-3.5" />
