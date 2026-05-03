@@ -18,6 +18,8 @@ export interface HouseStatus {
   // Legacy "pendiente"/"moroso" mapped to "con_deuda" at display level.
   status: "al_dia" | "pendiente" | "moroso" | "con_deuda";
   ultimoPago: string | null;
+  pagadoMesCents?: number;
+  mesPago?: string;
 }
 
 // Normalize legacy 3-state to 2-state for display
