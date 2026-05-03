@@ -698,42 +698,108 @@ function EstadoCuentaView({
         functions,
         "getResidentialHousesSummary",
       )({ residencialId, reportMonth });
+
+      const apiData: HouseStatus[] = result.data ?? [];
       const paidMap: Record<string, number> = {};
+      const fechaMap: Record<string, string | null> = {};
       let mesPagoLabel = reportMonth;
-      (result.data ?? []).forEach((h) => {
+      apiData.forEach((h) => {
         paidMap[h.houseId] = h.pagadoMesCents ?? 0;
+        fechaMap[h.houseId] = h.fechaPago ?? null;
         if (h.mesPago) mesPagoLabel = h.mesPago;
       });
 
-      const data = filtered.length > 0 ? filtered : houses;
-      const rows = [
+      // Always export ALL houses, sorted: con_deuda first then al_dia
+      const allHouses = [...houses].sort((a, b) => {
+        const aDebt = normalizeStatus(a) === "con_deuda" ? 0 : 1;
+        const bDebt = normalizeStatus(b) === "con_deuda" ? 0 : 1;
+        return aDebt - bDebt || a.label.localeCompare(b.label);
+      });
+
+      const totalPagado = allHouses.reduce(
+        (s, h) => s + (paidMap[h.houseId] ?? 0),
+        0,
+      );
+      const totalDeuda = allHouses.reduce(
+        (s, h) => s + (h.deudaCents > 0 ? h.deudaCents : 0),
+        0,
+      );
+      const casasAlDia = allHouses.filter(
+        (h) => normalizeStatus(h) === "al_dia",
+      ).length;
+      const casasConDeuda = allHouses.filter(
+        (h) => normalizeStatus(h) === "con_deuda",
+      ).length;
+      const hoy = new Date().toLocaleDateString("es-MX", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+
+      const fmt = (cents: number) => (cents / 100).toFixed(2);
+      const fmtDate = (iso: string | null | undefined) => {
+        if (!iso) return "";
+        return new Date(iso).toLocaleDateString("es-MX", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        });
+      };
+
+      const rows: string[][] = [
+        ["Reporte de Pagos", mesPagoLabel],
+        ["Generado el", hoy],
+        [],
+        ["Total casas", String(allHouses.length)],
+        ["Casas al dia", String(casasAlDia)],
+        ["Casas con deuda", String(casasConDeuda)],
+        [`Total cobrado ${mesPagoLabel}`, `$${fmt(totalPagado)}`],
+        ["Total deuda acumulada", `$${fmt(totalDeuda)}`],
+        [],
         [
           "Casa",
           "Residente",
           "Estado",
-          "Deuda",
-          "A Favor",
-          `Pagado ${mesPagoLabel}`,
+          "Deuda ($)",
+          "A Favor ($)",
+          `Pagado ${mesPagoLabel} ($)`,
+          "Fecha de pago",
         ],
       ];
-      data.forEach((h) => {
+
+      allHouses.forEach((h) => {
+        const paid = paidMap[h.houseId] ?? 0;
         rows.push([
           h.label,
           h.residentName || "",
           normalizeStatus(h) === "con_deuda" ? "Con deuda" : "Al dia",
-          h.deudaCents > 0 ? (h.deudaCents / 100).toFixed(2) : "0",
-          h.saldoAFavorCents > 0 ? (h.saldoAFavorCents / 100).toFixed(2) : "0",
-          ((paidMap[h.houseId] ?? 0) / 100).toFixed(2),
+          h.deudaCents > 0 ? fmt(h.deudaCents) : "0.00",
+          h.saldoAFavorCents > 0 ? fmt(h.saldoAFavorCents) : "0.00",
+          fmt(paid),
+          fmtDate(fechaMap[h.houseId]),
         ]);
       });
-      const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+
+      rows.push([
+        "TOTALES",
+        "",
+        "",
+        `$${fmt(totalDeuda)}`,
+        "",
+        `$${fmt(totalPagado)}`,
+        "",
+      ]);
+
+      const csv = rows
+        .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
+        .join("\n");
       const blob = new Blob(["\uFEFF" + csv], {
         type: "text/csv;charset=utf-8;",
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `estado-cuenta-${reportMonth}.csv`;
+      a.download = `reporte-pagos-${reportMonth}.csv`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -809,16 +875,24 @@ function EstadoCuentaView({
             </div>
             <div className="flex items-center h-9 border border-slate-200 rounded-xl overflow-hidden text-xs font-bold text-slate-600">
               <button
-                onClick={() => setMonthIdx((i) => Math.min(i + 1, MONTH_OPTIONS.length - 1))}
+                onClick={() =>
+                  setMonthIdx((i) => Math.min(i + 1, MONTH_OPTIONS.length - 1))
+                }
                 className="px-2 h-full hover:bg-slate-100 transition-colors disabled:opacity-30"
                 disabled={monthIdx >= MONTH_OPTIONS.length - 1}
-              >‹</button>
-              <span className="px-2 whitespace-nowrap">{MONTH_OPTIONS[monthIdx].label}</span>
+              >
+                ‹
+              </button>
+              <span className="px-2 whitespace-nowrap">
+                {MONTH_OPTIONS[monthIdx].label}
+              </span>
               <button
                 onClick={() => setMonthIdx((i) => Math.max(i - 1, 0))}
                 className="px-2 h-full hover:bg-slate-100 transition-colors disabled:opacity-30"
                 disabled={monthIdx === 0}
-              >›</button>
+              >
+                ›
+              </button>
             </div>
             <button
               onClick={exportCSV}
