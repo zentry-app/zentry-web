@@ -464,6 +464,7 @@ export default function PaymentsDashboard({
       {activeTab === "estado_cuenta" && (
         <div className="animate-fadeIn">
           <EstadoCuentaView
+            residencialId={residencialId}
             houses={houses}
             loadingHouses={loadingHouses}
             counts={counts}
