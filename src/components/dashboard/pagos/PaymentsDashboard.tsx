@@ -687,7 +687,8 @@ function EstadoCuentaView({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
-  const [reportMonth, setReportMonth] = useState(MONTH_OPTIONS[0].value);
+  const [monthIdx, setMonthIdx] = useState(0); // 0 = mes anterior (default)
+  const reportMonth = MONTH_OPTIONS[monthIdx].value;
   const [exporting, setExporting] = useState(false);
 
   const exportCSV = async () => {
