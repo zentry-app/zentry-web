@@ -654,13 +654,27 @@ export default function PaymentsDashboard({
   );
 }
 
+// ─── Genera lista de los últimos 12 meses completos (YYYY-MM) ──────
+function buildMonthOptions() {
+  const now = new Date();
+  return Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 1 - i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleDateString("es-MX", { month: "short", year: "numeric" });
+    return { value, label };
+  });
+}
+const MONTH_OPTIONS = buildMonthOptions();
+
 // ─── Estado de Cuenta (inline sub-component) ──────────────────────
 function EstadoCuentaView({
+  residencialId,
   houses,
   loadingHouses,
   counts,
   onSelectHouse,
 }: {
+  residencialId: string;
   houses: HouseStatus[];
   loadingHouses: boolean;
   counts: { al_dia: number; con_deuda: number };
@@ -669,31 +683,48 @@ function EstadoCuentaView({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [reportMonth, setReportMonth] = useState(MONTH_OPTIONS[0].value);
+  const [exporting, setExporting] = useState(false);
 
-  const exportCSV = () => {
-    const data = filtered.length > 0 ? filtered : houses;
-    const mesPago = data[0]?.mesPago ?? "";
-    const rows = [["Casa", "Residente", "Estado", "Deuda", "A Favor", `Pagado ${mesPago}`]];
-    data.forEach((h) => {
-      rows.push([
-        h.label,
-        h.residentName || "",
-        normalizeStatus(h) === "con_deuda" ? "Con deuda" : "Al dia",
-        h.deudaCents > 0 ? (h.deudaCents / 100).toFixed(2) : "0",
-        h.saldoAFavorCents > 0 ? (h.saldoAFavorCents / 100).toFixed(2) : "0",
-        h.pagadoMesCents ? (h.pagadoMesCents / 100).toFixed(2) : "0",
-      ]);
-    });
-    const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
-    const blob = new Blob(["\uFEFF" + csv], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `estado-cuenta-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const exportCSV = async () => {
+    setExporting(true);
+    try {
+      const result = await httpsCallable<any, HouseStatus[]>(
+        functions,
+        "getResidentialHousesSummary",
+      )({ residencialId, reportMonth });
+      const paidMap: Record<string, number> = {};
+      let mesPagoLabel = reportMonth;
+      (result.data ?? []).forEach((h) => {
+        paidMap[h.houseId] = h.pagadoMesCents ?? 0;
+        if (h.mesPago) mesPagoLabel = h.mesPago;
+      });
+
+      const data = filtered.length > 0 ? filtered : houses;
+      const rows = [
+        ["Casa", "Residente", "Estado", "Deuda", "A Favor", `Pagado ${mesPagoLabel}`],
+      ];
+      data.forEach((h) => {
+        rows.push([
+          h.label,
+          h.residentName || "",
+          normalizeStatus(h) === "con_deuda" ? "Con deuda" : "Al dia",
+          h.deudaCents > 0 ? (h.deudaCents / 100).toFixed(2) : "0",
+          h.saldoAFavorCents > 0 ? (h.saldoAFavorCents / 100).toFixed(2) : "0",
+          ((paidMap[h.houseId] ?? 0) / 100).toFixed(2),
+        ]);
+      });
+      const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `estado-cuenta-${reportMonth}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const filtered = useMemo(() => {
