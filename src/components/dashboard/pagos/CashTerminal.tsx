@@ -293,7 +293,7 @@ export default function CashTerminal({
               );
           if (due && !isNaN(due.getTime())) {
             paid.add(
-              `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, "0")}`,
+              `${due.getUTCFullYear()}-${String(due.getUTCMonth() + 1).padStart(2, "0")}`,
             );
           }
         });
