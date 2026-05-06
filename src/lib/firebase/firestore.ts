@@ -3372,24 +3372,26 @@ export const getIngresos = async (
   }
   try {
     console.log(
-      `🔍 getIngresos: Buscando ingresos para residencial ID: ${residencialDocId}`,
+      `🔍 getIngresos: Buscando accessEvents para residencial ID: ${residencialDocId}`,
     );
 
-    const ingresosRef = collection(
+    const ref = collection(
       db,
-      `residenciales/${residencialDocId}/ingresos`,
+      `residenciales/${residencialDocId}/accessEvents`,
     );
-    const q = query(ingresosRef, orderBy("timestamp", "desc"));
+    const q = query(ref, orderBy("entryAt", "desc"));
     const snapshot = await getDocs(q);
 
     console.log(
-      `📊 Se encontraron ${snapshot.docs.length} ingresos para residencial ${residencialDocId}`,
+      `📊 Se encontraron ${snapshot.docs.length} accessEvents para residencial ${residencialDocId}`,
     );
 
-    return snapshot.docs.map((doc) => clasificarIngreso(doc.data(), doc.id));
+    return snapshot.docs.map((doc) =>
+      clasificarAccessEvent(doc.data(), doc.id),
+    );
   } catch (error) {
     console.error(
-      `Error al obtener ingresos para el residencial ${residencialDocId}:`,
+      `Error al obtener accessEvents para el residencial ${residencialDocId}:`,
       error,
     );
     toast.error("Error al cargar los registros de ingresos.");
