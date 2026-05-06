@@ -4,6 +4,7 @@
  */
 
 import { getCachedQuery } from './firebase-cache';
+import { clasificarAccessEvent } from "../firebase/access-events-mapper";
 import { AdminService, DashboardService } from '@/lib/services';
 import { collection, getDocs, query, where, limit as fbLimit, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
