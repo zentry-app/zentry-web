@@ -249,33 +249,44 @@ export class GlobalSearchService {
   /**
    * Buscar en ingresos por visitante o residente
    */
-  static async searchIngresos(searchQuery: string, residencialId?: string): Promise<SearchResult[]> {
+  static async searchIngresos(
+    searchQuery: string,
+    residencialId?: string,
+  ): Promise<SearchResult[]> {
     try {
       if (!residencialId) return [];
 
-      const ref = collection(db, 'residenciales', residencialId, 'accessEvents');
-      const q = query(ref, orderBy('entryAt', 'desc'), fbLimit(100));
+      const ref = collection(
+        db,
+        "residenciales",
+        residencialId,
+        "accessEvents",
+      );
+      const q = query(ref, orderBy("entryAt", "desc"), fbLimit(100));
       const snapshot = await getDocs(q);
       const results: SearchResult[] = [];
 
       snapshot.forEach((doc) => {
         const ingreso = clasificarAccessEvent(doc.data(), doc.id);
-        const nombre = ingreso.visitData?.name ?? '';
+        const nombre = ingreso.visitData?.name ?? "";
 
         if (matchesSearch(nombre, searchQuery)) {
           const ts = ingreso.timestamp;
-          const date = ts && typeof (ts as any).toDate === 'function'
-            ? (ts as any).toDate()
-            : ts instanceof Date ? ts : null;
-          const timestampStr = date ? date.toLocaleString('es-MX') : '';
+          const date =
+            ts && typeof (ts as any).toDate === "function"
+              ? (ts as any).toDate()
+              : ts instanceof Date
+                ? ts
+                : null;
+          const timestampStr = date ? date.toLocaleString("es-MX") : "";
 
           results.push({
             id: doc.id,
-            type: 'ingresos',
+            type: "ingresos",
             title: nombre,
             subtitle: ingreso.category,
             metadata: timestampStr,
-            icon: 'ClipboardList',
+            icon: "ClipboardList",
             href: `/dashboard/ingresos?id=${doc.id}`,
             residencialId,
           });
@@ -284,7 +295,7 @@ export class GlobalSearchService {
 
       return results.slice(0, 5);
     } catch (error) {
-      console.error('Error searching accessEvents:', error);
+      console.error("Error searching accessEvents:", error);
       return [];
     }
   }
