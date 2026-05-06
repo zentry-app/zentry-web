@@ -3564,14 +3564,11 @@ export const getVehicleHistory = async (
         `⚠️ No se encontró historial pre-calculado para la placa ${placa}. Construyendo sobre la marcha...`,
       );
 
-      const ingresosRef = collection(
-        db,
-        `residenciales/${residencialDocId}/ingresos`,
-      );
+      const ref = collection(db, `residenciales/${residencialDocId}/accessEvents`);
       const q = query(
-        ingresosRef,
-        where("vehicleInfo.placa", "==", placa),
-        orderBy("timestamp", "desc"),
+        ref,
+        where("vehicle.plate", "==", placa),
+        orderBy("entryAt", "desc"),
       );
 
       const ingresosSnap = await getDocs(q);
