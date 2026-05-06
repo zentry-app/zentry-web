@@ -3417,31 +3417,29 @@ export const suscribirseAIngresos = (
   }
   try {
     console.log(
-      `🔔 suscribirseAIngresos: Configurando suscripción para residencial ID: ${residencialDocId}`,
+      `🔔 suscribirseAIngresos: Configurando suscripción accessEvents para ${residencialDocId}`,
     );
 
-    const ingresosRef = collection(
+    const ref = collection(
       db,
-      `residenciales/${residencialDocId}/ingresos`,
+      `residenciales/${residencialDocId}/accessEvents`,
     );
-    const q = query(ingresosRef, orderBy("timestamp", "desc"));
+    const q = query(ref, orderBy("entryAt", "desc"));
 
     const unsubscribe = onSnapshot(
       q,
       (querySnapshot) => {
         console.log(
-          `📊 Suscripción ingresos: ${querySnapshot.docs.length} documentos recibidos para ${residencialDocId}`,
+          `📊 Suscripción accessEvents: ${querySnapshot.docs.length} documentos para ${residencialDocId}`,
         );
-
-        const ingresosData: Ingreso[] = [];
-        querySnapshot.forEach((doc) => {
-          ingresosData.push(clasificarIngreso(doc.data(), doc.id));
-        });
-        callback(ingresosData);
+        const data: Ingreso[] = querySnapshot.docs.map((doc) =>
+          clasificarAccessEvent(doc.data(), doc.id),
+        );
+        callback(data);
       },
       (error) => {
         console.error(
-          `Error al suscribirse a ingresos para el residencial ${residencialDocId}:`,
+          `Error al suscribirse a accessEvents para ${residencialDocId}:`,
           error,
         );
         toast.error(
@@ -3454,7 +3452,7 @@ export const suscribirseAIngresos = (
     return unsubscribe;
   } catch (error) {
     console.error(
-      `Error al intentar configurar la suscripción a ingresos para ${residencialDocId}:`,
+      `Error al configurar suscripción accessEvents para ${residencialDocId}:`,
       error,
     );
     toast.error("Error crítico al configurar la escucha de ingresos.");
