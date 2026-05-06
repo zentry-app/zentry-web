@@ -151,23 +151,16 @@ export const getCachedActivePasses = async (residencialDocId: string) => {
   return getCachedQuery(
     `active-passes-${residencialDocId}`,
     async () => {
-      const ingresosRef = collection(
+      const ref = collection(
         db,
         "residenciales",
         residencialDocId,
-        "ingresos",
+        "accessEvents",
       );
-      const q = query(
-        ingresosRef,
-        where("status", "==", "active"),
-        fbLimit(100),
-      );
+      const q = query(ref, where("exitAt", "==", null), fbLimit(100));
       const snap = await getDocs(q);
 
-      return snap.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      return snap.docs.map((doc) => clasificarAccessEvent(doc.data(), doc.id));
     },
     INGRESOS_TTL,
   );
