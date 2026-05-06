@@ -1,10 +1,25 @@
-import { collection, query, where, getDocs, limit as fbLimit, orderBy } from 'firebase/firestore';
-import { db } from '../firebase/config';
-import { SearchResult, SearchResponse, SearchOptions, SearchCategory } from '@/types/search';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  limit as fbLimit,
+  orderBy,
+} from "firebase/firestore";
+import { db } from "../firebase/config";
+import {
+  SearchResult,
+  SearchResponse,
+  SearchOptions,
+  SearchCategory,
+} from "@/types/search";
 import { clasificarAccessEvent } from "../firebase/access-events-mapper";
 
 // Cache simple para búsquedas recientes
-const searchCache = new Map<string, { data: SearchResponse; timestamp: number }>();
+const searchCache = new Map<
+  string,
+  { data: SearchResponse; timestamp: number }
+>();
 const CACHE_DURATION = 30000; // 30 segundos
 
 /**
@@ -13,8 +28,8 @@ const CACHE_DURATION = 30000; // 30 segundos
 function normalizeSearchTerm(term: string): string {
   return term
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .trim();
 }
 
@@ -34,25 +49,33 @@ export class GlobalSearchService {
   /**
    * Buscar en usuarios por nombre, email, casa
    */
-  static async searchUsuarios(searchQuery: string, residencialId?: string): Promise<SearchResult[]> {
+  static async searchUsuarios(
+    searchQuery: string,
+    residencialId?: string,
+  ): Promise<SearchResult[]> {
     try {
-      const usuariosRef = collection(db, 'usuarios');
+      const usuariosRef = collection(db, "usuarios");
       let q = query(usuariosRef, fbLimit(100)); // Traer más para filtrar client-side
-      
+
       if (residencialId) {
-        q = query(usuariosRef, where('residencialID', '==', residencialId), fbLimit(100));
+        q = query(
+          usuariosRef,
+          where("residencialID", "==", residencialId),
+          fbLimit(100),
+        );
       }
-      
+
       const snapshot = await getDocs(q);
       const results: SearchResult[] = [];
       const normalizedQuery = normalizeSearchTerm(searchQuery);
-      
+
       snapshot.forEach((doc) => {
         const data = doc.data();
-        const fullName = `${data.fullName || ''} ${data.paternalLastName || ''} ${data.maternalLastName || ''}`.trim();
-        const email = data.email || '';
-        const houseNumber = data.houseNumber?.toString() || '';
-        
+        const fullName =
+          `${data.fullName || ""} ${data.paternalLastName || ""} ${data.maternalLastName || ""}`.trim();
+        const email = data.email || "";
+        const houseNumber = data.houseNumber?.toString() || "";
+
         // Buscar en múltiples campos
         if (
           matchesSearch(fullName, searchQuery) ||
@@ -61,20 +84,20 @@ export class GlobalSearchService {
         ) {
           results.push({
             id: doc.id,
-            type: 'usuarios',
+            type: "usuarios",
             title: fullName,
             subtitle: email,
             metadata: houseNumber ? `Casa ${houseNumber}` : undefined,
-            icon: 'Users',
+            icon: "Users",
             href: `/dashboard/usuarios?id=${doc.id}`,
-            residencialId: data.residencialID
+            residencialId: data.residencialID,
           });
         }
       });
-      
+
       return results.slice(0, 5);
     } catch (error) {
-      console.error('Error searching usuarios:', error);
+      console.error("Error searching usuarios:", error);
       return [];
     }
   }
@@ -82,35 +105,43 @@ export class GlobalSearchService {
   /**
    * Buscar en áreas comunes por nombre
    */
-  static async searchAreasComunes(searchQuery: string, residencialId?: string): Promise<SearchResult[]> {
+  static async searchAreasComunes(
+    searchQuery: string,
+    residencialId?: string,
+  ): Promise<SearchResult[]> {
     try {
       if (!residencialId) return [];
-      
-      const areasRef = collection(db, 'residenciales', residencialId, 'areas_comunes');
+
+      const areasRef = collection(
+        db,
+        "residenciales",
+        residencialId,
+        "areas_comunes",
+      );
       const snapshot = await getDocs(query(areasRef, fbLimit(50)));
       const results: SearchResult[] = [];
-      
+
       snapshot.forEach((doc) => {
         const data = doc.data();
-        const nombre = data.nombre || '';
-        
+        const nombre = data.nombre || "";
+
         if (matchesSearch(nombre, searchQuery)) {
           results.push({
             id: doc.id,
-            type: 'areas_comunes',
+            type: "areas_comunes",
             title: nombre,
-            subtitle: data.tipo || 'Área Común',
-            metadata: data.activa ? 'Activa' : 'Inactiva',
-            icon: 'Map',
+            subtitle: data.tipo || "Área Común",
+            metadata: data.activa ? "Activa" : "Inactiva",
+            icon: "Map",
             href: `/dashboard/areas-comunes?id=${doc.id}`,
-            residencialId
+            residencialId,
           });
         }
       });
-      
+
       return results.slice(0, 5);
     } catch (error) {
-      console.error('Error searching areas comunes:', error);
+      console.error("Error searching areas comunes:", error);
       return [];
     }
   }
@@ -118,43 +149,52 @@ export class GlobalSearchService {
   /**
    * Buscar en reservas por usuario o área
    */
-  static async searchReservas(searchQuery: string, residencialId?: string): Promise<SearchResult[]> {
+  static async searchReservas(
+    searchQuery: string,
+    residencialId?: string,
+  ): Promise<SearchResult[]> {
     try {
       if (!residencialId) return [];
-      
-      const reservasRef = collection(db, 'residenciales', residencialId, 'reservaciones');
-      const q = query(reservasRef, orderBy('fecha', 'desc'), fbLimit(100));
+
+      const reservasRef = collection(
+        db,
+        "residenciales",
+        residencialId,
+        "reservaciones",
+      );
+      const q = query(reservasRef, orderBy("fecha", "desc"), fbLimit(100));
       const snapshot = await getDocs(q);
       const results: SearchResult[] = [];
-      
+
       snapshot.forEach((doc) => {
         const data = doc.data();
-        const nombreReservante = data.nombreReservante || data.nombreCompleto || '';
-        const areaComun = data.areaComun || '';
-        
+        const nombreReservante =
+          data.nombreReservante || data.nombreCompleto || "";
+        const areaComun = data.areaComun || "";
+
         if (
           matchesSearch(nombreReservante, searchQuery) ||
           matchesSearch(areaComun, searchQuery)
         ) {
           const fecha = data.fecha?.toDate?.();
-          const fechaStr = fecha ? fecha.toLocaleDateString('es-MX') : '';
-          
+          const fechaStr = fecha ? fecha.toLocaleDateString("es-MX") : "";
+
           results.push({
             id: doc.id,
-            type: 'reservas',
+            type: "reservas",
             title: areaComun,
             subtitle: nombreReservante,
             metadata: fechaStr,
-            icon: 'BookOpen',
+            icon: "BookOpen",
             href: `/dashboard/reservas?id=${doc.id}`,
-            residencialId
+            residencialId,
           });
         }
       });
-      
+
       return results.slice(0, 5);
     } catch (error) {
-      console.error('Error searching reservas:', error);
+      console.error("Error searching reservas:", error);
       return [];
     }
   }
@@ -162,21 +202,24 @@ export class GlobalSearchService {
   /**
    * Buscar en tags por código o nombre
    */
-  static async searchTags(searchQuery: string, residencialId?: string): Promise<SearchResult[]> {
+  static async searchTags(
+    searchQuery: string,
+    residencialId?: string,
+  ): Promise<SearchResult[]> {
     try {
       if (!residencialId) return [];
-      
-      const tagsRef = collection(db, 'residenciales', residencialId, 'tags');
+
+      const tagsRef = collection(db, "residenciales", residencialId, "tags");
       const snapshot = await getDocs(query(tagsRef, fbLimit(100)));
       const results: SearchResult[] = [];
-      
+
       snapshot.forEach((doc) => {
         const data = doc.data();
-        const tagCode = data.tagCode?.toString() || '';
-        const nombre = data.nombre || '';
-        const apellido = data.apellidoPaterno || '';
-        const houseNumber = data.houseNumber?.toString() || '';
-        
+        const tagCode = data.tagCode?.toString() || "";
+        const nombre = data.nombre || "";
+        const apellido = data.apellidoPaterno || "";
+        const houseNumber = data.houseNumber?.toString() || "";
+
         if (
           matchesSearch(tagCode, searchQuery) ||
           matchesSearch(nombre, searchQuery) ||
@@ -185,20 +228,20 @@ export class GlobalSearchService {
         ) {
           results.push({
             id: doc.id,
-            type: 'tags',
+            type: "tags",
             title: `Tag ${tagCode}`,
             subtitle: `${nombre} ${apellido}`.trim(),
             metadata: houseNumber ? `Casa ${houseNumber}` : undefined,
-            icon: 'Tag',
+            icon: "Tag",
             href: `/dashboard/tags?id=${doc.id}`,
-            residencialId
+            residencialId,
           });
         }
       });
-      
+
       return results.slice(0, 5);
     } catch (error) {
-      console.error('Error searching tags:', error);
+      console.error("Error searching tags:", error);
       return [];
     }
   }
@@ -209,41 +252,39 @@ export class GlobalSearchService {
   static async searchIngresos(searchQuery: string, residencialId?: string): Promise<SearchResult[]> {
     try {
       if (!residencialId) return [];
-      
-      const ingresosRef = collection(db, 'residenciales', residencialId, 'ingresos');
-      const q = query(ingresosRef, orderBy('timestamp', 'desc'), fbLimit(100));
+
+      const ref = collection(db, 'residenciales', residencialId, 'accessEvents');
+      const q = query(ref, orderBy('entryAt', 'desc'), fbLimit(100));
       const snapshot = await getDocs(q);
       const results: SearchResult[] = [];
-      
+
       snapshot.forEach((doc) => {
-        const data = doc.data();
-        const nombreCompleto = data.nombreCompleto || '';
-        const visitante = data.visitante || '';
-        const tipoIngreso = data.tipoIngreso || '';
-        
-        if (
-          matchesSearch(nombreCompleto, searchQuery) ||
-          matchesSearch(visitante, searchQuery)
-        ) {
-          const timestamp = data.timestamp?.toDate?.();
-          const timestampStr = timestamp ? timestamp.toLocaleString('es-MX') : '';
-          
+        const ingreso = clasificarAccessEvent(doc.data(), doc.id);
+        const nombre = ingreso.visitData?.name ?? '';
+
+        if (matchesSearch(nombre, searchQuery)) {
+          const ts = ingreso.timestamp;
+          const date = ts && typeof (ts as any).toDate === 'function'
+            ? (ts as any).toDate()
+            : ts instanceof Date ? ts : null;
+          const timestampStr = date ? date.toLocaleString('es-MX') : '';
+
           results.push({
             id: doc.id,
             type: 'ingresos',
-            title: visitante || nombreCompleto,
-            subtitle: tipoIngreso,
+            title: nombre,
+            subtitle: ingreso.category,
             metadata: timestampStr,
             icon: 'ClipboardList',
             href: `/dashboard/ingresos?id=${doc.id}`,
-            residencialId
+            residencialId,
           });
         }
       });
-      
+
       return results.slice(0, 5);
     } catch (error) {
-      console.error('Error searching ingresos:', error);
+      console.error('Error searching accessEvents:', error);
       return [];
     }
   }
@@ -251,37 +292,39 @@ export class GlobalSearchService {
   /**
    * Buscar en residenciales por nombre o dirección
    */
-  static async searchResidenciales(searchQuery: string): Promise<SearchResult[]> {
+  static async searchResidenciales(
+    searchQuery: string,
+  ): Promise<SearchResult[]> {
     try {
-      const residencialesRef = collection(db, 'residenciales');
+      const residencialesRef = collection(db, "residenciales");
       const snapshot = await getDocs(query(residencialesRef, fbLimit(50)));
       const results: SearchResult[] = [];
-      
+
       snapshot.forEach((doc) => {
         const data = doc.data();
-        const nombre = data.nombre || '';
-        const direccion = data.direccion || '';
-        
+        const nombre = data.nombre || "";
+        const direccion = data.direccion || "";
+
         if (
           matchesSearch(nombre, searchQuery) ||
           matchesSearch(direccion, searchQuery)
         ) {
           results.push({
             id: doc.id,
-            type: 'residenciales',
+            type: "residenciales",
             title: nombre,
             subtitle: direccion,
-            metadata: data.ciudad || '',
-            icon: 'Building',
+            metadata: data.ciudad || "",
+            icon: "Building",
             href: `/dashboard/residenciales?id=${doc.id}`,
-            residencialId: doc.id
+            residencialId: doc.id,
           });
         }
       });
-      
+
       return results.slice(0, 5);
     } catch (error) {
-      console.error('Error searching residenciales:', error);
+      console.error("Error searching residenciales:", error);
       return [];
     }
   }
@@ -289,53 +332,56 @@ export class GlobalSearchService {
   /**
    * Método principal que ejecuta todas las búsquedas en paralelo
    */
-  static async search(searchQuery: string, options: SearchOptions = {}): Promise<SearchResponse> {
+  static async search(
+    searchQuery: string,
+    options: SearchOptions = {},
+  ): Promise<SearchResponse> {
     const startTime = Date.now();
-    
+
     // Verificar cache
-    const cacheKey = `${searchQuery}-${options.residencialId || 'all'}`;
+    const cacheKey = `${searchQuery}-${options.residencialId || "all"}`;
     const cached = searchCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
       return cached.data;
     }
-    
+
     // Si el query es muy corto, devolver respuesta vacía
     if (!searchQuery || searchQuery.length < 2) {
       return {
         results: [],
         resultsByCategory: {} as Record<SearchCategory, SearchResult[]>,
         totalResults: 0,
-        searchTime: 0
+        searchTime: 0,
       };
     }
-    
+
     const { residencialId, limit = 5, categories } = options;
-    
+
     // Ejecutar búsquedas en paralelo
     const searchPromises: Promise<SearchResult[]>[] = [];
-    
-    if (!categories || categories.includes('usuarios')) {
+
+    if (!categories || categories.includes("usuarios")) {
       searchPromises.push(this.searchUsuarios(searchQuery, residencialId));
     }
-    if (!categories || categories.includes('residenciales')) {
+    if (!categories || categories.includes("residenciales")) {
       searchPromises.push(this.searchResidenciales(searchQuery));
     }
-    if (!categories || categories.includes('areas_comunes')) {
+    if (!categories || categories.includes("areas_comunes")) {
       searchPromises.push(this.searchAreasComunes(searchQuery, residencialId));
     }
-    if (!categories || categories.includes('reservas')) {
+    if (!categories || categories.includes("reservas")) {
       searchPromises.push(this.searchReservas(searchQuery, residencialId));
     }
-    if (!categories || categories.includes('tags')) {
+    if (!categories || categories.includes("tags")) {
       searchPromises.push(this.searchTags(searchQuery, residencialId));
     }
-    if (!categories || categories.includes('ingresos')) {
+    if (!categories || categories.includes("ingresos")) {
       searchPromises.push(this.searchIngresos(searchQuery, residencialId));
     }
-    
+
     const resultsArrays = await Promise.all(searchPromises);
     const allResults = resultsArrays.flat();
-    
+
     // Agrupar por categoría
     const resultsByCategory: Record<SearchCategory, SearchResult[]> = {
       usuarios: [],
@@ -345,33 +391,33 @@ export class GlobalSearchService {
       tags: [],
       ingresos: [],
       pagos: [],
-      guardias: []
+      guardias: [],
     };
-    
+
     allResults.forEach((result) => {
       if (resultsByCategory[result.type]) {
         resultsByCategory[result.type].push(result);
       }
     });
-    
+
     const searchTime = Date.now() - startTime;
-    
+
     const response: SearchResponse = {
       results: allResults.slice(0, 30), // Máximo 30 resultados totales
       resultsByCategory,
       totalResults: allResults.length,
-      searchTime
+      searchTime,
     };
-    
+
     // Guardar en cache
     searchCache.set(cacheKey, { data: response, timestamp: Date.now() });
-    
+
     // Limpiar cache antiguo
     if (searchCache.size > 50) {
       const oldestKey = Array.from(searchCache.keys())[0];
       searchCache.delete(oldestKey);
     }
-    
+
     return response;
   }
 }
