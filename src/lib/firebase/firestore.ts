@@ -3564,7 +3564,10 @@ export const getVehicleHistory = async (
         `⚠️ No se encontró historial pre-calculado para la placa ${placa}. Construyendo sobre la marcha...`,
       );
 
-      const ref = collection(db, `residenciales/${residencialDocId}/accessEvents`);
+      const ref = collection(
+        db,
+        `residenciales/${residencialDocId}/accessEvents`,
+      );
       const q = query(
         ref,
         where("vehicle.plate", "==", placa),
@@ -3579,7 +3582,7 @@ export const getVehicleHistory = async (
       }
 
       const ingresos = ingresosSnap.docs.map((doc) =>
-        clasificarIngreso(doc.data(), doc.id),
+        clasificarAccessEvent(doc.data(), doc.id),
       );
 
       const firstEntry = ingresos[ingresos.length - 1];
