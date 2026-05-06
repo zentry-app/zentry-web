@@ -26,6 +26,7 @@ import {
 } from "firebase/firestore";
 import { getAuthSafe } from "./config";
 import { Ingreso, clasificarIngreso } from "../../types/ingresos"; // Corregido path
+import { clasificarAccessEvent } from "./access-events-mapper";
 import { VehicleHistory } from "../../types/vehicle-history";
 import { Pago, convertirDatosPago } from "../../types/pagos"; // Importar desde tipos de pagos
 import { toast } from "sonner"; // <--- AÑADIDO toast
