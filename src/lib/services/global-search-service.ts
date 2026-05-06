@@ -1,6 +1,7 @@
 import { collection, query, where, getDocs, limit as fbLimit, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { SearchResult, SearchResponse, SearchOptions, SearchCategory } from '@/types/search';
+import { clasificarAccessEvent } from "../firebase/access-events-mapper";
 
 // Cache simple para búsquedas recientes
 const searchCache = new Map<string, { data: SearchResponse; timestamp: number }>();
