@@ -10,23 +10,23 @@
  *   node scripts/migrate-ingresos-to-access-events.js --execute --residencial mCTs294LGLkGvL9TTvaQ
  */
 
-const admin = require('firebase-admin');
-const fs = require('fs');
-const path = require('path');
+const admin = require("firebase-admin");
+const fs = require("fs");
+const path = require("path");
 
 // ---------------------------------------------------------------------------
 // Cargar .env.local
 // ---------------------------------------------------------------------------
 function loadEnv() {
-  const envPath = path.join(__dirname, '..', '.env.local');
+  const envPath = path.join(__dirname, "..", ".env.local");
   if (!fs.existsSync(envPath)) {
-    throw new Error('.env.local no encontrado en ' + envPath);
+    throw new Error(".env.local no encontrado en " + envPath);
   }
-  const lines = fs.readFileSync(envPath, 'utf-8').split('\n');
+  const lines = fs.readFileSync(envPath, "utf-8").split("\n");
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const eqIdx = trimmed.indexOf('=');
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIdx = trimmed.indexOf("=");
     if (eqIdx === -1) continue;
     const key = trimmed.slice(0, eqIdx).trim();
     const value = trimmed.slice(eqIdx + 1).trim();
@@ -39,8 +39,11 @@ function loadEnv() {
 // ---------------------------------------------------------------------------
 function initAdmin() {
   const encoded = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!encoded) throw new Error('FIREBASE_SERVICE_ACCOUNT no encontrado en .env.local');
-  const serviceAccount = JSON.parse(Buffer.from(encoded, 'base64').toString('utf-8'));
+  if (!encoded)
+    throw new Error("FIREBASE_SERVICE_ACCOUNT no encontrado en .env.local");
+  const serviceAccount = JSON.parse(
+    Buffer.from(encoded, "base64").toString("utf-8"),
+  );
   admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
   return admin.firestore();
 }
@@ -54,43 +57,47 @@ function mapIngresoToAccessEvent(data, ingresoId) {
   const visitData = data.visitData || {};
   const extras = {};
 
-  if (data.registradoPor !== undefined) extras.registradoPor = data.registradoPor;
-  if (data.isFrequentVisitor !== undefined) extras.isFrequentVisitor = data.isFrequentVisitor;
+  if (data.registradoPor !== undefined)
+    extras.registradoPor = data.registradoPor;
+  if (data.isFrequentVisitor !== undefined)
+    extras.isFrequentVisitor = data.isFrequentVisitor;
   if (data.exitDetails !== undefined) extras.exitDetails = data.exitDetails;
   if (data.passLost !== undefined) extras.passLost = data.passLost;
   if (data.passReturned !== undefined) extras.passReturned = data.passReturned;
-  if (data.manualEntryData !== undefined) extras.manualEntryData = data.manualEntryData;
+  if (data.manualEntryData !== undefined)
+    extras.manualEntryData = data.manualEntryData;
   if (data.packageInfo !== undefined) extras.packageInfo = data.packageInfo;
-  if (data.rejectionInfo !== undefined) extras.rejectionInfo = data.rejectionInfo;
+  if (data.rejectionInfo !== undefined)
+    extras.rejectionInfo = data.rejectionInfo;
 
   const doc = {
     entryAt: data.timestamp ?? null,
     exitAt: data.exitTimestamp ?? null,
     subject: {
-      name: visitData.name ?? '',
+      name: visitData.name ?? "",
       userId: data.userId ?? null,
       visitorId: data.visitorId ?? null,
     },
     unit: {
-      street: domicilio.calle ?? '',
-      number: domicilio.houseNumber ?? '',
+      street: domicilio.calle ?? "",
+      number: domicilio.houseNumber ?? "",
     },
     community: {
-      legacyId: domicilio.residencialID ?? '',
+      legacyId: domicilio.residencialID ?? "",
     },
     vehicle: vehicleInfo
       ? {
-          plate: vehicleInfo.placa ?? '',
-          brand: vehicleInfo.marca ?? '',
-          model: vehicleInfo.modelo ?? '',
-          color: vehicleInfo.color ?? '',
+          plate: vehicleInfo.placa ?? "",
+          brand: vehicleInfo.marca ?? "",
+          model: vehicleInfo.modelo ?? "",
+          color: vehicleInfo.color ?? "",
         }
       : null,
     physicalPass: data.physicalPass ?? null,
-    category: data.category ?? 'temporal',
-    entryMethod: data.entryMethod ?? '',
+    category: data.category ?? "temporal",
+    entryMethod: data.entryMethod ?? "",
     codigoAcceso: data.codigoAcceso ?? null,
-    entryStatus: data.rejected ? 'rejected' : 'approved',
+    entryStatus: data.rejected ? "rejected" : "approved",
     legacyIngresoId: ingresoId,
   };
 
@@ -98,7 +105,9 @@ function mapIngresoToAccessEvent(data, ingresoId) {
   if (visitData.multipleDestinations) {
     doc.providerData = {
       multipleDestinations: visitData.multipleDestinations,
-      ...(visitData.destinationCount !== undefined ? { destinationCount: visitData.destinationCount } : {}),
+      ...(visitData.destinationCount !== undefined
+        ? { destinationCount: visitData.destinationCount }
+        : {}),
     };
   }
 
@@ -118,11 +127,20 @@ function mapIngresoToAccessEvent(data, ingresoId) {
 // ---------------------------------------------------------------------------
 // Procesar un residencial
 // ---------------------------------------------------------------------------
-async function procesarResidencial(db, residencialId, nombreResidencial, ejecutar) {
-  console.log(`\n${ejecutar ? '[EXECUTE]' : '[DRY-RUN]'} Residencial: ${nombreResidencial} (${residencialId})`);
+async function procesarResidencial(
+  db,
+  residencialId,
+  nombreResidencial,
+  ejecutar,
+) {
+  console.log(
+    `\n${ejecutar ? "[EXECUTE]" : "[DRY-RUN]"} Residencial: ${nombreResidencial} (${residencialId})`,
+  );
 
   const ingresosRef = db.collection(`residenciales/${residencialId}/ingresos`);
-  const accessEventsRef = db.collection(`residenciales/${residencialId}/accessEvents`);
+  const accessEventsRef = db.collection(
+    `residenciales/${residencialId}/accessEvents`,
+  );
 
   // Contar totales
   const [ingresosSnap, accessEventsSnap] = await Promise.all([
@@ -144,14 +162,21 @@ async function procesarResidencial(db, residencialId, nombreResidencial, ejecuta
   console.log(`  Leyendo IDs de accessEvents...`);
   const existingIds = new Set();
   const aePage = await accessEventsRef.select().get();
-  aePage.forEach(doc => existingIds.add(doc.id));
+  aePage.forEach((doc) => existingIds.add(doc.id));
 
-  // Leer todos los docs de ingresos
-  console.log(`  Leyendo todos los docs de ingresos...`);
-  const ingresosAll = await ingresosRef.get();
+  // Solo migrar docs legacy (antes del dual-write, 15 abril 2026).
+  // Los docs del periodo dual-write ya existen en accessEvents con IDs propios de Flutter.
+  // Migrar todos los ingresos causaría duplicados para los ~963 docs del periodo dual-write.
+  const DUAL_WRITE_START = new Date("2026-04-15T00:00:00.000Z");
+  console.log(
+    `  Leyendo docs de ingresos con timestamp < ${DUAL_WRITE_START.toISOString()}...`,
+  );
+  const ingresosAll = await ingresosRef
+    .where("timestamp", "<", DUAL_WRITE_START)
+    .get();
 
   const aMigrar = [];
-  ingresosAll.forEach(doc => {
+  ingresosAll.forEach((doc) => {
     if (!existingIds.has(doc.id)) {
       aMigrar.push({ id: doc.id, data: doc.data() });
     }
@@ -162,16 +187,26 @@ async function procesarResidencial(db, residencialId, nombreResidencial, ejecuta
 
   if (aMigrar.length === 0) {
     console.log(`  Nada que migrar.`);
-    return { residencialId, total: totalIngresos, yaMigrados: existingIds.size, aMigrar: 0, migrados: 0 };
+    return {
+      residencialId,
+      total: totalIngresos,
+      yaMigrados: existingIds.size,
+      aMigrar: 0,
+      migrados: 0,
+    };
   }
 
   // Mostrar sample doc
   const sample = aMigrar[0];
   const sampleMapped = mapIngresoToAccessEvent(sample.data, sample.id);
   console.log(`  sample doc (id=${sample.id}):`);
-  console.log(`    entryAt: ${sampleMapped.entryAt?.toDate ? sampleMapped.entryAt.toDate().toISOString() : sampleMapped.entryAt}`);
+  console.log(
+    `    entryAt: ${sampleMapped.entryAt?.toDate ? sampleMapped.entryAt.toDate().toISOString() : sampleMapped.entryAt}`,
+  );
   console.log(`    subject.name: ${sampleMapped.subject.name}`);
-  console.log(`    unit: ${sampleMapped.unit.street} #${sampleMapped.unit.number}`);
+  console.log(
+    `    unit: ${sampleMapped.unit.street} #${sampleMapped.unit.number}`,
+  );
   console.log(`    category: ${sampleMapped.category}`);
   console.log(`    entryStatus: ${sampleMapped.entryStatus}`);
 
@@ -180,7 +215,13 @@ async function procesarResidencial(db, residencialId, nombreResidencial, ejecuta
   console.log(`  batches necesarios:         ${batchesNecesarios}`);
 
   if (!ejecutar) {
-    return { residencialId, total: totalIngresos, yaMigrados: existingIds.size, aMigrar: aMigrar.length, migrados: 0 };
+    return {
+      residencialId,
+      total: totalIngresos,
+      yaMigrados: existingIds.size,
+      aMigrar: aMigrar.length,
+      migrados: 0,
+    };
   }
 
   // Ejecutar migración en batches
@@ -194,7 +235,9 @@ async function procesarResidencial(db, residencialId, nombreResidencial, ejecuta
     }
     await batch.commit();
     migrados += chunk.length;
-    process.stdout.write(`\r  Progreso: ${migrados}/${aMigrar.length} docs escritos`);
+    process.stdout.write(
+      `\r  Progreso: ${migrados}/${aMigrar.length} docs escritos`,
+    );
   }
   console.log(`\n  Migración completada: ${migrados} docs escritos`);
 
@@ -202,7 +245,13 @@ async function procesarResidencial(db, residencialId, nombreResidencial, ejecuta
   const finalSnap = await accessEventsRef.count().get();
   console.log(`  accessEvents después:       ${finalSnap.data().count}`);
 
-  return { residencialId, total: totalIngresos, yaMigrados: existingIds.size, aMigrar: aMigrar.length, migrados };
+  return {
+    residencialId,
+    total: totalIngresos,
+    yaMigrados: existingIds.size,
+    aMigrar: aMigrar.length,
+    migrados,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -210,16 +259,20 @@ async function procesarResidencial(db, residencialId, nombreResidencial, ejecuta
 // ---------------------------------------------------------------------------
 async function main() {
   const args = process.argv.slice(2);
-  const ejecutar = args.includes('--execute');
+  const ejecutar = args.includes("--execute");
   const dryRun = !ejecutar; // dry-run es el default
-  const residencialIdx = args.indexOf('--residencial');
-  const residencialTarget = residencialIdx !== -1 ? args[residencialIdx + 1] : null;
+  const residencialIdx = args.indexOf("--residencial");
+  const residencialTarget =
+    residencialIdx !== -1 ? args[residencialIdx + 1] : null;
 
-  console.log('='.repeat(60));
-  console.log('Migración ingresos → accessEvents');
-  console.log(`Modo: ${ejecutar ? 'EXECUTE (escribirá en Firestore)' : 'DRY-RUN (solo lectura)'}`);
-  if (residencialTarget) console.log(`Residencial objetivo: ${residencialTarget}`);
-  console.log('='.repeat(60));
+  console.log("=".repeat(60));
+  console.log("Migración ingresos → accessEvents");
+  console.log(
+    `Modo: ${ejecutar ? "EXECUTE (escribirá en Firestore)" : "DRY-RUN (solo lectura)"}`,
+  );
+  if (residencialTarget)
+    console.log(`Residencial objetivo: ${residencialTarget}`);
+  console.log("=".repeat(60));
 
   loadEnv();
   const db = initAdmin();
@@ -227,48 +280,62 @@ async function main() {
   // Obtener residenciales
   let residencialesSnap;
   if (residencialTarget) {
-    const doc = await db.collection('residenciales').doc(residencialTarget).get();
+    const doc = await db
+      .collection("residenciales")
+      .doc(residencialTarget)
+      .get();
     if (!doc.exists) {
       console.error(`Error: residencial ${residencialTarget} no encontrado`);
       process.exit(1);
     }
     residencialesSnap = [doc];
   } else {
-    const snap = await db.collection('residenciales').get();
+    const snap = await db.collection("residenciales").get();
     residencialesSnap = snap.docs;
   }
 
   const resultados = [];
   for (const resDoc of residencialesSnap) {
     const nombre = resDoc.data().nombre || resDoc.data().name || resDoc.id;
-    const resultado = await procesarResidencial(db, resDoc.id, nombre, ejecutar);
+    const resultado = await procesarResidencial(
+      db,
+      resDoc.id,
+      nombre,
+      ejecutar,
+    );
     resultados.push(resultado);
   }
 
   // Resumen
-  console.log('\n' + '='.repeat(60));
-  console.log('RESUMEN');
-  console.log('='.repeat(60));
+  console.log("\n" + "=".repeat(60));
+  console.log("RESUMEN");
+  console.log("=".repeat(60));
   let totalAMigrar = 0;
   let totalMigrados = 0;
   for (const r of resultados) {
-    console.log(`${r.residencialId}: ${r.aMigrar} a migrar, ${r.migrados} migrados`);
+    console.log(
+      `${r.residencialId}: ${r.aMigrar} a migrar, ${r.migrados} migrados`,
+    );
     totalAMigrar += r.aMigrar;
     totalMigrados += r.migrados;
   }
   console.log(`\nTotal a migrar:  ${totalAMigrar}`);
   if (ejecutar) {
     console.log(`Total migrados:  ${totalMigrados}`);
-    console.log('\nVerificacion: revisa los conteos anteriores (accessEvents despues).');
-    console.log('Tambien puedes revisar 5 docs al azar para confirmar que el mapper los convierte bien.');
+    console.log(
+      "\nVerificacion: revisa los conteos anteriores (accessEvents despues).",
+    );
+    console.log(
+      "Tambien puedes revisar 5 docs al azar para confirmar que el mapper los convierte bien.",
+    );
   } else {
-    console.log('\nEjecuta con --execute para escribir en Firestore.');
+    console.log("\nEjecuta con --execute para escribir en Firestore.");
   }
 
   process.exit(0);
 }
 
-main().catch(err => {
-  console.error('Error fatal:', err);
+main().catch((err) => {
+  console.error("Error fatal:", err);
   process.exit(1);
 });
