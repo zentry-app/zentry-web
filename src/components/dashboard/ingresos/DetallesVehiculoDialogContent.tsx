@@ -205,7 +205,7 @@ const DetallesVehiculoDialogContent: React.FC<DetallesVehiculoDialogContentProps
               <div className="text-xs text-gray-500">{getRelativeTime(ingreso.timestamp.toString())}</div>
               <Separator className="my-2" />
               <div className="text-sm">
-                <p><strong>Destino:</strong> {ingreso.domicilio.calle} #{ingreso.domicilio.houseNumber}</p>
+                <p><strong>Destino:</strong> {ingreso.visitData?.multipleDestinations?.length ? ingreso.visitData.multipleDestinations.join(', ') : `${ingreso.domicilio.calle} #${ingreso.domicilio.houseNumber}`}</p>
               </div>
             </CardContent>
           </Card>
