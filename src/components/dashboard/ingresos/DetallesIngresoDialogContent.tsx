@@ -212,7 +212,9 @@ const DetallesIngresoDialogContent: React.FC<DetallesIngresoDialogContentProps> 
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Domicilio</p>
                 <p className="font-extrabold text-slate-800 flex items-center gap-2">
                   <Home className="h-4 w-4 text-primary" />
-                  {capitalizeName(selectedIngreso.domicilio.calle)} #{selectedIngreso.domicilio.houseNumber}
+                  {selectedIngreso.visitData?.multipleDestinations?.length
+                    ? selectedIngreso.visitData.multipleDestinations.join(', ')
+                    : `${capitalizeName(selectedIngreso.domicilio.calle)} #${selectedIngreso.domicilio.houseNumber}`}
                 </p>
               </div>
             </div>
