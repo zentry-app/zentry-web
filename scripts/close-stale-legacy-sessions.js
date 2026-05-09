@@ -43,7 +43,9 @@ async function procesarResidencial(db, resId, nombre, ejecutar) {
   console.log(`\n${ejecutar ? "[EXECUTE]" : "[DRY-RUN]"} ${nombre} (${resId})`);
 
   const cutoff = new Date(Date.now() - STALE_HOURS * 60 * 60 * 1000);
-  console.log(`  Cutoff: entryAt < ${cutoff.toISOString()} (hace ${STALE_HOURS}h)`);
+  console.log(
+    `  Cutoff: entryAt < ${cutoff.toISOString()} (hace ${STALE_HOURS}h)`,
+  );
 
   // Leer todos los accessEvents con exitAt == null
   const snap = await db
@@ -61,7 +63,11 @@ async function procesarResidencial(db, resId, nombre, ejecutar) {
     // Solo si entryAt es anterior al cutoff
     const entryAt = d.entryAt?.toDate?.();
     if (!entryAt || entryAt >= cutoff) return;
-    stale.push({ id: doc.id, entryAt, name: d.subject?.name || "(sin nombre)" });
+    stale.push({
+      id: doc.id,
+      entryAt,
+      name: d.subject?.name || "(sin nombre)",
+    });
   });
 
   console.log(`  Sesiones ghost a cerrar: ${stale.length}`);
@@ -73,9 +79,16 @@ async function procesarResidencial(db, resId, nombre, ejecutar) {
 
   // Mostrar sample
   const oldest = stale.sort((a, b) => a.entryAt - b.entryAt)[0];
-  const horasAtras = Math.round((Date.now() - oldest.entryAt.getTime()) / 3600000);
+  const horasAtras = Math.round(
+    (Date.now() - oldest.entryAt.getTime()) / 3600000,
+  );
   console.log(`  Más antigua: "${oldest.name}" — entryAt hace ${horasAtras}h`);
-  console.log(`  Sample (5): ${stale.slice(0, 5).map(s => s.name).join(", ")}`);
+  console.log(
+    `  Sample (5): ${stale
+      .slice(0, 5)
+      .map((s) => s.name)
+      .join(", ")}`,
+  );
 
   if (!ejecutar) {
     return { resId, stale: stale.length, cerrados: 0 };
@@ -89,10 +102,9 @@ async function procesarResidencial(db, resId, nombre, ejecutar) {
     const batch = db.batch();
     for (const { id, entryAt } of chunk) {
       // exitAt = entryAt para indicar que no hay registro de salida real
-      batch.update(
-        db.doc(`residenciales/${resId}/accessEvents/${id}`),
-        { exitAt: admin.firestore.Timestamp.fromDate(entryAt) },
-      );
+      batch.update(db.doc(`residenciales/${resId}/accessEvents/${id}`), {
+        exitAt: admin.firestore.Timestamp.fromDate(entryAt),
+      });
     }
     await batch.commit();
     cerrados += chunk.length;
@@ -120,7 +132,10 @@ async function main() {
   let resDocs;
   if (resTarget) {
     const d = await db.collection("residenciales").doc(resTarget).get();
-    if (!d.exists) { console.error("Residencial no encontrado"); process.exit(1); }
+    if (!d.exists) {
+      console.error("Residencial no encontrado");
+      process.exit(1);
+    }
     resDocs = [d];
   } else {
     resDocs = (await db.collection("residenciales").get()).docs;
@@ -135,7 +150,8 @@ async function main() {
   console.log("\n" + "=".repeat(60));
   console.log("RESUMEN");
   console.log("=".repeat(60));
-  let totalStale = 0, totalCerrados = 0;
+  let totalStale = 0,
+    totalCerrados = 0;
   for (const r of resultados) {
     console.log(`${r.resId}: ${r.stale} ghost, ${r.cerrados} cerrados`);
     totalStale += r.stale;
@@ -148,4 +164,7 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((e) => { console.error("Error:", e); process.exit(1); });
+main().catch((e) => {
+  console.error("Error:", e);
+  process.exit(1);
+});
