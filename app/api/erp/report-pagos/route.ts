@@ -159,7 +159,7 @@ async function fetchReportData(residencialId: string, reportMonth: string) {
     mo === 12 ? `${y + 1}-01-01` : `${y}-${String(mo + 1).padStart(2, "0")}-01`;
   const startDateStr = `${reportMonth}-01`;
 
-  const [balancesSnap, resSnap, intentsSnap, usersSnap] = await Promise.all([
+  const [balancesSnap, resSnap, intentsSnap] = await Promise.all([
     db.collection(`residenciales/${docId}/housePaymentBalance`).get(),
     db.collection("residenciales").doc(docId).get(),
     db
@@ -167,16 +167,15 @@ async function fetchReportData(residencialId: string, reportMonth: string) {
       .where("dateStr", ">=", startDateStr)
       .where("dateStr", "<", nextMonth)
       .get(),
-    db
-      .collection("usuarios")
-      .where(
-        "residencialID",
-        "==",
-        resSnap?.data?.()?.residencialID ?? residencialId,
-      )
-      .where("role", "==", "resident")
-      .get(),
   ]);
+
+  // Obtener legacyId desde el documento para query de usuarios
+  const legacyId = resSnap.data()?.residencialID ?? residencialId;
+  const usersSnap = await db
+    .collection("usuarios")
+    .where("residencialID", "==", legacyId)
+    .where("role", "==", "resident")
+    .get();
 
   const residencialName: string =
     resSnap.data()?.nombre || resSnap.data()?.name || "Residencial";
