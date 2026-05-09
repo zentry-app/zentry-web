@@ -702,10 +702,12 @@ function EstadoCuentaView({
       const apiData: HouseStatus[] = result.data ?? [];
       const paidMap: Record<string, number> = {};
       const fechaMap: Record<string, string | null> = {};
+      const mesesMap: Record<string, string[]> = {};
       let mesPagoLabel = reportMonth;
       apiData.forEach((h) => {
         paidMap[h.houseId] = h.pagadoMesCents ?? 0;
         fechaMap[h.houseId] = h.fechaPago ?? null;
+        mesesMap[h.houseId] = h.mesesCubiertos ?? [];
         if (h.mesPago) mesPagoLabel = h.mesPago;
       });
 
