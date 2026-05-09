@@ -43,6 +43,7 @@ export interface HouseStatus {
   pagadoMesCents?: number;
   mesPago?: string;
   fechaPago?: string | null;
+  mesesCubiertos?: string[];
 }
 
 // Normalize legacy 3-state to 2-state for display
