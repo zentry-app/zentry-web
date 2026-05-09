@@ -766,11 +766,22 @@ function EstadoCuentaView({
           "A Favor ($)",
           `Pagado ${mesPagoLabel} ($)`,
           "Fecha de pago",
+          "Meses cubiertos",
         ],
       ];
 
+      const fmtMes = (ym: string) => {
+        const [y, m] = ym.split("-");
+        const label = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString(
+          "es-MX",
+          { month: "short", year: "numeric" },
+        );
+        return label;
+      };
+
       allHouses.forEach((h) => {
         const paid = paidMap[h.houseId] ?? 0;
+        const meses = mesesMap[h.houseId] ?? [];
         rows.push([
           h.label,
           h.residentName || "",
@@ -779,6 +790,7 @@ function EstadoCuentaView({
           h.saldoAFavorCents > 0 ? fmt(h.saldoAFavorCents) : "0.00",
           fmt(paid),
           fmtDate(fechaMap[h.houseId]),
+          meses.map(fmtMes).join(" | "),
         ]);
       });
 
@@ -789,6 +801,7 @@ function EstadoCuentaView({
         `$${fmt(totalDeuda)}`,
         "",
         `$${fmt(totalPagado)}`,
+        "",
         "",
       ]);
 
