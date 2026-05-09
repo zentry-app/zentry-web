@@ -691,134 +691,36 @@ function EstadoCuentaView({
   const reportMonth = MONTH_OPTIONS[monthIdx].value;
   const [exporting, setExporting] = useState(false);
 
-  const exportCSV = async () => {
+  const exportExcel = async () => {
     setExporting(true);
     try {
-      const result = await httpsCallable<any, HouseStatus[]>(
-        functions,
-        "getResidentialHousesSummary",
-      )({ residencialId, reportMonth });
-
-      const apiData: HouseStatus[] = result.data ?? [];
-      const paidMap: Record<string, number> = {};
-      const fechaMap: Record<string, string | null> = {};
-      const mesesMap: Record<string, string[]> = {};
-      let mesPagoLabel = reportMonth;
-      apiData.forEach((h) => {
-        paidMap[h.houseId] = h.pagadoMesCents ?? 0;
-        fechaMap[h.houseId] = h.fechaPago ?? null;
-        mesesMap[h.houseId] = h.mesesCubiertos ?? [];
-        if (h.mesPago) mesPagoLabel = h.mesPago;
+      const { getAuthSafe } = await import("@/lib/firebase/config");
+      const authInstance = await getAuthSafe();
+      const token = authInstance?.currentUser
+        ? await authInstance.currentUser.getIdToken()
+        : null;
+      if (!token) {
+        toast.error("No autenticado — recarga la página");
+        return;
+      }
+      const url = `/api/erp/report-pagos?residencialId=${encodeURIComponent(residencialId)}&reportMonth=${encodeURIComponent(reportMonth)}`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-
-      // Always export ALL houses, sorted: con_deuda first then al_dia
-      const allHouses = [...houses].sort((a, b) => {
-        const aDebt = normalizeStatus(a) === "con_deuda" ? 0 : 1;
-        const bDebt = normalizeStatus(b) === "con_deuda" ? 0 : 1;
-        return aDebt - bDebt || a.label.localeCompare(b.label);
-      });
-
-      const totalPagado = allHouses.reduce(
-        (s, h) => s + (paidMap[h.houseId] ?? 0),
-        0,
-      );
-      const totalDeuda = allHouses.reduce(
-        (s, h) => s + (h.deudaCents > 0 ? h.deudaCents : 0),
-        0,
-      );
-      const casasAlDia = allHouses.filter(
-        (h) => normalizeStatus(h) === "al_dia",
-      ).length;
-      const casasConDeuda = allHouses.filter(
-        (h) => normalizeStatus(h) === "con_deuda",
-      ).length;
-      const hoy = new Date().toLocaleDateString("es-MX", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
-
-      const fmt = (cents: number) => (cents / 100).toFixed(2);
-      const fmtDate = (iso: string | null | undefined) => {
-        if (!iso) return "";
-        return new Date(iso).toLocaleDateString("es-MX", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        });
-      };
-
-      const rows: string[][] = [
-        ["Reporte de Pagos", mesPagoLabel],
-        ["Generado el", hoy],
-        [],
-        ["Total casas", String(allHouses.length)],
-        ["Casas al dia", String(casasAlDia)],
-        ["Casas con deuda", String(casasConDeuda)],
-        [`Total cobrado ${mesPagoLabel}`, `$${fmt(totalPagado)}`],
-        ["Total deuda acumulada", `$${fmt(totalDeuda)}`],
-        [],
-        [
-          "Casa",
-          "Residente",
-          "Estado",
-          "Deuda ($)",
-          "A Favor ($)",
-          `Pagado ${mesPagoLabel} ($)`,
-          "Fecha de pago",
-          "Meses cubiertos",
-        ],
-      ];
-
-      const fmtMes = (ym: string) => {
-        const [y, m] = ym.split("-");
-        const label = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString(
-          "es-MX",
-          { month: "short", year: "numeric" },
-        );
-        return label;
-      };
-
-      allHouses.forEach((h) => {
-        const paid = paidMap[h.houseId] ?? 0;
-        const meses = mesesMap[h.houseId] ?? [];
-        rows.push([
-          h.label,
-          h.residentName || "",
-          normalizeStatus(h) === "con_deuda" ? "Con deuda" : "Al dia",
-          h.deudaCents > 0 ? fmt(h.deudaCents) : "0.00",
-          h.saldoAFavorCents > 0 ? fmt(h.saldoAFavorCents) : "0.00",
-          fmt(paid),
-          fmtDate(fechaMap[h.houseId]),
-          meses.map(fmtMes).join(" | "),
-        ]);
-      });
-
-      rows.push([
-        "TOTALES",
-        "",
-        "",
-        `$${fmt(totalDeuda)}`,
-        "",
-        `$${fmt(totalPagado)}`,
-        "",
-        "",
-      ]);
-
-      const csv = rows
-        .map((r) =>
-          r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","),
-        )
-        .join("\n");
-      const blob = new Blob(["\uFEFF" + csv], {
-        type: "text/csv;charset=utf-8;",
-      });
-      const url = URL.createObjectURL(blob);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err?.error || "Error al generar reporte");
+        return;
+      }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
-      a.download = `reporte-pagos-${reportMonth}.csv`;
+      a.href = objectUrl;
+      a.download = `reporte-cobranza-${reportMonth.replace("-", "")}.xlsx`;
       a.click();
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(objectUrl);
+    } catch (e: any) {
+      toast.error(e?.message || "Error inesperado");
     } finally {
       setExporting(false);
     }
