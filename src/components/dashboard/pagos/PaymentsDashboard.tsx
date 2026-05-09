@@ -694,33 +694,267 @@ function EstadoCuentaView({
   const exportExcel = async () => {
     setExporting(true);
     try {
-      const { getAuthSafe } = await import("@/lib/firebase/config");
-      const authInstance = await getAuthSafe();
-      const token = authInstance?.currentUser
-        ? await authInstance.currentUser.getIdToken()
-        : null;
-      if (!token) {
-        toast.error("No autenticado — recarga la página");
-        return;
-      }
-      const url = `/api/erp/report-pagos?residencialId=${encodeURIComponent(residencialId)}&reportMonth=${encodeURIComponent(reportMonth)}`;
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
+      // Datos del mes desde CF (mismo approach que antes con CSV)
+      const result = await httpsCallable<any, HouseStatus[]>(
+        functions,
+        "getResidentialHousesSummary",
+      )({ residencialId, reportMonth });
+      const apiData: HouseStatus[] = result.data ?? [];
+
+      const paidMap: Record<string, number> = {};
+      const fechaMap: Record<string, string | null> = {};
+      const mesesMap: Record<string, string[]> = {};
+      apiData.forEach((h) => {
+        paidMap[h.houseId] = h.pagadoMesCents ?? 0;
+        fechaMap[h.houseId] = h.fechaPago ?? null;
+        mesesMap[h.houseId] = h.mesesCubiertos ?? [];
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err?.error || "Error al generar reporte");
-        return;
-      }
-      const blob = await res.blob();
-      const objectUrl = URL.createObjectURL(blob);
+
+      type HR = {
+        houseId: string; label: string; residentName: string;
+        deudaCents: number; saldoAFavorCents: number; pagadoCents: number;
+        fechaPago: string | null; mesesCubiertos: string[];
+        cubreMes: boolean; status: "con_deuda" | "al_dia";
+      };
+      const rows: HR[] = houses.map((h) => {
+        const pagado = paidMap[h.houseId] ?? 0;
+        const meses = mesesMap[h.houseId] ?? [];
+        return {
+          houseId: h.houseId, label: h.label,
+          residentName: h.residentName || "",
+          deudaCents: h.deudaCents ?? 0,
+          saldoAFavorCents: h.saldoAFavorCents ?? 0,
+          pagadoCents: pagado, fechaPago: fechaMap[h.houseId] ?? null,
+          mesesCubiertos: meses, cubreMes: meses.includes(reportMonth),
+          status: (h.deudaCents ?? 0) > 0 ? "con_deuda" : "al_dia",
+        };
+      });
+
+      const totalCasas = rows.length;
+      const totalRecaudado = rows.reduce((s, h) => s + h.pagadoCents, 0);
+      const casasQuePagaron = rows.filter((h) => h.pagadoCents > 0).length;
+      const totalDeuda = rows.reduce((s, h) => s + (h.deudaCents > 0 ? h.deudaCents : 0), 0);
+      const pctCobranza = totalCasas > 0 ? Math.round((casasQuePagaron / totalCasas) * 100) : 0;
+      let paraMesActualCents = 0;
+      let paraOtrosMesesCents = 0;
+      rows.forEach((h) => {
+        if (h.pagadoCents === 0) return;
+        if (h.mesesCubiertos.includes(reportMonth)) {
+          const n = h.mesesCubiertos.length || 1;
+          const pp = Math.round(h.pagadoCents / n);
+          paraMesActualCents += pp;
+          paraOtrosMesesCents += h.pagadoCents - pp;
+        } else { paraOtrosMesesCents += h.pagadoCents; }
+      });
+
+      const fmtMXN = (c: number) =>
+        new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 0 }).format(c / 100);
+      const mesCorto = (ym: string) => {
+        const [y, m] = ym.split("-").map(Number);
+        return new Date(y, m - 1, 1).toLocaleDateString("es-MX", { month: "short", year: "numeric" });
+      };
+      const mesLargo = (ym: string) => {
+        const [y, m] = ym.split("-").map(Number);
+        return new Date(y, m - 1, 1).toLocaleDateString("es-MX", { month: "long", year: "numeric" }).toUpperCase();
+      };
+
+      const C = {
+        azulOscuro: "1E3A5F", azulMedio: "2E6DA4", azulClaro: "D6E4F0",
+        verde: "1A7F4B", verdeClaro: "D4EFDF", rojo: "C0392B", rojoClaro: "FADBD8",
+        grisHeader: "F2F3F4", blanco: "FFFFFF", negro: "1A1A1A", amarilloClaro: "FDEBD0",
+      };
+      const argb = (hex: string) => `FF${hex.toUpperCase()}`;
+
+      const ExcelJSMod = await import("exceljs");
+      const EJS = (ExcelJSMod as any).default ?? ExcelJSMod;
+      const wb = new EJS.Workbook();
+      wb.creator = "Zentry"; wb.created = new Date();
+      const mesNombre = mesLargo(reportMonth);
+
+      const styleH = (row: any, bg = C.azulOscuro, fg = C.blanco) =>
+        row.eachCell((cell: any) => {
+          cell.font = { bold: true, color: { argb: argb(fg) }, size: 11 };
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(bg) } };
+          cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+          cell.border = { bottom: { style: "thin", color: { argb: argb(C.azulMedio) } } };
+        });
+      const styleD = (row: any, even: boolean) =>
+        row.eachCell((cell: any) => {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(even ? C.grisHeader : C.blanco) } };
+          cell.alignment = { vertical: "middle" };
+          cell.font = { size: 10, color: { argb: argb(C.negro) } };
+        });
+      const styleT = (row: any) =>
+        row.eachCell((cell: any) => {
+          cell.font = { bold: true, size: 11, color: { argb: argb(C.blanco) } };
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.azulMedio) } };
+          cell.alignment = { vertical: "middle", horizontal: "center" };
+        });
+
+      // ── HOJA 1: RESUMEN ──
+      const wsR = wb.addWorksheet("Resumen", { tabColor: { argb: argb(C.azulOscuro) } });
+      wsR.columns = [{ width: 3 }, { width: 22 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 3 }];
+      wsR.mergeCells("B2:F2");
+      Object.assign(wsR.getCell("B2"), { value: `REPORTE DE COBRANZA — ${mesNombre}`,
+        font: { bold: true, size: 18, color: { argb: argb(C.blanco) } },
+        fill: { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.azulOscuro) } },
+        alignment: { horizontal: "center", vertical: "middle" } });
+      wsR.getRow(2).height = 40;
+      wsR.mergeCells("B3:F3");
+      Object.assign(wsR.getCell("B3"), { value: `Generado el ${new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" })}`,
+        font: { size: 10, color: { argb: argb(C.blanco) }, italic: true },
+        fill: { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.azulMedio) } },
+        alignment: { horizontal: "center", vertical: "middle" } });
+      wsR.getRow(3).height = 20; wsR.getRow(4).height = 10;
+      const kL = wsR.getRow(5);
+      kL.values = ["", "CASAS ACTIVAS", "RECAUDADO EN EL MES", "DEUDA ACUMULADA", "CASAS PAGARON", "% COBRANZA"];
+      styleH(kL, C.azulOscuro); kL.height = 22;
+      const kV = wsR.getRow(6);
+      kV.values = ["", totalCasas, fmtMXN(totalRecaudado), fmtMXN(totalDeuda), `${casasQuePagaron}/${totalCasas}`, `${pctCobranza}%`];
+      kV.eachCell((cell: any, col: number) => {
+        if (col < 2) return;
+        const bg = col === 3 ? C.verdeClaro : col === 4 ? C.rojoClaro : col === 6 ? (pctCobranza >= 70 ? C.verdeClaro : C.amarilloClaro) : C.grisHeader;
+        cell.font = { bold: true, size: 14 };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(bg) } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+      });
+      kV.height = 36; wsR.getRow(7).height = 10;
+      wsR.mergeCells("B8:F8");
+      Object.assign(wsR.getCell("B8"), { value: "DESGLOSE DEL RECAUDADO",
+        font: { bold: true, size: 11, color: { argb: argb(C.blanco) } },
+        fill: { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.azulMedio) } },
+        alignment: { horizontal: "center", vertical: "middle" } });
+      wsR.getRow(8).height = 22;
+      [
+        ["Para cuota de " + mesCorto(reportMonth), fmtMXN(paraMesActualCents), "Pagos que liquidan la cuota del mes"],
+        ["Para meses anteriores", fmtMXN(paraOtrosMesesCents), "Catch-up de adeudos pasados"],
+        ["Total recaudado", fmtMXN(totalRecaudado), "Suma total de efectivo recibido"],
+      ].forEach(([label, valor, nota], i) => {
+        const row = wsR.getRow(9 + i);
+        row.getCell(2).value = label; row.getCell(3).value = valor; row.getCell(5).value = nota;
+        row.getCell(2).font = { bold: i === 2, size: 10 };
+        row.getCell(3).font = { bold: i === 2, size: 11 };
+        row.getCell(5).font = { italic: true, size: 9, color: { argb: argb("777777") } };
+        const bg = i === 2 ? C.azulClaro : i % 2 === 0 ? C.blanco : C.grisHeader;
+        [2, 3, 4, 5].forEach((c) => { row.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(bg) } }; });
+        row.height = 20;
+      });
+
+      // ── HOJA 2: PAGARON ──
+      const wsP = wb.addWorksheet("Pagaron", { tabColor: { argb: argb(C.verde) } });
+      wsP.columns = [{ width: 3 }, { width: 28 }, { width: 24 }, { width: 16 }, { width: 14 }, { width: 36 }, { width: 3 }];
+      wsP.mergeCells("B2:F2");
+      Object.assign(wsP.getCell("B2"), { value: `CASAS QUE PAGARON — ${mesNombre}`,
+        font: { bold: true, size: 14, color: { argb: argb(C.blanco) } },
+        fill: { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.verde) } },
+        alignment: { horizontal: "center", vertical: "middle" } });
+      wsP.getRow(2).height = 35;
+      wsP.mergeCells("B3:F3");
+      Object.assign(wsP.getCell("B3"), { value: `${casasQuePagaron} casas  ·  Total: ${fmtMXN(totalRecaudado)}`,
+        font: { size: 10, color: { argb: argb(C.blanco) }, italic: true },
+        fill: { type: "pattern", pattern: "solid", fgColor: { argb: argb("27AE60") } },
+        alignment: { horizontal: "center", vertical: "middle" } });
+      wsP.getRow(3).height = 18; wsP.getRow(4).height = 8;
+      const pH = wsP.getRow(5);
+      pH.values = ["", "Casa", "Residente", "Pagado ($)", "Fecha de pago", "Meses cubiertos"];
+      styleH(pH, C.verde); pH.height = 20;
+      const pagadores = rows.filter((h) => h.pagadoCents > 0).sort((a, b) => a.label.localeCompare(b.label));
+      pagadores.forEach((h, i) => {
+        const row = wsP.getRow(6 + i);
+        row.values = ["", h.label, h.residentName, fmtMXN(h.pagadoCents), h.fechaPago || "", h.mesesCubiertos.map(mesCorto).join("  |  ")];
+        styleD(row, i % 2 === 0);
+        if (h.mesesCubiertos.length > 1) row.getCell(6).font = { size: 10, bold: true, color: { argb: argb(C.azulMedio) } };
+        if (h.cubreMes) row.getCell(3).fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.verdeClaro) } };
+        row.height = 18;
+      });
+      const pTot = wsP.getRow(6 + pagadores.length);
+      pTot.values = ["", "TOTAL", `${pagadores.length} casas`, fmtMXN(totalRecaudado), "", ""];
+      styleT(pTot); pTot.height = 22;
+
+      // ── HOJA 3: PENDIENTES ──
+      const wsPe = wb.addWorksheet("Pendientes", { tabColor: { argb: argb(C.rojo) } });
+      wsPe.columns = [{ width: 3 }, { width: 28 }, { width: 24 }, { width: 18 }, { width: 16 }, { width: 3 }];
+      wsPe.mergeCells("B2:E2");
+      Object.assign(wsPe.getCell("B2"), { value: `PENDIENTES DE PAGO — ${mesNombre}`,
+        font: { bold: true, size: 14, color: { argb: argb(C.blanco) } },
+        fill: { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.rojo) } },
+        alignment: { horizontal: "center", vertical: "middle" } });
+      wsPe.getRow(2).height = 35;
+      wsPe.mergeCells("B3:E3");
+      Object.assign(wsPe.getCell("B3"), { value: `${rows.length - casasQuePagaron} casas sin pago  ·  Deuda total: ${fmtMXN(totalDeuda)}`,
+        font: { size: 10, color: { argb: argb(C.blanco) }, italic: true },
+        fill: { type: "pattern", pattern: "solid", fgColor: { argb: argb("E74C3C") } },
+        alignment: { horizontal: "center", vertical: "middle" } });
+      wsPe.getRow(3).height = 18; wsPe.getRow(4).height = 8;
+      const peH = wsPe.getRow(5);
+      peH.values = ["", "Casa", "Residente", "Deuda acumulada ($)", "Último pago"];
+      styleH(peH, C.rojo); peH.height = 20;
+      const pendientes = rows.filter((h) => h.pagadoCents === 0).sort((a, b) => b.deudaCents - a.deudaCents);
+      pendientes.forEach((h, i) => {
+        const row = wsPe.getRow(6 + i);
+        row.values = ["", h.label, h.residentName, h.deudaCents > 0 ? fmtMXN(h.deudaCents) : "Al día", ""];
+        styleD(row, i % 2 === 0);
+        if (h.deudaCents > 230000) {
+          row.getCell(4).font = { bold: true, size: 10, color: { argb: argb(C.rojo) } };
+          row.getCell(4).fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.rojoClaro) } };
+        }
+        row.height = 18;
+      });
+      const peTot = wsPe.getRow(6 + pendientes.length);
+      peTot.values = ["", "TOTAL", `${pendientes.length} casas`, fmtMXN(totalDeuda), ""];
+      styleT(peTot); peTot.height = 22;
+
+      // ── HOJA 4: ESTADO COMPLETO ──
+      const wsA = wb.addWorksheet("Estado Completo", { tabColor: { argb: argb(C.azulMedio) } });
+      wsA.columns = [{ width: 3 }, { width: 28 }, { width: 24 }, { width: 12 }, { width: 16 }, { width: 16 }, { width: 16 }, { width: 14 }, { width: 36 }, { width: 3 }];
+      wsA.mergeCells("B2:I2");
+      Object.assign(wsA.getCell("B2"), { value: `ESTADO COMPLETO — ${mesNombre}`,
+        font: { bold: true, size: 14, color: { argb: argb(C.blanco) } },
+        fill: { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.azulOscuro) } },
+        alignment: { horizontal: "center", vertical: "middle" } });
+      wsA.getRow(2).height = 35; wsA.getRow(3).height = 8;
+      const aH = wsA.getRow(4);
+      aH.values = ["", "Casa", "Residente", "Estado", "Deuda ($)", "A Favor ($)", `Pagado ${mesCorto(reportMonth)} ($)`, "Fecha de pago", "Meses cubiertos"];
+      styleH(aH, C.azulOscuro); aH.height = 22;
+      const sorted = [...rows].sort((a, b) => a.status !== b.status ? (a.status === "con_deuda" ? -1 : 1) : b.deudaCents - a.deudaCents);
+      sorted.forEach((h, i) => {
+        const row = wsA.getRow(5 + i);
+        row.values = ["", h.label, h.residentName, h.status === "con_deuda" ? "Con deuda" : "Al día",
+          h.deudaCents > 0 ? fmtMXN(h.deudaCents) : "-",
+          h.saldoAFavorCents > 0 ? fmtMXN(h.saldoAFavorCents) : "-",
+          h.pagadoCents > 0 ? fmtMXN(h.pagadoCents) : "-",
+          h.fechaPago || "-",
+          h.mesesCubiertos.length > 0 ? h.mesesCubiertos.map(mesCorto).join("  |  ") : "-"];
+        styleD(row, i % 2 === 0);
+        const ec = row.getCell(4);
+        ec.alignment = { horizontal: "center", vertical: "middle" };
+        if (h.status === "con_deuda") {
+          ec.font = { bold: true, size: 10, color: { argb: argb(C.rojo) } };
+          ec.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.rojoClaro) } };
+        } else {
+          ec.font = { bold: true, size: 10, color: { argb: argb(C.verde) } };
+          ec.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.verdeClaro) } };
+        }
+        row.height = 18;
+      });
+      const aTot = wsA.getRow(5 + sorted.length);
+      aTot.values = ["", "TOTALES", `${totalCasas} casas`, "", fmtMXN(totalDeuda), "", fmtMXN(totalRecaudado), "", ""];
+      styleT(aTot); aTot.height = 22;
+
+      wsP.views = [{ state: "frozen", xSplit: 0, ySplit: 5 }];
+      wsPe.views = [{ state: "frozen", xSplit: 0, ySplit: 5 }];
+      wsA.views = [{ state: "frozen", xSplit: 0, ySplit: 4 }];
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer as ArrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const dlUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = objectUrl;
+      a.href = dlUrl;
       a.download = `reporte-cobranza-${reportMonth.replace("-", "")}.xlsx`;
       a.click();
-      URL.revokeObjectURL(objectUrl);
+      URL.revokeObjectURL(dlUrl);
     } catch (e: any) {
-      toast.error(e?.message || "Error inesperado");
+      toast.error(e?.message || "Error al generar Excel");
     } finally {
       setExporting(false);
     }
