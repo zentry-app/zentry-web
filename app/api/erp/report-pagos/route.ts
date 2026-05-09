@@ -47,11 +47,7 @@ function mesCorto(ym: string) {
   });
 }
 
-function styleHeader(
-  row: ExcelJS.Row,
-  bgHex = C.azulOscuro,
-  fgHex = C.blanco
-) {
+function styleHeader(row: ExcelJS.Row, bgHex = C.azulOscuro, fgHex = C.blanco) {
   row.eachCell((cell) => {
     cell.font = { bold: true, color: { argb: argb(fgHex) }, size: 11 };
     cell.fill = {
@@ -59,7 +55,11 @@ function styleHeader(
       pattern: "solid",
       fgColor: { argb: argb(bgHex) },
     };
-    cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    cell.alignment = {
+      vertical: "middle",
+      horizontal: "center",
+      wrapText: true,
+    };
     cell.border = {
       bottom: { style: "thin", color: { argb: argb(C.azulMedio) } },
     };
@@ -97,7 +97,7 @@ function kpiBlock(
   label: string,
   value: string,
   bgHex: string,
-  fgHex = C.blanco
+  fgHex = C.blanco,
 ) {
   const labelRow = ws.getRow(startRow);
   const valueRow = ws.getRow(startRow + 1);
@@ -105,13 +105,21 @@ function kpiBlock(
   const lCell = labelRow.getCell(2);
   lCell.value = label;
   lCell.font = { bold: true, size: 10, color: { argb: argb(fgHex) } };
-  lCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(bgHex) } };
+  lCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: argb(bgHex) },
+  };
   lCell.alignment = { horizontal: "center", vertical: "middle" };
 
   const vCell = valueRow.getCell(2);
   vCell.value = value;
   vCell.font = { bold: true, size: 16, color: { argb: argb(fgHex) } };
-  vCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(bgHex) } };
+  vCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: argb(bgHex) },
+  };
   vCell.alignment = { horizontal: "center", vertical: "middle" };
 
   ws.mergeCells(startRow, 2, startRow, 5);
@@ -148,9 +156,7 @@ async function fetchReportData(residencialId: string, reportMonth: string) {
 
   const [y, mo] = reportMonth.split("-").map(Number);
   const nextMonth =
-    mo === 12
-      ? `${y + 1}-01-01`
-      : `${y}-${String(mo + 1).padStart(2, "0")}-01`;
+    mo === 12 ? `${y + 1}-01-01` : `${y}-${String(mo + 1).padStart(2, "0")}-01`;
   const startDateStr = `${reportMonth}-01`;
 
   const [balancesSnap, resSnap, intentsSnap, usersSnap] = await Promise.all([
@@ -163,7 +169,11 @@ async function fetchReportData(residencialId: string, reportMonth: string) {
       .get(),
     db
       .collection("usuarios")
-      .where("residencialID", "==", resSnap?.data?.()?.residencialID ?? residencialId)
+      .where(
+        "residencialID",
+        "==",
+        resSnap?.data?.()?.residencialID ?? residencialId,
+      )
       .where("role", "==", "resident")
       .get(),
   ]);
@@ -233,7 +243,7 @@ async function fetchReportData(residencialId: string, reportMonth: string) {
   const casasNoPagaron = totalCasas - casasQuePagaron;
   const totalDeuda = houses.reduce(
     (s, h) => s + (h.deudaCents > 0 ? h.deudaCents : 0),
-    0
+    0,
   );
   const facturado = totalCasas * cuotaBase;
 
@@ -248,7 +258,8 @@ async function fetchReportData(residencialId: string, reportMonth: string) {
       const perMonth = Math.round((d.amountCents || 0) / (months.length || 1));
       paraMesActualCents += perMonth;
       paraOtrosMesesCents +=
-        (d.amountCents || 0) - perMonth * months.length +
+        (d.amountCents || 0) -
+        perMonth * months.length +
         perMonth * (months.length - 1);
     } else {
       paraOtrosMesesCents += d.amountCents || 0;
@@ -274,7 +285,8 @@ async function fetchReportData(residencialId: string, reportMonth: string) {
     totalDeudaCents: totalDeuda,
     casasQuePagaron,
     casasNoPagaron,
-    pctCobranza: totalCasas > 0 ? Math.round((casasQuePagaron / totalCasas) * 100) : 0,
+    pctCobranza:
+      totalCasas > 0 ? Math.round((casasQuePagaron / totalCasas) * 100) : 0,
     houses,
     porCalle,
   };
@@ -309,7 +321,11 @@ async function buildExcel(data: Awaited<ReturnType<typeof fetchReportData>>) {
   const titleCell = wsRes.getCell("B2");
   titleCell.value = `REPORTE DE COBRANZA — ${mesNombre}`;
   titleCell.font = { bold: true, size: 18, color: { argb: argb(C.blanco) } };
-  titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.azulOscuro) } };
+  titleCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: argb(C.azulOscuro) },
+  };
   titleCell.alignment = { horizontal: "center", vertical: "middle" };
   wsRes.getRow(2).height = 40;
 
@@ -317,7 +333,11 @@ async function buildExcel(data: Awaited<ReturnType<typeof fetchReportData>>) {
   const subCell = wsRes.getCell("B3");
   subCell.value = `${data.residencialName}   ·   Generado el ${new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" })}`;
   subCell.font = { size: 10, color: { argb: argb(C.blanco) }, italic: true };
-  subCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.azulMedio) } };
+  subCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: argb(C.azulMedio) },
+  };
   subCell.alignment = { horizontal: "center", vertical: "middle" };
   wsRes.getRow(3).height = 20;
 
@@ -361,7 +381,11 @@ async function buildExcel(data: Awaited<ReturnType<typeof fetchReportData>>) {
                 : C.amarilloClaro
               : C.grisHeader;
     cell.font = { bold: true, size: 14 };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(bg) } };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: argb(bg) },
+    };
     cell.alignment = { horizontal: "center", vertical: "middle" };
   });
   kpiValues.height = 36;
@@ -372,15 +396,35 @@ async function buildExcel(data: Awaited<ReturnType<typeof fetchReportData>>) {
   wsRes.mergeCells("B8:F8");
   const desgloseTitle = wsRes.getCell("B8");
   desgloseTitle.value = "DESGLOSE DEL RECAUDADO EN EL MES";
-  desgloseTitle.font = { bold: true, size: 11, color: { argb: argb(C.blanco) } };
-  desgloseTitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.azulMedio) } };
+  desgloseTitle.font = {
+    bold: true,
+    size: 11,
+    color: { argb: argb(C.blanco) },
+  };
+  desgloseTitle.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: argb(C.azulMedio) },
+  };
   desgloseTitle.alignment = { horizontal: "center", vertical: "middle" };
   wsRes.getRow(8).height = 22;
 
   const desglose = [
-    ["Para cuota de " + mesCorto(data.reportMonth), fmtMXN(data.paraMesActualCents), "Pagos que liquidan la cuota del mes actual"],
-    ["Para meses anteriores", fmtMXN(data.paraOtrosMesesCents), "Catch-up de adeudos de meses pasados"],
-    ["Total recaudado", fmtMXN(data.totalRecaudadoCents), "Suma total de efectivo recibido"],
+    [
+      "Para cuota de " + mesCorto(data.reportMonth),
+      fmtMXN(data.paraMesActualCents),
+      "Pagos que liquidan la cuota del mes actual",
+    ],
+    [
+      "Para meses anteriores",
+      fmtMXN(data.paraOtrosMesesCents),
+      "Catch-up de adeudos de meses pasados",
+    ],
+    [
+      "Total recaudado",
+      fmtMXN(data.totalRecaudadoCents),
+      "Suma total de efectivo recibido",
+    ],
   ];
 
   desglose.forEach(([label, valor, nota], i) => {
@@ -391,10 +435,18 @@ async function buildExcel(data: Awaited<ReturnType<typeof fetchReportData>>) {
     row.getCell(5).value = nota;
     row.getCell(2).font = { bold: i === 2, size: 10 };
     row.getCell(3).font = { bold: i === 2, size: 11 };
-    row.getCell(5).font = { italic: true, size: 9, color: { argb: argb("777777") } };
+    row.getCell(5).font = {
+      italic: true,
+      size: 9,
+      color: { argb: argb("777777") },
+    };
     const bg = i === 2 ? C.azulClaro : i % 2 === 0 ? C.blanco : C.grisHeader;
     [2, 3, 4, 5].forEach((col) => {
-      row.getCell(col).fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(bg) } };
+      row.getCell(col).fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: argb(bg) },
+      };
     });
     row.height = 20;
   });
@@ -406,7 +458,11 @@ async function buildExcel(data: Awaited<ReturnType<typeof fetchReportData>>) {
   const calleTitle = wsRes.getCell("B13");
   calleTitle.value = "COBRANZA POR CALLE";
   calleTitle.font = { bold: true, size: 11, color: { argb: argb(C.blanco) } };
-  calleTitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.azulMedio) } };
+  calleTitle.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: argb(C.azulMedio) },
+  };
   calleTitle.alignment = { horizontal: "center", vertical: "middle" };
   wsRes.getRow(13).height = 22;
 
@@ -429,21 +485,6 @@ async function buildExcel(data: Awaited<ReturnType<typeof fetchReportData>>) {
     row.height = 18;
   });
 
-  // Añadir gráfica de donut (pagaron vs no pagaron)
-  const chart = wb.addChart("doughnut" as any, {
-    title: { name: `Cobranza ${mesCorto(data.reportMonth)}` },
-  } as any);
-  (chart as any).series.push({
-    name: "Cobranza",
-    labels: { data: [{ sheetName: "Resumen", ref: `B5:C5` }] },
-    values: {
-      data: [
-        { sheetName: "Datos", ref: `A1` },
-        { sheetName: "Datos", ref: `A2` },
-      ],
-    },
-  });
-
   // ════════════════════════════════════════════════════════════════
   // HOJA 2: PAGARON
   // ════════════════════════════════════════════════════════════════
@@ -453,11 +494,11 @@ async function buildExcel(data: Awaited<ReturnType<typeof fetchReportData>>) {
 
   wsPag.columns = [
     { width: 3 },
-    { width: 28 },  // Casa
-    { width: 24 },  // Residente
-    { width: 16 },  // Pagado
-    { width: 14 },  // Fecha
-    { width: 36 },  // Meses cubiertos
+    { width: 28 }, // Casa
+    { width: 24 }, // Residente
+    { width: 16 }, // Pagado
+    { width: 14 }, // Fecha
+    { width: 36 }, // Meses cubiertos
     { width: 3 },
   ];
 
@@ -465,7 +506,11 @@ async function buildExcel(data: Awaited<ReturnType<typeof fetchReportData>>) {
   const pagTitle = wsPag.getCell("B2");
   pagTitle.value = `CASAS QUE PAGARON — ${mesNombre}`;
   pagTitle.font = { bold: true, size: 14, color: { argb: argb(C.blanco) } };
-  pagTitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.verde) } };
+  pagTitle.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: argb(C.verde) },
+  };
   pagTitle.alignment = { horizontal: "center", vertical: "middle" };
   wsPag.getRow(2).height = 35;
 
@@ -473,14 +518,25 @@ async function buildExcel(data: Awaited<ReturnType<typeof fetchReportData>>) {
   const pagSub = wsPag.getCell("B3");
   pagSub.value = `${data.casasQuePagaron} casas  ·  Total recaudado: ${fmtMXN(data.totalRecaudadoCents)}`;
   pagSub.font = { size: 10, color: { argb: argb(C.blanco) }, italic: true };
-  pagSub.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb("27AE60") } };
+  pagSub.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: argb("27AE60") },
+  };
   pagSub.alignment = { horizontal: "center", vertical: "middle" };
   wsPag.getRow(3).height = 18;
 
   wsPag.getRow(4).height = 8;
 
   const pagHeader = wsPag.getRow(5);
-  pagHeader.values = ["", "Casa", "Residente", "Pagado ($)", "Fecha de pago", "Meses cubiertos"];
+  pagHeader.values = [
+    "",
+    "Casa",
+    "Residente",
+    "Pagado ($)",
+    "Fecha de pago",
+    "Meses cubiertos",
+  ];
   styleHeader(pagHeader, C.verde);
   pagHeader.height = 20;
 
@@ -540,10 +596,10 @@ async function buildExcel(data: Awaited<ReturnType<typeof fetchReportData>>) {
 
   wsPend.columns = [
     { width: 3 },
-    { width: 28 },  // Casa
-    { width: 24 },  // Residente
-    { width: 18 },  // Deuda acumulada
-    { width: 16 },  // Último pago
+    { width: 28 }, // Casa
+    { width: 24 }, // Residente
+    { width: 18 }, // Deuda acumulada
+    { width: 16 }, // Último pago
     { width: 3 },
   ];
 
@@ -551,7 +607,11 @@ async function buildExcel(data: Awaited<ReturnType<typeof fetchReportData>>) {
   const pendTitle = wsPend.getCell("B2");
   pendTitle.value = `PENDIENTES DE PAGO — ${mesNombre}`;
   pendTitle.font = { bold: true, size: 14, color: { argb: argb(C.blanco) } };
-  pendTitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.rojo) } };
+  pendTitle.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: argb(C.rojo) },
+  };
   pendTitle.alignment = { horizontal: "center", vertical: "middle" };
   wsPend.getRow(2).height = 35;
 
@@ -559,14 +619,24 @@ async function buildExcel(data: Awaited<ReturnType<typeof fetchReportData>>) {
   const pendSub = wsPend.getCell("B3");
   pendSub.value = `${data.casasNoPagaron} casas sin pago en el mes  ·  Deuda total: ${fmtMXN(data.totalDeudaCents)}`;
   pendSub.font = { size: 10, color: { argb: argb(C.blanco) }, italic: true };
-  pendSub.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb("E74C3C") } };
+  pendSub.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: argb("E74C3C") },
+  };
   pendSub.alignment = { horizontal: "center", vertical: "middle" };
   wsPend.getRow(3).height = 18;
 
   wsPend.getRow(4).height = 8;
 
   const pendHeader = wsPend.getRow(5);
-  pendHeader.values = ["", "Casa", "Residente", "Deuda acumulada ($)", "Último pago"];
+  pendHeader.values = [
+    "",
+    "Casa",
+    "Residente",
+    "Deuda acumulada ($)",
+    "Último pago",
+  ];
   styleHeader(pendHeader, C.rojo);
   pendHeader.height = 20;
 
@@ -621,14 +691,14 @@ async function buildExcel(data: Awaited<ReturnType<typeof fetchReportData>>) {
 
   wsAll.columns = [
     { width: 3 },
-    { width: 28 },  // Casa
-    { width: 24 },  // Residente
-    { width: 12 },  // Estado
-    { width: 16 },  // Deuda
-    { width: 16 },  // A favor
-    { width: 16 },  // Pagado mes
-    { width: 14 },  // Fecha
-    { width: 36 },  // Meses cubiertos
+    { width: 28 }, // Casa
+    { width: 24 }, // Residente
+    { width: 12 }, // Estado
+    { width: 16 }, // Deuda
+    { width: 16 }, // A favor
+    { width: 16 }, // Pagado mes
+    { width: 14 }, // Fecha
+    { width: 36 }, // Meses cubiertos
     { width: 3 },
   ];
 
@@ -636,7 +706,11 @@ async function buildExcel(data: Awaited<ReturnType<typeof fetchReportData>>) {
   const allTitle = wsAll.getCell("B2");
   allTitle.value = `ESTADO COMPLETO — ${mesNombre}  ·  ${data.residencialName}`;
   allTitle.font = { bold: true, size: 14, color: { argb: argb(C.blanco) } };
-  allTitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.azulOscuro) } };
+  allTitle.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: argb(C.azulOscuro) },
+  };
   allTitle.alignment = { horizontal: "center", vertical: "middle" };
   wsAll.getRow(2).height = 35;
   wsAll.getRow(3).height = 8;
@@ -673,7 +747,9 @@ async function buildExcel(data: Awaited<ReturnType<typeof fetchReportData>>) {
       h.saldoAFavorCents > 0 ? fmtMXN(h.saldoAFavorCents) : "-",
       h.pagadoCents > 0 ? fmtMXN(h.pagadoCents) : "-",
       h.fechaPago || "-",
-      h.mesesCubiertos.length > 0 ? h.mesesCubiertos.map(mesCorto).join("  |  ") : "-",
+      h.mesesCubiertos.length > 0
+        ? h.mesesCubiertos.map(mesCorto).join("  |  ")
+        : "-",
     ];
     styleDataRow(row, i % 2 === 0);
 
@@ -682,10 +758,22 @@ async function buildExcel(data: Awaited<ReturnType<typeof fetchReportData>>) {
     estadoCell.alignment = { horizontal: "center", vertical: "middle" };
     if (h.status === "con_deuda") {
       estadoCell.font = { bold: true, size: 10, color: { argb: argb(C.rojo) } };
-      estadoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.rojoClaro) } };
+      estadoCell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: argb(C.rojoClaro) },
+      };
     } else {
-      estadoCell.font = { bold: true, size: 10, color: { argb: argb(C.verde) } };
-      estadoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(C.verdeClaro) } };
+      estadoCell.font = {
+        bold: true,
+        size: 10,
+        color: { argb: argb(C.verde) },
+      };
+      estadoCell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: argb(C.verdeClaro) },
+      };
     }
     row.height = 18;
   });
@@ -716,7 +804,10 @@ async function buildExcel(data: Awaited<ReturnType<typeof fetchReportData>>) {
 // ── Route Handler ────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   if (!adminAuth || !adminDb) {
-    return NextResponse.json({ error: "Server not configured" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Server not configured" },
+      { status: 500 },
+    );
   }
 
   const uid = await verifyAdminToken(req);
@@ -729,7 +820,10 @@ export async function GET(req: NextRequest) {
   const reportMonth = searchParams.get("reportMonth");
 
   if (!residencialId || !reportMonth || !/^\d{4}-\d{2}$/.test(reportMonth)) {
-    return NextResponse.json({ error: "residencialId y reportMonth (YYYY-MM) requeridos" }, { status: 400 });
+    return NextResponse.json(
+      { error: "residencialId y reportMonth (YYYY-MM) requeridos" },
+      { status: 400 },
+    );
   }
 
   try {
@@ -743,13 +837,17 @@ export async function GET(req: NextRequest) {
     return new NextResponse(buffer, {
       status: 200,
       headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Type":
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "no-store",
       },
     });
   } catch (err: any) {
     console.error("[report-pagos] Error:", err);
-    return NextResponse.json({ error: err?.message || "Error interno" }, { status: 500 });
+    return NextResponse.json(
+      { error: err?.message || "Error interno" },
+      { status: 500 },
+    );
   }
 }
